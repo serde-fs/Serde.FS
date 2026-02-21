@@ -6,6 +6,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="ISerdeOptions.fs" />
+    <Compile Include="ISerdeBackend.fs" />
     <Compile Include="Serde.fs" />
   </ItemGroup>
 

@@ -1,12 +1,5 @@
 ﻿namespace Serde.FS
 
-/// Marker interface for backend-specific options.
-type ISerdeOptions = interface end
-
-type ISerdeBackend =
-    abstract Serialize : 'T * ISerdeOptions option -> string
-    abstract Deserialize : string * ISerdeOptions option -> 'T
-
 type Serde =
     static member val DefaultBackend : ISerdeBackend =
         failwith "No backend registered. Install a Serde.FS backend package."
