@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Tests/">
+    <Project Path="Serde.FS.STJ.Tests/Serde.FS.STJ.Tests.fsproj" />
+  </Folder>
   <Project Path="Serde.FS.SourceGen/Serde.FS.SourceGen.fsproj" />
   <Project Path="Serde.FS.STJ/Serde.FS.STJ.fsproj" />
   <Project Path="Serde.FS/Serde.FS.fsproj" />

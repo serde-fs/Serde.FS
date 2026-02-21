@@ -8,7 +8,7 @@
   <ItemGroup>
     <Compile Include="StjOptions.fs" />
     <Compile Include="StjBackend.fs" />
-    <Compile Include="Runtime\StjBootstrap.fs" />
+    <Compile Include="SerdeStj.fs" />
     <Compile Include="StjExtensions.fs" />
   </ItemGroup>
 

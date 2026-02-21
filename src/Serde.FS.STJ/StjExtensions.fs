@@ -9,8 +9,9 @@ open Serde.FS.STJ
 module StjSerdeExtensions =
 
     type Serde with
+        
         static member Serialize(value: 'T, options: StjOptions) =
-            Serde.DefaultBackend.Serialize(value, Some options)
+            Serde.Serialize(value, options :> ISerdeOptions)
 
         static member Deserialize<'T>(json: string, options: StjOptions) =
-            Serde.DefaultBackend.Deserialize<'T>(json, Some options)
+            Serde.Deserialize<'T>(json, options :> ISerdeOptions)
