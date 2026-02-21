@@ -14,7 +14,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<None Include="Serde.FS.STJ.targets" Pack="true" PackagePath="build\" />
+		<None Include="build\Serde.FS.STJ.targets" Pack="true" PackagePath="build\" />
 		<None Include="analyzers\dotnet\fs\Serde.FS.SourceGen.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
 		<None Include="analyzers\dotnet\fs\FSharp.Core.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
 		<None Include="analyzers\dotnet\fs\FSharp.Compiler.Service.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
