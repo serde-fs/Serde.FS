@@ -6,6 +6,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="StjOptions.fs" />
+    <Compile Include="StjBackend.fs" />
     <Compile Include="StjExtensions.fs" />
   </ItemGroup>
 
@@ -15,10 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Serde.FS\Serde.FS.fsproj" />
-    <ProjectReference Include="..\Serde.FS.SourceGen\Serde.FS.SourceGen.fsproj"
-                      PrivateAssets="all"
-                      ReferenceOutputAssembly="false"
-                      OutputItemType="Analyzer" />
+    <ProjectReference Include="..\Serde.FS.SourceGen\Serde.FS.SourceGen.fsproj" PrivateAssets="all" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
   </ItemGroup>
 
 </Project>
