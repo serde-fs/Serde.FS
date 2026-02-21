@@ -5,9 +5,10 @@ type Serde =
         with get, set
 
     static member private GetBackend() =
-        match Serde.DefaultBackend with
-        | Some b -> b
-        | None -> failwith "No backend registered. Reference a backend package such as Serde.FS.STJ."
+        Serde.DefaultBackend
+        |> Option.defaultWith (fun () ->
+            failwith "No backend registered. Reference a backend package such as Serde.FS.STJ."
+        )
 
     static member Serialize(value: 'T) =
         Serde.GetBackend().Serialize(value, None)

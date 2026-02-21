@@ -7,7 +7,7 @@ type Person = { FName: string; LName: string }
 
 [<SetUp>]
 let Setup () =
-    Serde.FS.STJ.SerdeStj.register()
+    Serde.FS.STJ.SerdeStj.useAsDefault()
 
 [<Test>]
 let ``Serialize and deserialize a record`` () =
