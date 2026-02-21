@@ -1,0 +1,13 @@
+<Project>
+  <UsingTask TaskName="Serde.FS.SourceGen.SerdeGeneratorTask"
+             AssemblyFile="$(MSBuildThisFileDirectory)../analyzers/dotnet/fs/Serde.FS.SourceGen.dll" />
+
+  <Target Name="SerdeGenerate" BeforeTargets="CoreCompile">
+    <SerdeGeneratorTask SourceFiles="@(Compile)" OutputDir="$(IntermediateOutputPath)serde-generated/" />
+    <!-- Add generated files to Compile, inserted after user code -->
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)serde-generated/**/*.fs"
+               Condition="Exists('$(IntermediateOutputPath)serde-generated/')" />
+    </ItemGroup>
+  </Target>
+</Project>
