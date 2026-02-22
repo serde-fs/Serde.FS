@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <Compile Include="TestHelpers.fs" />
+    <Compile Include="StjCodeEmitterTests.fs" />
     <Compile Include="SerdeTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
@@ -24,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Serde.FS\Serde.FS.fsproj" />
+    <ProjectReference Include="..\Serde.FS.SourceGen\Serde.FS.SourceGen.fsproj" />
     <ProjectReference Include="..\Serde.FS.STJ\Serde.FS.STJ.fsproj" />
   </ItemGroup>
 

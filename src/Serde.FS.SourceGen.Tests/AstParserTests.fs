@@ -1,6 +1,7 @@
 module Serde.FS.SourceGen.Tests.AstParserTests
 
 open NUnit.Framework
+open Serde.FS
 open Serde.FS.SourceGen
 
 [<Test>]

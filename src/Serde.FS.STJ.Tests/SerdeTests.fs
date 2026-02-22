@@ -1,4 +1,4 @@
-module Serde.FS.STJ.Tests
+module Serde.FS.STJ.Tests.SerdeTests
 
 open NUnit.Framework
 open Serde.FS

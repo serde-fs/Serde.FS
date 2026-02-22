@@ -1,4 +1,4 @@
-namespace Serde.FS.SourceGen
+namespace Serde.FS
 
 type SerdeCapability =
     | Serialize

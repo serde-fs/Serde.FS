@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -8,7 +8,7 @@
 	<PropertyGroup>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		<PackageId>Serde.FS.STJ</PackageId>
-		<Version>0.1.1-debug.3</Version>
+		<Version>0.1.1-debug.5</Version>
 		<Authors>Jordan Marr</Authors>
 		<Description>System.Text.Json backend for Serde.FS</Description>
 	</PropertyGroup>
@@ -18,6 +18,8 @@
 		<None Include="analyzers\dotnet\fs\Serde.FS.SourceGen.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
 		<None Include="analyzers\dotnet\fs\FSharp.Core.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
 		<None Include="analyzers\dotnet\fs\FSharp.Compiler.Service.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
+		<None Include="analyzers\dotnet\fs\Serde.FS.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
+		<None Include="analyzers\dotnet\fs\Serde.FS.STJ.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
 	</ItemGroup>
 
 	<Target Name="CopyAnalyzerDependencies" AfterTargets="Build">
@@ -29,11 +31,18 @@
 
 		<Copy SourceFiles="$(ProjectDir)..\Serde.FS.SourceGen\bin\$(Configuration)\net8.0\FSharp.Compiler.Service.dll"
 			  DestinationFolder="$(ProjectDir)analyzers/dotnet/fs/" SkipUnchangedFiles="true" />
+
+		<!-- Copy Serde.FS.dll to analyzers (needed at build time for metadata types) -->
+		<Copy SourceFiles="$(ProjectDir)..\Serde.FS\bin\$(Configuration)\net8.0\Serde.FS.dll"
+			  DestinationFolder="$(ProjectDir)analyzers/dotnet/fs/" SkipUnchangedFiles="true" />
+
+		<!-- Copy Serde.FS.STJ.dll to analyzers (needed for StjCodeEmitter at build time) -->
+		<Copy SourceFiles="$(ProjectDir)bin\$(Configuration)\net8.0\Serde.FS.STJ.dll"
+			  DestinationFolder="$(ProjectDir)analyzers/dotnet/fs/" SkipUnchangedFiles="true" />
 	</Target>
 
-
-
 	<ItemGroup>
+    <Compile Include="StjCodeEmitter.fs" />
     <Compile Include="StjOptions.fs" />
     <Compile Include="StjBackend.fs" />
     <Compile Include="SerdeStj.fs" />

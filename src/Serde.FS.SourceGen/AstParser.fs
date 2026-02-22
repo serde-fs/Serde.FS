@@ -1,5 +1,6 @@
 namespace Serde.FS.SourceGen
 
+open Serde.FS
 open FSharp.Compiler.CodeAnalysis
 open FSharp.Compiler.Syntax
 open FSharp.Compiler.Text
