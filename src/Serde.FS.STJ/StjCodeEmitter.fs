@@ -127,6 +127,8 @@ module internal StjCodeEmitterImpl =
         appendf "                )"
         appendf "            )"
         appendf "        )"
+        appendf "        if Serde.FS.Serde.Debug then"
+        appendf "            printfn \"[SerdeDebug] Using generated converter for %%s\" typeof<%s>.FullName" fqn
         appendf "        info"
 
         sb.ToString()

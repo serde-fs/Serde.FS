@@ -20,3 +20,6 @@ let configure (f: SerdeStjOptions -> unit) = f options
 /// Disables strict mode, allowing reflection-based serialization for types
 /// without generated Serde metadata.
 let allowReflectionFallback () = options.Strict <- false
+
+/// Enables debug logging for Serde operations.
+let enableDebug () = Serde.Debug <- true

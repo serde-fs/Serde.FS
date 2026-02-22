@@ -4,6 +4,11 @@ open System.Text.Json
 open System.Text.Json.Serialization.Metadata
 open Serde.FS
 
+/// Internal debug logging for the STJ backend.
+module internal SerdeDebugLog =
+    let log (msg: string) =
+        if Serde.Debug then printfn "[SerdeDebug] %s" msg
+
 /// Cached JsonSerializerOptions instance used by the STJ backend.
 module internal StjOptionsCache =
     let defaultJsonOptions =
@@ -16,6 +21,7 @@ module internal StjOptionsCache =
 /// Generated code calls registerResolver at module init to wire resolvers into STJ.
 module SerdeStjResolverRegistry =
     let registerResolver (resolver: IJsonTypeInfoResolver) =
+        SerdeDebugLog.log "Attaching generated STJ resolver to JsonSerializerOptions"
         StjOptionsCache.generatedResolvers.Add(resolver)
         StjOptionsCache.defaultJsonOptions.TypeInfoResolverChain.Insert(0, resolver)
 
@@ -29,6 +35,9 @@ module internal StjStrict =
                 |> Seq.exists (fun resolver ->
                     resolver.GetTypeInfo(ty, opts) <> null
                 )
+            if Serde.Debug then
+                if found then SerdeDebugLog.log $"Strict mode: found generated metadata for {ty.FullName}"
+                else SerdeDebugLog.log $"Strict mode: NO metadata found for {ty.FullName}"
             if not found then
                 failwithf
                     "Strict mode is enabled: type '%s' has no generated Serde metadata. \
