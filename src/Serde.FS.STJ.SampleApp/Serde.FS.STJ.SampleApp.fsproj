@@ -9,21 +9,23 @@
 		<Compile Include="Program.fs" />
 	</ItemGroup>
 
-	<!--
-	<ItemGroup>
-		<PackageReference Include="Serde.FS.STJ" Version="0.3.0" />
-	</ItemGroup>
-    -->
-
 	<ItemGroup>
 		<ProjectReference Include="..\Serde.FS\Serde.FS.fsproj" />
+	</ItemGroup>
+	
+	<!--
+	<ItemGroup>
+		<PackageReference Include="Serde.FS.STJ" Version="0.1.1" />
+	</ItemGroup>
+	-->
 
-		<!-- Analyzer reference -->
+	
+	<ItemGroup>
 		<ProjectReference Include="..\Serde.FS.STJ\Serde.FS.STJ.fsproj"
 			OutputItemType="Analyzer"
 			ReferenceOutputAssembly="false" />
 
-		<!-- Runtime reference -->
 		<ProjectReference Include="..\Serde.FS.STJ\Serde.FS.STJ.fsproj" />
 	</ItemGroup>
+
 </Project>
