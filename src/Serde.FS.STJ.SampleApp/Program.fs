@@ -15,4 +15,4 @@ let run argv =
     printfn "Deserialized: %A" deserialized
     0
 
-SerdeApp.registerEntryPoint run
+SerdeApp.entryPoint run

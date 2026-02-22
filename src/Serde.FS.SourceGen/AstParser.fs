@@ -146,12 +146,12 @@ module AstParser =
         let sourceText = System.IO.File.ReadAllText(filePath)
         parseTree filePath sourceText
 
-    /// Check if a long ident matches "SerdeApp.registerEntryPoint" or "Serde.FS.SerdeApp.registerEntryPoint".
-    let private isRegisterEntryPointIdent (idents: LongIdent) =
+    /// Check if a long ident matches "SerdeApp.entryPoint" or "Serde.FS.SerdeApp.entryPoint".
+    let private isEntryPointIdent (idents: LongIdent) =
         let names = idents |> List.map (fun i -> i.idText)
         match names with
-        | [ "SerdeApp"; "registerEntryPoint" ] -> true
-        | [ "Serde"; "FS"; "SerdeApp"; "registerEntryPoint" ] -> true
+        | [ "SerdeApp"; "entryPoint" ] -> true
+        | [ "Serde"; "FS"; "SerdeApp"; "entryPoint" ] -> true
         | _ -> false
 
     /// Recursively check if an expression contains a call to SerdeApp.registerEntryPoint.
@@ -161,7 +161,7 @@ module AstParser =
             exprContainsEntryPointRegistration funcExpr
             || exprContainsEntryPointRegistration argExpr
         | SynExpr.LongIdent(_, SynLongIdent(id = idents), _, _) ->
-            isRegisterEntryPointIdent idents
+            isEntryPointIdent idents
         | SynExpr.Sequential(expr1 = e1; expr2 = e2) ->
             exprContainsEntryPointRegistration e1
             || exprContainsEntryPointRegistration e2

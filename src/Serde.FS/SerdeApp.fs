@@ -1,12 +1,15 @@
 namespace Serde.FS
 
 module SerdeApp =
-    let mutable private entryPoint : (string[] -> int) option = None
+    let mutable private _entryPoint : (string[] -> int) option = None
 
-    let registerEntryPoint fn =
-        entryPoint <- Some fn
+    /// Marks this function as the application's entry point.
+    ///
+    /// Serde.FS will generate the actual `[<EntryPoint>]` function that calls it.
+    let entryPoint fn =
+        _entryPoint <- Some fn
 
     let invokeRegisteredEntryPoint argv =
-        match entryPoint with
+        match _entryPoint with
         | Some fn -> fn argv
         | None -> 0

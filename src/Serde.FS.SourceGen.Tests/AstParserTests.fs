@@ -171,7 +171,7 @@ module Domain =
     Assert.That(t.TypeName, Is.EqualTo("Person"))
 
 [<Test>]
-let ``Detects SerdeApp.registerEntryPoint call`` () =
+let ``Detects SerdeApp.entryPoint call`` () =
     let source = """
 module Program
 
@@ -183,7 +183,7 @@ type Person = { Name: string; Age: int }
 let run argv =
     0
 
-SerdeApp.registerEntryPoint run
+SerdeApp.entryPoint run
 """
     let result = AstParser.hasEntryPointRegistration "/test.fs" source
     Assert.That(result, Is.True)
@@ -202,13 +202,13 @@ type Person = { Name: string; Age: int }
     Assert.That(result, Is.False)
 
 [<Test>]
-let ``Detects fully qualified Serde.FS.SerdeApp.registerEntryPoint`` () =
+let ``Detects fully qualified Serde.FS.SerdeApp.entryPoint`` () =
     let source = """
 module Program
 
 let run argv = 0
 
-Serde.FS.SerdeApp.registerEntryPoint run
+Serde.FS.SerdeApp.entryPoint run
 """
     let result = AstParser.hasEntryPointRegistration "/test.fs" source
     Assert.That(result, Is.True)
@@ -222,7 +222,7 @@ open Serde.FS
 
 let run argv = 0
 
-SerdeApp.registerEntryPoint run
+SerdeApp.entryPoint run
 """
     let result = AstParser.hasEntryPointRegistration "/test.fs" source
     Assert.That(result, Is.True)
