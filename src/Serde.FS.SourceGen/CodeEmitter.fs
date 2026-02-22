@@ -80,7 +80,7 @@ module CodeEmitter =
         appendf "            JsonMetadataServices.CreateObjectInfo<%s>(" fqn
         appendf "                options,"
         appendf "                JsonObjectInfoValues<%s>(" fqn
-        appendf "                    ObjectCreator = (fun () -> Unchecked.defaultof<%s> :> obj)," fqn
+        appendf "                    ObjectCreator = (fun () -> Unchecked.defaultof<%s>)," fqn
         appendf "                    SerializeHandler = (fun writer value ->"
         appendf "                    writer.WriteStartObject()"
 

@@ -124,7 +124,7 @@ module internal PersonSerdeTypeInfo =
         let info = JsonMetadataServices.CreateObjectInfo<Person>(
             options,
             JsonObjectInfoValues<Person>(
-                ObjectCreator = (fun () -> Unchecked.defaultof<Person> :> obj),
+                ObjectCreator = (fun () -> Unchecked.defaultof<Person>),
                 SerializeHandler = (fun writer value ->
                     writer.WriteStartObject()
                     writer.WriteString("FName", value.FName)
