@@ -42,37 +42,70 @@ module TypeKindExtractor =
     let private identToString (idents: LongIdent) =
         idents |> List.map (fun i -> i.idText) |> String.concat "."
 
-    let private extractConstArg (expr: SynExpr) : string option =
+    let private normalizeAttrName (name: string) =
+        if name.EndsWith("Attribute") then name
+        else name + "Attribute"
+
+    let private extractObjConst (expr: SynExpr) : obj option =
         match expr with
-        | SynExpr.Const(SynConst.String(s, _, _), _) -> Some s
-        | SynExpr.Const(SynConst.Int32 i, _) -> Some (string i)
-        | SynExpr.Const(SynConst.Bool b, _) -> Some (string b)
+        | SynExpr.Const(SynConst.String(s, _, _), _) -> Some (box s)
+        | SynExpr.Const(SynConst.Int32 i, _) -> Some (box i)
+        | SynExpr.Const(SynConst.Bool b, _) -> Some (box b)
+        | SynExpr.Const(SynConst.Double d, _) -> Some (box d)
+        | SynExpr.Const(SynConst.Single f, _) -> Some (box f)
+        | SynExpr.Const(SynConst.Int64 i, _) -> Some (box i)
+        | SynExpr.Const(SynConst.Char c, _) -> Some (box c)
         | _ -> None
 
-    let private extractAttributeArgs (argExpr: SynExpr) : string list =
+    let private tryExtractNamedArg (expr: SynExpr) : (string * obj) option =
+        match expr with
+        // Pattern: Name = value (infix op_Equality application)
+        | SynExpr.App(_, _,
+            SynExpr.App(_, true, _, SynExpr.Ident(nameIdent), _),
+            valueExpr, _) ->
+                match extractObjConst valueExpr with
+                | Some v -> Some (nameIdent.idText, v)
+                | None -> None
+        | _ -> None
+
+    let private classifyArg (expr: SynExpr) : Choice<obj, string * obj> option =
+        match tryExtractNamedArg expr with
+        | Some na -> Some (Choice2Of2 na)
+        | None ->
+            match extractObjConst expr with
+            | Some v -> Some (Choice1Of2 v)
+            | None -> None
+
+    let private extractAttributeArgs (argExpr: SynExpr) : obj list * (string * obj) list =
+        let constructorArgs = ResizeArray<obj>()
+        let namedArgs = ResizeArray<string * obj>()
+
+        let processArg (expr: SynExpr) =
+            match classifyArg expr with
+            | Some (Choice1Of2 v) -> constructorArgs.Add(v)
+            | Some (Choice2Of2 na) -> namedArgs.Add(na)
+            | None -> ()
+
         match argExpr with
-        | SynExpr.Const(SynConst.Unit, _) -> []
-        | SynExpr.Paren(SynExpr.Const(SynConst.Unit, _), _, _, _) -> []
-        | SynExpr.Paren(innerExpr, _, _, _) ->
-            match innerExpr with
-            | SynExpr.Tuple(_, exprs, _, _) ->
-                exprs |> List.choose extractConstArg
-            | other ->
-                match extractConstArg other with
-                | Some s -> [s]
-                | None -> []
+        | SynExpr.Const(SynConst.Unit, _) -> ()
+        | SynExpr.Paren(SynExpr.Const(SynConst.Unit, _), _, _, _) -> ()
+        | SynExpr.Paren(SynExpr.Tuple(_, exprs, _, _), _, _, _) ->
+            for expr in exprs do processArg expr
+        | SynExpr.Paren(inner, _, _, _) ->
+            processArg inner
         | other ->
-            match extractConstArg other with
-            | Some s -> [s]
-            | None -> []
+            processArg other
+
+        (Seq.toList constructorArgs, Seq.toList namedArgs)
 
     let private extractAttributeInfo (attr: SynAttribute) : AttributeInfo =
-        let name =
+        let rawName =
             match attr.TypeName with
             | SynLongIdent(id = idents) ->
                 idents |> List.map (fun i -> i.idText) |> String.concat "."
-        let args = extractAttributeArgs attr.ArgExpr
-        { Name = name; Args = args }
+        let name = normalizeAttrName rawName
+        let ctorArgs, namedArgs = extractAttributeArgs attr.ArgExpr
+        { Name = name; ConstructorArgs = ctorArgs; NamedArgs = namedArgs }
 
     let private extractAttributes (attrs: SynAttributes) : AttributeInfo list =
         attrs

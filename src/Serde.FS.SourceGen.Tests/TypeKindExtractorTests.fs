@@ -283,3 +283,132 @@ type Shape =
         Assert.That(cases.[2].Fields.Length, Is.EqualTo(0))
         Assert.That(cases.[2].Tag, Is.EqualTo(Some 2))
     | other -> Assert.Fail(sprintf "Expected Union kind, got %A" other)
+
+// --- Attribute extraction tests (Spec 10 §4) ---
+
+[<Test>]
+let ``Extracts type-level attribute with constructor arg`` () =
+    let source = """
+namespace TestNs
+
+[<Serde.FS.SerdeRename("Foo")>]
+type X = { A: int }
+"""
+    let types = TypeKindExtractor.extractTypes "/test.fs" source
+    Assert.That(types.Length, Is.EqualTo(1))
+
+    let t = types.[0]
+    Assert.That(t.Attributes.Length, Is.EqualTo(1))
+    Assert.That(t.Attributes.[0].Name, Is.EqualTo("Serde.FS.SerdeRenameAttribute"))
+    Assert.That(t.Attributes.[0].ConstructorArgs, Is.EqualTo([box "Foo"]))
+    Assert.That(t.Attributes.[0].NamedArgs, Is.Empty)
+
+[<Test>]
+let ``Extracts field-level attribute`` () =
+    let source = """
+namespace TestNs
+
+type X = { [<SerdeSkip>] A: int }
+"""
+    let types = TypeKindExtractor.extractTypes "/test.fs" source
+    Assert.That(types.Length, Is.EqualTo(1))
+
+    match types.[0].Kind with
+    | Record fields ->
+        Assert.That(fields.[0].Attributes.Length, Is.EqualTo(1))
+        Assert.That(fields.[0].Attributes.[0].Name, Is.EqualTo("SerdeSkipAttribute"))
+        Assert.That(fields.[0].Attributes.[0].ConstructorArgs, Is.Empty)
+    | _ -> Assert.Fail("Expected Record kind")
+
+[<Test>]
+let ``Extracts union case attribute with constructor arg`` () =
+    let source = """
+namespace TestNs
+
+type U =
+    | [<Serde.FS.SerdeRename("Bar")>] C of int
+"""
+    let types = TypeKindExtractor.extractTypes "/test.fs" source
+    Assert.That(types.Length, Is.EqualTo(1))
+
+    match types.[0].Kind with
+    | Union cases ->
+        Assert.That(cases.[0].Attributes.Length, Is.EqualTo(1))
+        Assert.That(cases.[0].Attributes.[0].Name, Is.EqualTo("Serde.FS.SerdeRenameAttribute"))
+        Assert.That(cases.[0].Attributes.[0].ConstructorArgs, Is.EqualTo([box "Bar"]))
+    | _ -> Assert.Fail("Expected Union kind")
+
+[<Test>]
+let ``Extracts non-Serde attribute`` () =
+    let source = """
+namespace TestNs
+
+open System
+
+[<Obsolete("x")>]
+type X = { A: int }
+"""
+    let types = TypeKindExtractor.extractTypes "/test.fs" source
+    Assert.That(types.Length, Is.EqualTo(1))
+
+    let t = types.[0]
+    Assert.That(t.Attributes.Length, Is.EqualTo(1))
+    Assert.That(t.Attributes.[0].Name, Is.EqualTo("ObsoleteAttribute"))
+    Assert.That(t.Attributes.[0].ConstructorArgs, Is.EqualTo([box "x"]))
+
+[<Test>]
+let ``Extracts named arguments from attribute`` () =
+    let source = """
+namespace TestNs
+
+open System
+
+[<AttributeUsage(AttributeTargets.All, AllowMultiple = false)>]
+type X = { A: int }
+"""
+    let types = TypeKindExtractor.extractTypes "/test.fs" source
+    Assert.That(types.Length, Is.EqualTo(1))
+
+    let t = types.[0]
+    Assert.That(t.Attributes.Length, Is.EqualTo(1))
+    Assert.That(t.Attributes.[0].Name, Is.EqualTo("AttributeUsageAttribute"))
+    // First arg is positional (AttributeTargets.All is not a simple const, so may not extract)
+    // Named arg AllowMultiple = false should be extracted
+    Assert.That(t.Attributes.[0].NamedArgs, Does.Contain(("AllowMultiple", box false)))
+
+[<Test>]
+let ``Extracts multiple attributes on a type`` () =
+    let source = """
+namespace TestNs
+
+open System
+
+[<Obsolete("deprecated")>]
+[<Serde.FS.SerdeRename("NewName")>]
+type X = { A: int }
+"""
+    let types = TypeKindExtractor.extractTypes "/test.fs" source
+    Assert.That(types.Length, Is.EqualTo(1))
+
+    let t = types.[0]
+    Assert.That(t.Attributes.Length, Is.EqualTo(2))
+    let names = t.Attributes |> List.map (fun a -> a.Name)
+    Assert.That(names, Does.Contain("ObsoleteAttribute"))
+    Assert.That(names, Does.Contain("Serde.FS.SerdeRenameAttribute"))
+
+[<Test>]
+let ``Attribute with no args produces empty ConstructorArgs and NamedArgs`` () =
+    let source = """
+namespace TestNs
+
+[<Serde>]
+type X = { A: int }
+"""
+    let types = TypeKindExtractor.extractTypes "/test.fs" source
+    Assert.That(types.Length, Is.EqualTo(1))
+
+    let t = types.[0]
+    Assert.That(t.Attributes.Length, Is.EqualTo(1))
+    Assert.That(t.Attributes.[0].Name, Is.EqualTo("SerdeAttribute"))
+    Assert.That(t.Attributes.[0].ConstructorArgs, Is.Empty)
+    Assert.That(t.Attributes.[0].NamedArgs, Is.Empty)

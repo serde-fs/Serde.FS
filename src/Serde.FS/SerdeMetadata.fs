@@ -75,7 +75,7 @@ module SerdeMetadataBuilder =
             attrs |> List.tryPick (fun a ->
                 let sn = shortName a.Name
                 if sn = "SerdeRename" || sn = "SerdeRenameAttribute" then
-                    a.Args |> List.tryHead
+                    a.ConstructorArgs |> List.tryHead |> Option.bind (function :? string as s -> Some s | _ -> None)
                 else None)
         {
             Rename = rename

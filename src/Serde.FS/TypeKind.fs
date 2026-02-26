@@ -19,7 +19,8 @@ module TypeKindTypes =
 
     type AttributeInfo = {
         Name: string
-        Args: string list
+        ConstructorArgs: obj list
+        NamedArgs: (string * obj) list
     }
 
     type TypeKind =
