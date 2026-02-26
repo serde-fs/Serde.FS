@@ -68,3 +68,45 @@ module TypeKindTypes =
         | Tuple elements ->
             elements |> List.map (fun f -> typeInfoToFSharpString f.Type) |> String.concat " * "
         | Record _ | AnonymousRecord _ | Union _ | Enum _ -> ti.TypeName
+
+    let private upperFirst (s: string) =
+        if System.String.IsNullOrEmpty(s) then s
+        else string (System.Char.ToUpperInvariant(s.[0])) + s.Substring(1)
+
+    let private shortTypeName (ti: TypeInfo) =
+        match ti.TypeName.LastIndexOf('.') with
+        | -1 -> ti.TypeName
+        | i -> ti.TypeName.Substring(i + 1)
+
+    /// Converts a TypeInfo to a PascalCase identifier for module/file naming.
+    /// e.g. int option → "IntOption", int option option → "IntOptionOption", MyApp.Person option → "PersonOption"
+    let rec typeInfoToPascalName (ti: TypeInfo) : string =
+        match ti.Kind with
+        | Primitive _ -> upperFirst ti.TypeName
+        | Option inner -> typeInfoToPascalName inner + "Option"
+        | Record _ | AnonymousRecord _ | Union _ | Enum _ -> upperFirst (shortTypeName ti)
+        | List inner -> typeInfoToPascalName inner + "List"
+        | Array inner -> typeInfoToPascalName inner + "Array"
+        | Set inner -> typeInfoToPascalName inner + "Set"
+        | Map (key, value) -> typeInfoToPascalName key + typeInfoToPascalName value + "Map"
+        | Tuple elements ->
+            elements |> List.map (fun f -> typeInfoToPascalName f.Type) |> String.concat ""
+
+    /// Produces fully-qualified F# type expressions for typeof<> / JsonTypeInfo<>.
+    /// e.g. int option, MyApp.Person option, int option option
+    let rec typeInfoToFqFSharpType (ti: TypeInfo) : string =
+        match ti.Kind with
+        | Primitive _ -> ti.TypeName
+        | Option inner -> sprintf "%s option" (typeInfoToFqFSharpType inner)
+        | Record _ | AnonymousRecord _ | Union _ | Enum _ ->
+            let parts =
+                [ yield! ti.Namespace |> Option.toList
+                  yield! ti.EnclosingModules
+                  yield ti.TypeName ]
+            String.concat "." parts
+        | List inner -> sprintf "%s list" (typeInfoToFqFSharpType inner)
+        | Array inner -> sprintf "%s array" (typeInfoToFqFSharpType inner)
+        | Set inner -> sprintf "Set<%s>" (typeInfoToFqFSharpType inner)
+        | Map (key, value) -> sprintf "Map<%s, %s>" (typeInfoToFqFSharpType key) (typeInfoToFqFSharpType value)
+        | Tuple elements ->
+            elements |> List.map (fun f -> typeInfoToFqFSharpType f.Type) |> String.concat " * "

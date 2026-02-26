@@ -5,6 +5,41 @@ open Serde.FS
 open Microsoft.Build.Utilities
 open Microsoft.Build.Framework
 
+module private OptionDiscovery =
+    open Serde.FS.TypeKindTypes
+
+    /// Recursively collects all distinct option TypeInfos from a TypeInfo.
+    let rec private collectOptionTypes (ti: TypeInfo) (acc: Map<string, TypeInfo>) : Map<string, TypeInfo> =
+        match ti.Kind with
+        | Option inner ->
+            // Collect inner first (dependency order)
+            let acc = collectOptionTypes inner acc
+            let key = typeInfoToPascalName ti
+            if acc |> Map.containsKey key then acc
+            else acc |> Map.add key ti
+        | _ -> acc
+
+    /// Scans all record types' fields and returns distinct option TypeInfos in dependency order.
+    let discoverOptionTypes (types: SerdeTypeInfo seq) : TypeInfo list =
+        let mutable acc = Map.empty
+        for t in types do
+            match t.Fields with
+            | Some fields ->
+                for f in fields do
+                    acc <- collectOptionTypes f.Type acc
+            | None -> ()
+        acc |> Map.toList |> List.map snd
+
+    /// Creates a synthetic SerdeTypeInfo for an option TypeInfo.
+    let mkOptionSerdeTypeInfo (ti: TypeInfo) : SerdeTypeInfo =
+        {
+            Raw = ti
+            Capability = Both
+            Attributes = SerdeAttributes.empty
+            Fields = None
+            UnionCases = None
+        }
+
 type SerdeGeneratorTask() =
     inherit Task()
 
@@ -66,6 +101,22 @@ type SerdeGeneratorTask() =
                             hasEntryPoint <- AstParser.hasEntryPointRegistrationInFile filePath
                     with ex ->
                         this.Log.LogWarning("Serde: Failed to process {0}: {1}", filePath, ex.Message)
+
+            // Discover and emit option types from record fields
+            let optionTypeInfos = OptionDiscovery.discoverOptionTypes allTypes
+            for optTi in optionTypeInfos do
+                let optSerdeInfo = OptionDiscovery.mkOptionSerdeTypeInfo optTi
+                let code = CodeEmitter.emit emitter optSerdeInfo
+                let pascalName = TypeKindTypes.typeInfoToPascalName optTi
+                let outputFile = Path.Combine(this.OutputDir, sprintf "%s.serde.g.fs" pascalName)
+                let existingContent =
+                    if File.Exists(outputFile) then Some (File.ReadAllText(outputFile))
+                    else None
+                match existingContent with
+                | Some existing when existing = code -> ()
+                | _ -> File.WriteAllText(outputFile, code)
+                this.Log.LogMessage(MessageImportance.Low, "Serde: Generated {0}", outputFile)
+                allTypes.Add(optSerdeInfo)
 
             // Emit resolver file if the emitter supports it
             match emitter with

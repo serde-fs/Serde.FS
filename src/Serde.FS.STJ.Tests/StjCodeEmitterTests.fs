@@ -20,6 +20,21 @@ let private mkField name typeName kind : SerdeFieldInfo =
 let private mkFieldWithType name (typeInfo: TypeInfo) : SerdeFieldInfo =
     { Name = name; RawName = name; Type = typeInfo; Attributes = SerdeAttributes.empty; Capability = Both }
 
+/// Helper to build an option TypeInfo wrapping an inner TypeInfo.
+let private mkOptionType (inner: TypeInfo) : TypeInfo =
+    { Namespace = None; EnclosingModules = []; TypeName = "option"; Kind = Option inner; Attributes = [] }
+
+/// Helper to build a SerdeTypeInfo for an option type.
+let private mkOptionInfo (inner: TypeInfo) : SerdeTypeInfo =
+    let optType = mkOptionType inner
+    {
+        Raw = optType
+        Capability = Both
+        Attributes = SerdeAttributes.empty
+        Fields = None
+        UnionCases = None
+    }
+
 /// Helper to build a SerdeTypeInfo for a simple record.
 let private mkRecordInfo ns typeName cap (fields: SerdeFieldInfo list) : SerdeTypeInfo =
     let rawFields =
@@ -177,3 +192,63 @@ let ``EmitResolver produces valid resolver for multiple types`` () =
 let ``EmitResolver returns None for empty list`` () =
     let result = resolverEmitter.EmitResolver([])
     Assert.That(result.IsNone, Is.True)
+
+[<Test>]
+let ``Emits converter for option int`` () =
+    let info = mkOptionInfo (mkPrimType "int" Int32)
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("IntOptionConverter"))
+    Assert.That(code, Does.Contain("JsonConverter<int option>"))
+    Assert.That(code, Does.Contain("CreateValueInfo"))
+    Assert.That(code, Does.Contain("JsonTokenType.Null then None"))
+    Assert.That(code, Does.Contain("Some(JsonSerializer.Deserialize<int>"))
+    Assert.That(code, Does.Contain("writer.WriteNullValue()"))
+    Assert.That(code, Does.Contain("JsonSerializer.Serialize(writer, v, options)"))
+
+[<Test>]
+let ``Emits converter for option string`` () =
+    let info = mkOptionInfo (mkPrimType "string" String)
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("StringOptionConverter"))
+    Assert.That(code, Does.Contain("JsonConverter<string option>"))
+    Assert.That(code, Does.Not.Contain("intOptionJsonTypeInfo"), "Should not contain int references")
+    Assert.That(code, Does.Contain("stringOptionJsonTypeInfo"))
+
+[<Test>]
+let ``Emits converter for option record`` () =
+    let personType : TypeInfo = {
+        Namespace = Some "MyApp"; EnclosingModules = []; TypeName = "Person"
+        Kind = Record []; Attributes = []
+    }
+    let info = mkOptionInfo personType
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("PersonOptionConverter"))
+    Assert.That(code, Does.Contain("JsonConverter<MyApp.Person option>"))
+    Assert.That(code, Does.Contain("Deserialize<MyApp.Person>"))
+
+[<Test>]
+let ``Emits converter for nested option option int`` () =
+    let innerOption = mkOptionType (mkPrimType "int" Int32)
+    let info = mkOptionInfo innerOption
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("IntOptionOptionConverter"))
+    Assert.That(code, Does.Contain("JsonConverter<int option option>"))
+    Assert.That(code, Does.Contain("Deserialize<int option>"))
+
+[<Test>]
+let ``EmitResolver with mixed record and option types`` () =
+    let recordType = mkRecordInfo (Some "MyApp") "Person" Both [
+        mkField "FName" "string" String
+    ]
+    let optionType = mkOptionInfo (mkPrimType "string" String)
+    let types = [ recordType; optionType ]
+
+    let result = resolverEmitter.EmitResolver(types)
+    Assert.That(result.IsSome, Is.True)
+    let code = result.Value
+    Assert.That(code, Does.Contain("typeof<MyApp.Person>"))
+    Assert.That(code, Does.Contain("typeof<string option>"))
+    Assert.That(code, Does.Contain("personJsonTypeInfo"))
+    Assert.That(code, Does.Contain("stringOptionJsonTypeInfo"))
+    Assert.That(code, Does.Contain("open Serde.Generated.Person"))
+    Assert.That(code, Does.Contain("open Serde.Generated.StringOption"))
