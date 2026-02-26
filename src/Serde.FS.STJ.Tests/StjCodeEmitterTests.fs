@@ -2,24 +2,49 @@ module Serde.FS.STJ.Tests.StjCodeEmitterTests
 
 open NUnit.Framework
 open Serde.FS
+open Serde.FS.TypeKindTypes
 open Serde.FS.STJ
 
 let private emitter = StjCodeEmitter() :> ISerdeCodeEmitter
 let private resolverEmitter = StjCodeEmitter() :> ISerdeResolverEmitter
 
+/// Helper to build a simple field TypeInfo from a type name and primitive kind.
+let private mkPrimType name kind : TypeInfo =
+    { Namespace = None; EnclosingModules = []; TypeName = name; Kind = Primitive kind; Attributes = [] }
+
+/// Helper to build a SerdeFieldInfo from a name and a simple primitive type.
+let private mkField name typeName kind : SerdeFieldInfo =
+    { Name = name; RawName = name; Type = mkPrimType typeName kind; Attributes = SerdeAttributes.empty; Capability = Both }
+
+/// Helper to build a SerdeFieldInfo with a full TypeInfo.
+let private mkFieldWithType name (typeInfo: TypeInfo) : SerdeFieldInfo =
+    { Name = name; RawName = name; Type = typeInfo; Attributes = SerdeAttributes.empty; Capability = Both }
+
+/// Helper to build a SerdeTypeInfo for a simple record.
+let private mkRecordInfo ns typeName cap (fields: SerdeFieldInfo list) : SerdeTypeInfo =
+    let rawFields =
+        fields |> List.map (fun f -> { Name = f.RawName; Type = f.Type; Attributes = [] } : TypeKindTypes.FieldInfo)
+    {
+        Raw = {
+            Namespace = ns
+            EnclosingModules = []
+            TypeName = typeName
+            Kind = Record rawFields
+            Attributes = []
+        }
+        Capability = cap
+        Attributes = SerdeAttributes.empty
+        Fields = Some fields
+        UnionCases = None
+    }
+
 [<Test>]
 let ``Emits valid F# for simple record`` () =
-    let info = {
-        Namespace = Some "MyApp"
-        EnclosingModules = []
-        TypeName = "Person"
-        Capability = Both
-        Fields = [
-            { Name = "FName"; FSharpType = "string" }
-            { Name = "LName"; FSharpType = "string" }
-            { Name = "Age"; FSharpType = "int" }
-        ]
-    }
+    let info = mkRecordInfo (Some "MyApp") "Person" Both [
+        mkField "FName" "string" String
+        mkField "LName" "string" String
+        mkField "Age" "int" Int32
+    ]
 
     let code = emitter.Emit(info)
     Assert.That(code, Does.Contain("module rec Serde.Generated.Person"))
@@ -35,33 +60,21 @@ let ``Emits valid F# for simple record`` () =
 
 [<Test>]
 let ``Emits WriteBoolean for bool fields`` () =
-    let info = {
-        Namespace = Some "MyApp"
-        EnclosingModules = []
-        TypeName = "Config"
-        Capability = Serialize
-        Fields = [
-            { Name = "IsEnabled"; FSharpType = "bool" }
-        ]
-    }
+    let info = mkRecordInfo (Some "MyApp") "Config" Serialize [
+        mkField "IsEnabled" "bool" Bool
+    ]
 
     let code = emitter.Emit(info)
     Assert.That(code, Does.Contain("""writer.WriteBoolean("IsEnabled", value.IsEnabled)"""))
 
 [<Test>]
 let ``Emits WriteNumber for numeric types`` () =
-    let info = {
-        Namespace = Some "MyApp"
-        EnclosingModules = []
-        TypeName = "Numbers"
-        Capability = Serialize
-        Fields = [
-            { Name = "I"; FSharpType = "int" }
-            { Name = "I64"; FSharpType = "int64" }
-            { Name = "F"; FSharpType = "float" }
-            { Name = "D"; FSharpType = "decimal" }
-        ]
-    }
+    let info = mkRecordInfo (Some "MyApp") "Numbers" Serialize [
+        mkField "I" "int" Int32
+        mkField "I64" "int64" Int64
+        mkField "F" "float" Float64
+        mkField "D" "decimal" Decimal
+    ]
 
     let code = emitter.Emit(info)
     Assert.That(code, Does.Contain("""writer.WriteNumber("I", value.I)"""))
@@ -71,15 +84,13 @@ let ``Emits WriteNumber for numeric types`` () =
 
 [<Test>]
 let ``Emits option handling for optional fields`` () =
-    let info = {
-        Namespace = Some "MyApp"
-        EnclosingModules = []
-        TypeName = "Person"
-        Capability = Serialize
-        Fields = [
-            { Name = "MiddleName"; FSharpType = "string option" }
-        ]
+    let optionType = {
+        Namespace = None; EnclosingModules = []; TypeName = "option"
+        Kind = Option (mkPrimType "string" String); Attributes = []
     }
+    let info = mkRecordInfo (Some "MyApp") "Person" Serialize [
+        mkFieldWithType "MiddleName" optionType
+    ]
 
     let code = emitter.Emit(info)
     Assert.That(code, Does.Contain("match value.MiddleName with"))
@@ -89,43 +100,27 @@ let ``Emits option handling for optional fields`` () =
 
 [<Test>]
 let ``Emits auto-generated header`` () =
-    let info = {
-        Namespace = Some "MyApp"
-        EnclosingModules = []
-        TypeName = "Foo"
-        Capability = Both
-        Fields = [{ Name = "X"; FSharpType = "int" }]
-    }
+    let info = mkRecordInfo (Some "MyApp") "Foo" Both [
+        mkField "X" "int" Int32
+    ]
 
     let code = emitter.Emit(info)
     Assert.That(code, Does.StartWith("// <auto-generated />"))
 
 [<Test>]
 let ``Emits DateTime as WriteString with ISO format`` () =
-    let info = {
-        Namespace = Some "MyApp"
-        EnclosingModules = []
-        TypeName = "Event"
-        Capability = Serialize
-        Fields = [
-            { Name = "CreatedAt"; FSharpType = "System.DateTime" }
-        ]
-    }
+    let info = mkRecordInfo (Some "MyApp") "Event" Serialize [
+        mkField "CreatedAt" "System.DateTime" DateTime
+    ]
 
     let code = emitter.Emit(info)
     Assert.That(code, Does.Contain("""writer.WriteString("CreatedAt", value.CreatedAt.ToString("O"))"""))
 
 [<Test>]
 let ``Emits Guid as WriteString`` () =
-    let info = {
-        Namespace = Some "MyApp"
-        EnclosingModules = []
-        TypeName = "Entity"
-        Capability = Serialize
-        Fields = [
-            { Name = "Id"; FSharpType = "System.Guid" }
-        ]
-    }
+    let info = mkRecordInfo (Some "MyApp") "Entity" Serialize [
+        mkField "Id" "System.Guid" Guid
+    ]
 
     let code = emitter.Emit(info)
     Assert.That(code, Does.Contain("""writer.WriteString("Id", value.Id.ToString())"""))
@@ -152,25 +147,13 @@ type Person = { FName: string; LName: string; Age: int }
 [<Test>]
 let ``EmitResolver produces valid resolver for multiple types`` () =
     let types = [
-        {
-            Namespace = Some "MyApp"
-            EnclosingModules = []
-            TypeName = "Person"
-            Capability = Both
-            Fields = [
-                { Name = "FName"; FSharpType = "string" }
-                { Name = "LName"; FSharpType = "string" }
-            ]
-        }
-        {
-            Namespace = Some "MyApp"
-            EnclosingModules = []
-            TypeName = "Address"
-            Capability = Serialize
-            Fields = [
-                { Name = "Street"; FSharpType = "string" }
-            ]
-        }
+        mkRecordInfo (Some "MyApp") "Person" Both [
+            mkField "FName" "string" String
+            mkField "LName" "string" String
+        ]
+        mkRecordInfo (Some "MyApp") "Address" Serialize [
+            mkField "Street" "string" String
+        ]
     ]
 
     let result = resolverEmitter.EmitResolver(types)

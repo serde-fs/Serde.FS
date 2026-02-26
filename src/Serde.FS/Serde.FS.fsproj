@@ -6,8 +6,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="SerdeMetadata.fs" />
     <Compile Include="TypeKind.fs" />
+    <Compile Include="SerdeMetadata.fs" />
     <Compile Include="ISerdeCodeEmitter.fs" />
     <Compile Include="DebugEmitter.fs" />
     <Compile Include="Attributes.fs" />

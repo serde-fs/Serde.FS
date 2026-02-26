@@ -2,7 +2,7 @@ namespace Serde.FS
 
 type DebugEmitter() =
     interface ISerdeCodeEmitter with
-        member _.Emit(info) = sprintf "// DEBUG EMIT: %s" info.TypeName
+        member _.Emit(info) = sprintf "// DEBUG EMIT: %s" info.Raw.TypeName
 
 module SerdeDebug =
     let useAsDefault () =

@@ -17,6 +17,11 @@ module TypeKindTypes =
         | DateOnly
         | TimeOnly
 
+    type AttributeInfo = {
+        Name: string
+        Args: string list
+    }
+
     type TypeKind =
         | Primitive of PrimitiveKind
         | Record of fields: FieldInfo list
@@ -35,15 +40,30 @@ module TypeKindTypes =
         EnclosingModules: string list
         TypeName: string
         Kind: TypeKind
+        Attributes: AttributeInfo list
     }
 
     and FieldInfo = {
         Name: string
         Type: TypeInfo
+        Attributes: AttributeInfo list
     }
 
     and UnionCase = {
         CaseName: string
         Fields: FieldInfo list
         Tag: int option
+        Attributes: AttributeInfo list
     }
+
+    let rec typeInfoToFSharpString (ti: TypeInfo) : string =
+        match ti.Kind with
+        | Primitive _ -> ti.TypeName
+        | Option inner -> sprintf "%s option" (typeInfoToFSharpString inner)
+        | List inner -> sprintf "%s list" (typeInfoToFSharpString inner)
+        | Array inner -> sprintf "%s array" (typeInfoToFSharpString inner)
+        | Set inner -> sprintf "Set<%s>" (typeInfoToFSharpString inner)
+        | Map (key, value) -> sprintf "Map<%s, %s>" (typeInfoToFSharpString key) (typeInfoToFSharpString value)
+        | Tuple elements ->
+            elements |> List.map (fun f -> typeInfoToFSharpString f.Type) |> String.concat " * "
+        | Record _ | AnonymousRecord _ | Union _ | Enum _ -> ti.TypeName

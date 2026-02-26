@@ -48,7 +48,7 @@ type SerdeGeneratorTask() =
 
                         for typeInfo in types do
                             let code = CodeEmitter.emit emitter typeInfo
-                            let outputFile = Path.Combine(this.OutputDir, sprintf "%s.serde.g.fs" typeInfo.TypeName)
+                            let outputFile = Path.Combine(this.OutputDir, sprintf "%s.serde.g.fs" typeInfo.Raw.TypeName)
                             let existingContent =
                                 if File.Exists(outputFile) then Some (File.ReadAllText(outputFile))
                                 else None

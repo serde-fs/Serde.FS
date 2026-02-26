@@ -2,23 +2,32 @@ module Serde.FS.SourceGen.Tests.CodeEmitterTests
 
 open NUnit.Framework
 open Serde.FS
+open Serde.FS.TypeKindTypes
 open Serde.FS.SourceGen
 
 type FakeEmitter() =
     interface ISerdeCodeEmitter with
-        member _.Emit(info) = sprintf "FAKE: %s" info.TypeName
+        member _.Emit(info) = sprintf "FAKE: %s" info.Raw.TypeName
 
 [<Test>]
 let ``CodeEmitter delegates to ISerdeCodeEmitter`` () =
     let emitter = FakeEmitter() :> ISerdeCodeEmitter
     let info = {
-        Namespace = Some "MyApp"
-        EnclosingModules = []
-        TypeName = "Person"
+        Raw = {
+            Namespace = Some "MyApp"
+            EnclosingModules = []
+            TypeName = "Person"
+            Kind = Record [
+                { Name = "FName"; Type = { Namespace = None; EnclosingModules = []; TypeName = "string"; Kind = Primitive String; Attributes = [] }; Attributes = [] }
+            ]
+            Attributes = []
+        }
         Capability = Both
-        Fields = [
-            { Name = "FName"; FSharpType = "string" }
+        Attributes = SerdeAttributes.empty
+        Fields = Some [
+            { Name = "FName"; RawName = "FName"; Type = { Namespace = None; EnclosingModules = []; TypeName = "string"; Kind = Primitive String; Attributes = [] }; Attributes = SerdeAttributes.empty; Capability = Both }
         ]
+        UnionCases = None
     }
 
     let code = CodeEmitter.emit emitter info
@@ -28,13 +37,21 @@ let ``CodeEmitter delegates to ISerdeCodeEmitter`` () =
 let ``DebugEmitter emits debug comment`` () =
     let emitter = DebugEmitter() :> ISerdeCodeEmitter
     let info = {
-        Namespace = Some "MyApp"
-        EnclosingModules = []
-        TypeName = "Person"
+        Raw = {
+            Namespace = Some "MyApp"
+            EnclosingModules = []
+            TypeName = "Person"
+            Kind = Record [
+                { Name = "FName"; Type = { Namespace = None; EnclosingModules = []; TypeName = "string"; Kind = Primitive String; Attributes = [] }; Attributes = [] }
+            ]
+            Attributes = []
+        }
         Capability = Both
-        Fields = [
-            { Name = "FName"; FSharpType = "string" }
+        Attributes = SerdeAttributes.empty
+        Fields = Some [
+            { Name = "FName"; RawName = "FName"; Type = { Namespace = None; EnclosingModules = []; TypeName = "string"; Kind = Primitive String; Attributes = [] }; Attributes = SerdeAttributes.empty; Capability = Both }
         ]
+        UnionCases = None
     }
 
     let code = emitter.Emit(info)

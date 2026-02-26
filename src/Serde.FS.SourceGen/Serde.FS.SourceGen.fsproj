@@ -6,8 +6,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="AstParser.fs" />
     <Compile Include="TypeKindExtractor.fs" />
+    <Compile Include="AstParser.fs" />
     <Compile Include="CodeEmitter.fs" />
     <Compile Include="SerdeGeneratorTask.fs" />
   </ItemGroup>
