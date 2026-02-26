@@ -73,6 +73,7 @@ type SerdeGeneratorTask() =
             let mutable success = true
             let mutable hasEntryPoint = false
             let allTypes = System.Collections.Generic.List<SerdeTypeInfo>()
+            let generatedFiles = System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase)
 
             for item in this.SourceFiles do
                 let filePath = item.ItemSpec
@@ -93,6 +94,7 @@ type SerdeGeneratorTask() =
                             | Some existing when existing = code -> ()
                             | _ -> File.WriteAllText(outputFile, code)
 
+                            generatedFiles.Add(outputFile) |> ignore
                             this.Log.LogMessage(MessageImportance.Low, "Serde: Generated {0}", outputFile)
                             allTypes.Add(typeInfo)
 
@@ -115,6 +117,7 @@ type SerdeGeneratorTask() =
                 match existingContent with
                 | Some existing when existing = code -> ()
                 | _ -> File.WriteAllText(outputFile, code)
+                generatedFiles.Add(outputFile) |> ignore
                 this.Log.LogMessage(MessageImportance.Low, "Serde: Generated {0}", outputFile)
                 allTypes.Add(optSerdeInfo)
 
@@ -130,6 +133,7 @@ type SerdeGeneratorTask() =
                     match existingContent with
                     | Some existing when existing = code -> ()
                     | _ -> File.WriteAllText(outputFile, code)
+                    generatedFiles.Add(outputFile) |> ignore
                     this.Log.LogMessage(MessageImportance.Low, "Serde: Generated {0}", outputFile)
                 | None -> ()
             | _ -> ()
@@ -152,7 +156,14 @@ type SerdeGeneratorTask() =
                 match existingContent with
                 | Some existing when existing = entryPointCode -> ()
                 | _ -> File.WriteAllText(outputFile, entryPointCode)
+                generatedFiles.Add(outputFile) |> ignore
                 this.Log.LogMessage(MessageImportance.Low, "Serde: Generated {0}", outputFile)
+
+            // Remove stale generated files for types that no longer exist
+            for existingFile in Directory.GetFiles(this.OutputDir, "*.serde.g.fs") do
+                if not (generatedFiles.Contains(existingFile)) then
+                    File.Delete(existingFile)
+                    this.Log.LogMessage(MessageImportance.Low, "Serde: Removed stale {0}", existingFile)
 
             success
         with ex ->
