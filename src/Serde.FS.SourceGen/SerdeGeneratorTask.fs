@@ -113,11 +113,18 @@ module private FieldTypeResolver =
             { ti with Kind = Tuple (fields |> List.map (fun f -> { f with Type = resolveTypeInfo lookup f.Type })) }
 
     let resolveSerdeTypeInfo (lookup: Map<string, TypeInfo>) (sti: SerdeTypeInfo) : SerdeTypeInfo =
-        match sti.Fields with
-        | Some fields ->
-            let resolvedFields = fields |> List.map (fun f -> { f with Type = resolveTypeInfo lookup f.Type })
-            { sti with Fields = Some resolvedFields }
-        | None -> sti
+        let resolvedFields =
+            match sti.Fields with
+            | Some fields ->
+                Some (fields |> List.map (fun f -> { f with Type = resolveTypeInfo lookup f.Type }))
+            | None -> None
+        let resolvedUnionCases =
+            match sti.UnionCases with
+            | Some cases ->
+                Some (cases |> List.map (fun c ->
+                    { c with Fields = c.Fields |> List.map (fun f -> { f with Type = resolveTypeInfo lookup f.Type }) }))
+            | None -> None
+        { sti with Fields = resolvedFields; UnionCases = resolvedUnionCases }
 
 type SerdeGeneratorTask() =
     inherit Task()
@@ -152,6 +159,7 @@ type SerdeGeneratorTask() =
             let mutable success = true
             let mutable hasEntryPoint = false
             let parsedTypes = System.Collections.Generic.List<SerdeTypeInfo>()
+            let allTypeInfos = System.Collections.Generic.List<TypeKindTypes.TypeInfo>()
             let allTypes = System.Collections.Generic.List<SerdeTypeInfo>()
             let generatedFiles = System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase)
 
@@ -164,6 +172,10 @@ type SerdeGeneratorTask() =
                         let types = AstParser.parseFile filePath
                         parsedTypes.AddRange(types)
 
+                        // Also collect ALL type definitions for the lookup map
+                        let allTypesInFile = AstParser.parseFileAllTypes filePath
+                        allTypeInfos.AddRange(allTypesInFile)
+
                         // Check for entry point registration
                         if not hasEntryPoint then
                             hasEntryPoint <- AstParser.hasEntryPointRegistrationInFile filePath
@@ -171,9 +183,11 @@ type SerdeGeneratorTask() =
                         this.Log.LogWarning("Serde: Failed to process {0}: {1}", filePath, ex.Message)
 
             // Phase 2: Resolve field type references across all parsed types
+            // Build lookup from ALL types (not just [<Serde>] ones) so that
+            // union case fields referencing non-[<Serde>] types get resolved.
             let lookup =
-                parsedTypes
-                |> Seq.map (fun t -> t.Raw.TypeName, t.Raw)
+                allTypeInfos
+                |> Seq.map (fun t -> t.TypeName, t)
                 |> Map.ofSeq
             let resolvedTypes =
                 parsedTypes

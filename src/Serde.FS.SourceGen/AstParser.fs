@@ -37,6 +37,11 @@ module AstParser =
         let sourceText = System.IO.File.ReadAllText(filePath)
         parseSource filePath sourceText
 
+    /// Parse an F# source file and return ALL type definitions (for building lookup maps).
+    let parseFileAllTypes (filePath: string) : TypeInfo list =
+        let sourceText = System.IO.File.ReadAllText(filePath)
+        TypeKindExtractor.extractTypes filePath sourceText
+
     /// Check if a long ident matches "SerdeApp.entryPoint" or "Serde.FS.SerdeApp.entryPoint".
     let private isEntryPointIdent (idents: LongIdent) =
         let names = idents |> List.map (fun i -> i.idText)

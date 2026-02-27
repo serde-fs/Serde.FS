@@ -12,8 +12,12 @@ type Color =
 [<Serde>]
 type Address = { Street: string; City: string }
 
+type Name = { Name: string }
+
 [<Serde>]
-type Pet = { Name: string; Species: string }
+type Pet =
+    | Dog of Name
+    | Cat of name: string
 
 [<Serde>]
 type Shape =
@@ -37,8 +41,8 @@ type Person = {
 let run argv =
     SerdeStj.useAsDefault()
     let pets = [
-        { Name = "Fido"; Species = "Dog" }
-        { Name = "Whiskers"; Species = "Cat" }
+        Dog { Name = "Fido" }
+        Cat "Whiskers"
     ]
     let person = {
         Name = "John"
@@ -48,7 +52,7 @@ let run argv =
         Colors = [| Color.Red; Color.Green; Color.Blue |]
         Pets = pets
         Position = 10.5, 20.5
-        PetMap = pets |> List.map (fun p -> p.Name, p) |> Map.ofList
+        PetMap = pets |> List.map (fun p -> match p with Dog n -> n.Name, p | Cat name -> name, p) |> Map.ofList
         Shapes = [ Shape.Circle(3.14); Shape.Rectangle(10.0, 20.0); Shape.Point ]
     }
     let json = Serde.Serialize person

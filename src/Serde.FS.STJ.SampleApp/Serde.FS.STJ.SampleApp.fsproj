@@ -14,7 +14,7 @@
 	</ItemGroup>
 	
 	<ItemGroup>
-		<PackageReference Include="Serde.FS.STJ" Version="0.1.1-debug.30" />
+		<PackageReference Include="Serde.FS.STJ" Version="0.1.1-debug.31" />
 	</ItemGroup>
 
 </Project>
