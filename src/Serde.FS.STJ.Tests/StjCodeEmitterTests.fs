@@ -303,3 +303,96 @@ let ``Emits option handling for nested record option field`` () =
     Assert.That(code, Does.Contain("match value.Address with"), "Should emit option match")
     Assert.That(code, Does.Contain("| Some v ->"), "Should emit Some case")
     Assert.That(code, Does.Contain("JsonSerializer.Serialize(writer, v, options)"), "Should serialize nested record via JsonSerializer")
+
+/// Helper to build a tuple TypeInfo from a list of element TypeInfos.
+let private mkTupleType (elements: TypeInfo list) : TypeInfo =
+    let fields = elements |> List.mapi (fun i ti -> { Name = sprintf "Item%d" (i+1); Type = ti; Attributes = [] } : TypeKindTypes.FieldInfo)
+    { Namespace = None; EnclosingModules = []; TypeName = "tuple"; Kind = Tuple fields; Attributes = [] }
+
+/// Helper to build a SerdeTypeInfo for a tuple type.
+let private mkTupleInfo (elements: TypeInfo list) : SerdeTypeInfo =
+    let tupType = mkTupleType elements
+    {
+        Raw = tupType
+        Capability = Both
+        Attributes = SerdeAttributes.empty
+        Fields = None
+        UnionCases = None
+    }
+
+[<Test>]
+let ``Emits converter for simple int * string tuple`` () =
+    let info = mkTupleInfo [ mkPrimType "int" Int32; mkPrimType "string" String ]
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("IntStringTupleConverter"))
+    Assert.That(code, Does.Contain("JsonConverter<(int * string)>"))
+    Assert.That(code, Does.Contain("CreateValueInfo"))
+    Assert.That(code, Does.Contain("WriteStartArray"))
+    Assert.That(code, Does.Contain("WriteEndArray"))
+    Assert.That(code, Does.Contain("JsonSerializer.Serialize(writer, e0, options)"))
+    Assert.That(code, Does.Contain("JsonSerializer.Serialize(writer, e1, options)"))
+    Assert.That(code, Does.Contain("JsonSerializer.Deserialize<int>"))
+    Assert.That(code, Does.Contain("JsonSerializer.Deserialize<string>"))
+    Assert.That(code, Does.Contain("module rec Serde.Generated.IntStringTuple"))
+    Assert.That(code, Does.Contain("intStringTupleJsonTypeInfo"))
+
+[<Test>]
+let ``Emits converter for nested tuple (int * int) * string`` () =
+    let innerTuple = mkTupleType [ mkPrimType "int" Int32; mkPrimType "int" Int32 ]
+    let info = mkTupleInfo [ innerTuple; mkPrimType "string" String ]
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("IntIntTupleStringTupleConverter"))
+    Assert.That(code, Does.Contain("JsonSerializer.Serialize(writer, e0, options)"))
+    Assert.That(code, Does.Contain("JsonSerializer.Deserialize<(int * int)>"))
+
+[<Test>]
+let ``Emits converter for tuple containing record`` () =
+    let addressType : TypeInfo = {
+        Namespace = Some "My.App"; EnclosingModules = []; TypeName = "Address"
+        Kind = Record []; Attributes = []
+    }
+    let info = mkTupleInfo [ mkPrimType "int" Int32; addressType ]
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("JsonSerializer.Deserialize<My.App.Address>"))
+    Assert.That(code, Does.Contain("JsonSerializer.Serialize(writer, e1, options)"))
+
+[<Test>]
+let ``EmitResolver with mixed record option and tuple types`` () =
+    let recordType = mkRecordInfo (Some "MyApp") "Person" Both [
+        mkField "FName" "string" String
+    ]
+    let optionType = mkOptionInfo (mkPrimType "string" String)
+    let tupleType = mkTupleInfo [ mkPrimType "int" Int32; mkPrimType "string" String ]
+    let types = [ recordType; optionType; tupleType ]
+
+    let result = resolverEmitter.EmitResolver(types)
+    Assert.That(result.IsSome, Is.True)
+    let code = result.Value
+    Assert.That(code, Does.Contain("typeof<MyApp.Person>"))
+    Assert.That(code, Does.Contain("typeof<string option>"))
+    Assert.That(code, Does.Contain("typeof<(int * string)>"))
+    Assert.That(code, Does.Contain("personJsonTypeInfo"))
+    Assert.That(code, Does.Contain("stringOptionJsonTypeInfo"))
+    Assert.That(code, Does.Contain("intStringTupleJsonTypeInfo"))
+    Assert.That(code, Does.Contain("open Serde.Generated.Person"))
+    Assert.That(code, Does.Contain("open Serde.Generated.StringOption"))
+    Assert.That(code, Does.Contain("open Serde.Generated.IntStringTuple"))
+
+[<Test>]
+let ``typeInfoToPascalName produces IntStringTuple`` () =
+    let ti = mkTupleType [ mkPrimType "int" Int32; mkPrimType "string" String ]
+    let name = TypeKindTypes.typeInfoToPascalName ti
+    Assert.That(name, Is.EqualTo("IntStringTuple"))
+
+[<Test>]
+let ``typeInfoToFqFSharpType produces parenthesized tuple`` () =
+    let ti = mkTupleType [ mkPrimType "int" Int32; mkPrimType "string" String ]
+    let fq = TypeKindTypes.typeInfoToFqFSharpType ti
+    Assert.That(fq, Is.EqualTo("(int * string)"))
+
+[<Test>]
+let ``typeInfoToFqFSharpType produces parenthesized tuple nested in option`` () =
+    let ti = mkTupleType [ mkPrimType "int" Int32; mkPrimType "string" String ]
+    let optTi = mkOptionType ti
+    let fq = TypeKindTypes.typeInfoToFqFSharpType optTi
+    Assert.That(fq, Is.EqualTo("(int * string) option"))

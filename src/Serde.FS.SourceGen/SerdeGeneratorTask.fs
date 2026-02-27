@@ -17,6 +17,13 @@ module private OptionDiscovery =
             let key = typeInfoToPascalName ti
             if acc |> Map.containsKey key then acc
             else acc |> Map.add key ti
+        | Tuple elements ->
+            elements |> List.fold (fun a f -> collectOptionTypes f.Type a) acc
+        | List inner | Array inner | Set inner ->
+            collectOptionTypes inner acc
+        | Map (k, v) ->
+            let acc = collectOptionTypes k acc
+            collectOptionTypes v acc
         | _ -> acc
 
     /// Scans all record types' fields and returns distinct option TypeInfos in dependency order.
@@ -32,6 +39,46 @@ module private OptionDiscovery =
 
     /// Creates a synthetic SerdeTypeInfo for an option TypeInfo.
     let mkOptionSerdeTypeInfo (ti: TypeInfo) : SerdeTypeInfo =
+        {
+            Raw = ti
+            Capability = Both
+            Attributes = SerdeAttributes.empty
+            Fields = None
+            UnionCases = None
+        }
+
+module private TupleDiscovery =
+    open Serde.FS.TypeKindTypes
+
+    /// Recursively collects all distinct tuple TypeInfos from a TypeInfo.
+    let rec private collectTupleTypes (ti: TypeInfo) (acc: Map<string, TypeInfo>) : Map<string, TypeInfo> =
+        match ti.Kind with
+        | Tuple elements ->
+            // Collect inner tuples first (dependency order)
+            let acc = elements |> List.fold (fun a f -> collectTupleTypes f.Type a) acc
+            let key = typeInfoToPascalName ti
+            if acc |> Map.containsKey key then acc
+            else acc |> Map.add key ti
+        | Option inner | List inner | Array inner | Set inner ->
+            collectTupleTypes inner acc
+        | Map (k, v) ->
+            let acc = collectTupleTypes k acc
+            collectTupleTypes v acc
+        | _ -> acc
+
+    /// Scans all types' fields and returns distinct tuple TypeInfos in dependency order.
+    let discoverTupleTypes (types: SerdeTypeInfo seq) : TypeInfo list =
+        let mutable acc = Map.empty
+        for t in types do
+            match t.Fields with
+            | Some fields ->
+                for f in fields do
+                    acc <- collectTupleTypes f.Type acc
+            | None -> ()
+        acc |> Map.toList |> List.map snd
+
+    /// Creates a synthetic SerdeTypeInfo for a tuple TypeInfo.
+    let mkTupleSerdeTypeInfo (ti: TypeInfo) : SerdeTypeInfo =
         {
             Raw = ti
             Capability = Both
@@ -164,6 +211,23 @@ type SerdeGeneratorTask() =
                 generatedFiles.Add(outputFile) |> ignore
                 this.Log.LogMessage(MessageImportance.Low, "Serde: Generated {0}", outputFile)
                 allTypes.Add(optSerdeInfo)
+
+            // Discover and emit tuple types from record fields
+            let tupleTypeInfos = TupleDiscovery.discoverTupleTypes allTypes
+            for tupTi in tupleTypeInfos do
+                let tupSerdeInfo = TupleDiscovery.mkTupleSerdeTypeInfo tupTi
+                let code = CodeEmitter.emit emitter tupSerdeInfo
+                let pascalName = TypeKindTypes.typeInfoToPascalName tupTi
+                let outputFile = Path.Combine(this.OutputDir, sprintf "%s.serde.g.fs" pascalName)
+                let existingContent =
+                    if File.Exists(outputFile) then Some (File.ReadAllText(outputFile))
+                    else None
+                match existingContent with
+                | Some existing when existing = code -> ()
+                | _ -> File.WriteAllText(outputFile, code)
+                generatedFiles.Add(outputFile) |> ignore
+                this.Log.LogMessage(MessageImportance.Low, "Serde: Generated {0}", outputFile)
+                allTypes.Add(tupSerdeInfo)
 
             // Emit resolver file if the emitter supports it
             match emitter with

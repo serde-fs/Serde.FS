@@ -90,7 +90,7 @@ module TypeKindTypes =
         | Set inner -> typeInfoToPascalName inner + "Set"
         | Map (key, value) -> typeInfoToPascalName key + typeInfoToPascalName value + "Map"
         | Tuple elements ->
-            elements |> List.map (fun f -> typeInfoToPascalName f.Type) |> String.concat ""
+            (elements |> List.map (fun f -> typeInfoToPascalName f.Type) |> String.concat "") + "Tuple"
 
     /// Produces fully-qualified F# type expressions for typeof<> / JsonTypeInfo<>.
     /// e.g. int option, MyApp.Person option, int option option
@@ -109,4 +109,4 @@ module TypeKindTypes =
         | Set inner -> sprintf "Set<%s>" (typeInfoToFqFSharpType inner)
         | Map (key, value) -> sprintf "Map<%s, %s>" (typeInfoToFqFSharpType key) (typeInfoToFqFSharpType value)
         | Tuple elements ->
-            elements |> List.map (fun f -> typeInfoToFqFSharpType f.Type) |> String.concat " * "
+            "(" + (elements |> List.map (fun f -> typeInfoToFqFSharpType f.Type) |> String.concat " * ") + ")"
