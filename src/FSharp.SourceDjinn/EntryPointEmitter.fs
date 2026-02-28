@@ -12,12 +12,12 @@ module EntryPointEmitter =
         "        try\n" +
         "            let asm = System.Reflection.Assembly.GetEntryAssembly()\n" +
         "            if not (isNull asm) then\n" +
-        "                match asm.GetType(\"Djinn.Generated.Bootstrap\") with\n" +
+        "                match asm.GetType(\"" + Conventions.ConventionBootstrapType + "\") with\n" +
         "                | null -> ()\n" +
         "                | ty ->\n" +
         "                    let m =\n" +
         "                        ty.GetMethod(\n" +
-        "                            \"init\",\n" +
+        "                            \"" + Conventions.ConventionBootstrapMethod + "\",\n" +
         "                            System.Reflection.BindingFlags.Public\n" +
         "                            ||| System.Reflection.BindingFlags.Static)\n" +
         "                    if not (isNull m) && m.GetParameters().Length = 0 then\n" +
