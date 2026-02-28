@@ -272,9 +272,11 @@ type SerdeGeneratorTask() =
                     "            initialized <- true\n" +
                     "            SerdeStjResolver.register()\n" +
                     "\n" +
-                    "module ResolverBootstrap =\n" +
+                    "namespace Djinn.Generated\n" +
+                    "\n" +
+                    "module Bootstrap =\n" +
                     "    let init () =\n" +
-                    "        Serde.ResolverBootstrap.registerAll <- Some ResolverRegistration.registerAll\n"
+                    "        Serde.ResolverBootstrap.registerAll <- Some Serde.Generated.ResolverRegistration.registerAll\n"
                 let outputFile = Path.Combine(this.OutputDir, "~SerdeResolverRegistration.djinn.g.fs")
                 let existingContent =
                     if File.Exists(outputFile) then Some (File.ReadAllText(outputFile))

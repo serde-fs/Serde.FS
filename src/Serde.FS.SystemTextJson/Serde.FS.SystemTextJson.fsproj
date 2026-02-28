@@ -8,7 +8,7 @@
 	<PropertyGroup>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		<PackageId>Serde.FS.SystemTextJson</PackageId>
-		<Version>0.1.1-debug.46</Version>
+		<Version>0.1.1-debug.47</Version>
 		<Authors>Jordan Marr</Authors>
 		<Description>System.Text.Json backend for Serde.FS</Description>
 	</PropertyGroup>

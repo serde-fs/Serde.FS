@@ -10,7 +10,7 @@ let private triggerBootstrap () =
     | None ->
         let asm = System.Reflection.Assembly.GetEntryAssembly()
         if not (isNull asm) then
-            match asm.GetType("Serde.Generated.ResolverBootstrap") with
+            match asm.GetType("Djinn.Generated.Bootstrap") with
             | null -> ()
             | ty ->
                 match ty.GetMethod("init", System.Reflection.BindingFlags.Public ||| System.Reflection.BindingFlags.Static) with

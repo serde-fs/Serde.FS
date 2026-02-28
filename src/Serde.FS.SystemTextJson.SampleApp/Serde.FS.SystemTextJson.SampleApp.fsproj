@@ -14,7 +14,7 @@
 	</ItemGroup>
 	
 	<ItemGroup>
-		<PackageReference Include="Serde.FS.SystemTextJson" Version="0.1.1-debug.46" />
+		<PackageReference Include="Serde.FS.SystemTextJson" Version="0.1.1-debug.47" />
 	</ItemGroup>
 
 </Project>
