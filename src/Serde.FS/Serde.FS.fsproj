@@ -7,13 +7,13 @@
 
   <ItemGroup>
     <Compile Include="SerdeMetadata.fs" />
-    <Compile Include="ISerdeCodeEmitter.fs" />
-    <Compile Include="DebugEmitter.fs" />
     <Compile Include="Attributes.fs" />
     <Compile Include="ISerdeOptions.fs" />
     <Compile Include="ISerdeBackend.fs" />
     <Compile Include="Serde.fs" />
     <Compile Include="SerdeApp.fs" />
+    <Compile Include="designTime\ISerdeCodeEmitter.fs" />
+    <Compile Include="designTime\DebugEmitter.fs" />
   </ItemGroup>
 
   <ItemGroup>
