@@ -150,7 +150,7 @@ namespace TestApp
 [<Serde>]
 type Person = { FName: string; LName: string; Age: int }
 """
-    let types = Serde.FS.SourceGen.AstParser.parseSource "/test.fs" source
+    let types = FSharp.SourceDjinn.AstParser.parseSource "/test.fs" source
     Assert.That(types.Length, Is.EqualTo(1))
 
     let code = emitter.Emit(types.[0])
@@ -492,7 +492,7 @@ type Color =
     | Green = 2
     | Blue = 3
 """
-    let types = Serde.FS.SourceGen.AstParser.parseSource "/test.fs" source
+    let types = FSharp.SourceDjinn.AstParser.parseSource "/test.fs" source
     Assert.That(types.Length, Is.EqualTo(1))
 
     let code = emitter.Emit(types.[0])
@@ -696,7 +696,7 @@ type Shape =
     | Circle of radius: float
     | Point
 """
-    let types = Serde.FS.SourceGen.AstParser.parseSource "/test.fs" source
+    let types = FSharp.SourceDjinn.AstParser.parseSource "/test.fs" source
     Assert.That(types.Length, Is.EqualTo(1))
 
     let code = emitter.Emit(types.[0])

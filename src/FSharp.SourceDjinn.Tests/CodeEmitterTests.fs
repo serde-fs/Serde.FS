@@ -1,9 +1,9 @@
-module Serde.FS.SourceGen.Tests.CodeEmitterTests
+module FSharp.SourceDjinn.Tests.CodeEmitterTests
 
 open NUnit.Framework
 open Serde.FS
 open Serde.FS.TypeKindTypes
-open Serde.FS.SourceGen
+open FSharp.SourceDjinn
 
 type FakeEmitter() =
     interface ISerdeCodeEmitter with

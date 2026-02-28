@@ -1,9 +1,9 @@
-module Serde.FS.SourceGen.Tests.AstParserTests
+module FSharp.SourceDjinn.Tests.AstParserTests
 
 open NUnit.Framework
 open Serde.FS
 open Serde.FS.TypeKindTypes
-open Serde.FS.SourceGen
+open FSharp.SourceDjinn
 
 [<Test>]
 let ``Parses record with Serde attribute`` () =

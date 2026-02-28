@@ -1,4 +1,4 @@
-namespace Serde.FS.SourceGen
+namespace FSharp.SourceDjinn
 
 open System.IO
 open Serde.FS

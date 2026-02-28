@@ -1,8 +1,8 @@
-module Serde.FS.SourceGen.Tests.TypeKindExtractorTests
+module FSharp.SourceDjinn.Tests.TypeKindExtractorTests
 
 open NUnit.Framework
 open Serde.FS.TypeKindTypes
-open Serde.FS.SourceGen
+open FSharp.SourceDjinn
 
 [<Test>]
 let ``Extracts all primitive types from record fields`` () =

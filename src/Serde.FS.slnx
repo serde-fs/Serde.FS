@@ -1,9 +1,9 @@
 <Solution>
   <Folder Name="/Tests/">
-    <Project Path="Serde.FS.SourceGen.Tests/Serde.FS.SourceGen.Tests.fsproj" />
+    <Project Path="FSharp.SourceDjinn.Tests/FSharp.SourceDjinn.Tests.fsproj" />
     <Project Path="Serde.FS.SystemTextJson.SampleApp/Serde.FS.SystemTextJson.SampleApp.fsproj" />
   </Folder>
-  <Project Path="Serde.FS.SourceGen/Serde.FS.SourceGen.fsproj" />
+  <Project Path="FSharp.SourceDjinn/FSharp.SourceDjinn.fsproj" />
   <Project Path="Serde.FS.SystemTextJson/Serde.FS.SystemTextJson.fsproj" />
   <Project Path="Serde.FS/Serde.FS.fsproj" />
 </Solution>

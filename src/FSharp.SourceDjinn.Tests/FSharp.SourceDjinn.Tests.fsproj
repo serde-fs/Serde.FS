@@ -24,7 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Serde.FS\Serde.FS.fsproj" />
-    <ProjectReference Include="..\Serde.FS.SourceGen\Serde.FS.SourceGen.fsproj" />
+    <ProjectReference Include="..\FSharp.SourceDjinn\FSharp.SourceDjinn.fsproj" />
   </ItemGroup>
 
 </Project>

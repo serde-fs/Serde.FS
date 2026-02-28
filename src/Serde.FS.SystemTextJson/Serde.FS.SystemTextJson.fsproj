@@ -15,7 +15,7 @@
 
 	<ItemGroup>
 		<None Include="build\Serde.FS.SystemTextJson.targets" Pack="true" PackagePath="build\" />
-		<None Include="analyzers\dotnet\fs\Serde.FS.SourceGen.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
+		<None Include="analyzers\dotnet\fs\FSharp.SourceDjinn.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
 		<None Include="analyzers\dotnet\fs\FSharp.Core.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
 		<None Include="analyzers\dotnet\fs\FSharp.Compiler.Service.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
 		<None Include="analyzers\dotnet\fs\Serde.FS.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
@@ -23,13 +23,13 @@
 	</ItemGroup>
 
 	<Target Name="CopyAnalyzerDependencies" AfterTargets="Build">
-		<Copy SourceFiles="$(ProjectDir)..\Serde.FS.SourceGen\bin\$(Configuration)\net8.0\Serde.FS.SourceGen.dll"
+		<Copy SourceFiles="$(ProjectDir)..\FSharp.SourceDjinn\bin\$(Configuration)\net8.0\FSharp.SourceDjinn.dll"
 			  DestinationFolder="$(ProjectDir)analyzers/dotnet/fs/" SkipUnchangedFiles="true" />
 
-		<Copy SourceFiles="$(ProjectDir)..\Serde.FS.SourceGen\bin\$(Configuration)\net8.0\FSharp.Core.dll"
+		<Copy SourceFiles="$(ProjectDir)..\FSharp.SourceDjinn\bin\$(Configuration)\net8.0\FSharp.Core.dll"
 			  DestinationFolder="$(ProjectDir)analyzers/dotnet/fs/" SkipUnchangedFiles="true" />
 
-		<Copy SourceFiles="$(ProjectDir)..\Serde.FS.SourceGen\bin\$(Configuration)\net8.0\FSharp.Compiler.Service.dll"
+		<Copy SourceFiles="$(ProjectDir)..\FSharp.SourceDjinn\bin\$(Configuration)\net8.0\FSharp.Compiler.Service.dll"
 			  DestinationFolder="$(ProjectDir)analyzers/dotnet/fs/" SkipUnchangedFiles="true" />
 
 		<!-- Copy Serde.FS.dll to analyzers (needed at build time for metadata types) -->

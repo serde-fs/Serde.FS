@@ -1,11 +1,11 @@
 #load "src/Serde.FS/TypeKind.fs"
-#load "src/Serde.FS.SourceGen/TypeKindExtractor.fs"
+#load "src/FSharp.SourceDjinn/TypeKindExtractor.fs"
 #load "src/Serde.FS/SerdeMetadata.fs"
-#load "src/Serde.FS.SourceGen/AstParser.fs"
+#load "src/FSharp.SourceDjinn/AstParser.fs"
 
 open Serde.FS
 open Serde.FS.TypeKindTypes
-open Serde.FS.SourceGen
+open FSharp.SourceDjinn
 
 let source = """
 namespace MyApp

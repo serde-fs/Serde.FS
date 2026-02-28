@@ -14,7 +14,7 @@ open Fun.Build
 // Paths
 // ---------------------------------------------------------------------------
 
-let sourceGenProj = "src/Serde.FS.SourceGen/Serde.FS.SourceGen.fsproj"
+let sourceGenProj = "src/FSharp.SourceDjinn/FSharp.SourceDjinn.fsproj"
 let stjProj       = "src/Serde.FS.SystemTextJson/Serde.FS.SystemTextJson.fsproj"
 let sampleAppProj = "src/Serde.FS.SystemTextJson.SampleApp/Serde.FS.SystemTextJson.SampleApp.fsproj"
 
