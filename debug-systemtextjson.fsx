@@ -46,7 +46,7 @@ pipeline "debug" {
         )
     }
 
-    stage "Prune local feed" {
+    stage "Prune local feed and global cache" {
         run (fun _ ->
             if Directory.Exists(nugetLocalDir) then
                 for pkg in Directory.GetFiles(nugetLocalDir, "*.nupkg", SearchOption.AllDirectories) do
@@ -55,6 +55,17 @@ pipeline "debug" {
             else
                 Directory.CreateDirectory(nugetLocalDir) |> ignore
             printfn "Local feed pruned."
+
+            // Clear stale debug packages from global NuGet cache
+            let globalPkgs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages")
+            for pkgName in [ "serde.fs"; "serde.fs.sourcegen"; "serde.fs.systemtextjson" ] do
+                let pkgDir = Path.Combine(globalPkgs, pkgName)
+                if Directory.Exists(pkgDir) then
+                    for versionDir in Directory.GetDirectories(pkgDir) do
+                        if Path.GetFileName(versionDir).Contains("debug") then
+                            printfn $"  Clearing global cache: {versionDir}"
+                            Directory.Delete(versionDir, true)
+            printfn "Global cache debug versions cleared."
         )
     }
 
@@ -79,11 +90,11 @@ pipeline "debug" {
     }
 
     stage "Restore SampleApp" {
-        run $"dotnet restore {sampleAppProj} --no-cache --source .nuget-local"
+        run $"dotnet restore {sampleAppProj} --no-cache /p:SerdeSTJVersion={debugVersion}"
     }
 
     stage "Build and run SampleApp" {
-        run $"dotnet build {sampleAppProj}"
+        run $"dotnet build {sampleAppProj} --no-restore /p:SerdeSTJVersion={debugVersion}"
         run $"dotnet run --project {sampleAppProj} --no-build"
     }
 
