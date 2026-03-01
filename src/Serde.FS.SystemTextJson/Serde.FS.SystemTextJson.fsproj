@@ -5,50 +5,44 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
-	<PropertyGroup>
-		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-		<PackageId>Serde.FS.SystemTextJson</PackageId>
-		<Version>0.1.1-debug.47</Version>
-		<Authors>Jordan Marr</Authors>
-		<Description>System.Text.Json backend for Serde.FS</Description>
-	</PropertyGroup>
+  <PropertyGroup>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>Serde.FS.SystemTextJson</PackageId>
+    <Version>1.0.0-alpha.1</Version>
+    <Authors>Jordan Marr</Authors>
+    <Description>System.Text.Json backend for Serde.FS</Description>
+    <SerdeFSVersion>1.0.0-alpha.1</SerdeFSVersion>
+    <SourceGenVersion>1.0.0-alpha.1</SourceGenVersion>
+    <SourceDjinnVersion>0.1.0</SourceDjinnVersion>
+  </PropertyGroup>
 
-	<ItemGroup>
-		<None Include="build\Serde.FS.SystemTextJson.targets" Pack="true" PackagePath="build\" />
-		<None Include="analyzers\dotnet\fs\FSharp.SourceDjinn.TypeModel.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
-		<None Include="analyzers\dotnet\fs\FSharp.SourceDjinn.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
-		<None Include="analyzers\dotnet\fs\FSharp.Core.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
-		<None Include="analyzers\dotnet\fs\FSharp.Compiler.Service.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
-		<None Include="analyzers\dotnet\fs\Serde.FS.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
-		<None Include="analyzers\dotnet\fs\Serde.FS.SourceGen.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
-		<None Include="analyzers\dotnet\fs\Serde.FS.SystemTextJson.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
-		<Compile Include="designTime\StjCodeEmitter.fs" />
-	</ItemGroup>
+  <ItemGroup>
+    <None Include="build\Serde.FS.SystemTextJson.targets" Pack="true" PackagePath="build\" />
+    <None Include="analyzers\dotnet\fs\FSharp.SourceDjinn.TypeModel.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
+    <None Include="analyzers\dotnet\fs\FSharp.SourceDjinn.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
+    <None Include="analyzers\dotnet\fs\FSharp.Core.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
+    <None Include="analyzers\dotnet\fs\FSharp.Compiler.Service.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
+    <None Include="analyzers\dotnet\fs\Serde.FS.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
+    <None Include="analyzers\dotnet\fs\Serde.FS.SourceGen.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
+    <None Include="analyzers\dotnet\fs\Serde.FS.SystemTextJson.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
+    <Compile Include="designTime\StjCodeEmitter.fs" />
+  </ItemGroup>
 
-	<Target Name="CopyAnalyzerDependencies" AfterTargets="Build">
-		<Copy SourceFiles="$(ProjectDir)..\FSharp.SourceDjinn.TypeModel\bin\$(Configuration)\net8.0\FSharp.SourceDjinn.TypeModel.dll" DestinationFolder="$(ProjectDir)analyzers/dotnet/fs/" SkipUnchangedFiles="true" />
+  <Target Name="CopyAnalyzerDependencies" AfterTargets="Build">
+    <Copy SourceFiles="$(OutputDir)FSharp.SourceDjinn.TypeModel.dll" DestinationFolder="$(ProjectDir)analyzers/dotnet/fs/" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(OutputDir)FSharp.SourceDjinn.dll" DestinationFolder="$(ProjectDir)analyzers/dotnet/fs/" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(OutputDir)FSharp.Core.dll" DestinationFolder="$(ProjectDir)analyzers/dotnet/fs/" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(OutputDir)FSharp.Compiler.Service.dll" DestinationFolder="$(ProjectDir)analyzers/dotnet/fs/" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(OutputDir)Serde.FS.dll" DestinationFolder="$(ProjectDir)analyzers/dotnet/fs/" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(OutputDir)Serde.FS.SourceGen.dll" DestinationFolder="$(ProjectDir)analyzers/dotnet/fs/" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(OutputDir)Serde.FS.SystemTextJson.dll" DestinationFolder="$(ProjectDir)analyzers/dotnet/fs/" SkipUnchangedFiles="true" />
+  </Target>
 
-		<Copy SourceFiles="$(ProjectDir)..\FSharp.SourceDjinn\bin\$(Configuration)\net8.0\FSharp.SourceDjinn.dll" DestinationFolder="$(ProjectDir)analyzers/dotnet/fs/" SkipUnchangedFiles="true" />
-
-		<Copy SourceFiles="$(ProjectDir)..\FSharp.SourceDjinn\bin\$(Configuration)\net8.0\FSharp.Core.dll" DestinationFolder="$(ProjectDir)analyzers/dotnet/fs/" SkipUnchangedFiles="true" />
-
-		<Copy SourceFiles="$(ProjectDir)..\FSharp.SourceDjinn\bin\$(Configuration)\net8.0\FSharp.Compiler.Service.dll" DestinationFolder="$(ProjectDir)analyzers/dotnet/fs/" SkipUnchangedFiles="true" />
-
-		<!-- Copy Serde.FS.dll to analyzers (needed at build time for metadata types) -->
-		<Copy SourceFiles="$(ProjectDir)..\Serde.FS\bin\$(Configuration)\net8.0\Serde.FS.dll" DestinationFolder="$(ProjectDir)analyzers/dotnet/fs/" SkipUnchangedFiles="true" />
-
-		<!-- Copy Serde.FS.SourceGen.dll to analyzers (needed for MSBuild task at build time) -->
-		<Copy SourceFiles="$(ProjectDir)..\Serde.FS.SourceGen\bin\$(Configuration)\net8.0\Serde.FS.SourceGen.dll" DestinationFolder="$(ProjectDir)analyzers/dotnet/fs/" SkipUnchangedFiles="true" />
-
-		<!-- Copy Serde.FS.SystemTextJson.dll to analyzers (needed for StjCodeEmitter at build time) -->
-		<Copy SourceFiles="$(ProjectDir)bin\$(Configuration)\net8.0\Serde.FS.SystemTextJson.dll" DestinationFolder="$(ProjectDir)analyzers/dotnet/fs/" SkipUnchangedFiles="true" />
-	</Target>
-
-	<ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="Serde.FS.SystemTextJson.Tests" />
   </ItemGroup>
 
-	<ItemGroup>
+  <ItemGroup>
     <Compile Include="ResolverBootstrap.fs" />
     <Compile Include="StjOptions.fs" />
     <Compile Include="StjBackend.fs" />
@@ -58,11 +52,9 @@
 
   <ItemGroup>
     <PackageReference Include="System.Text.Json" Version="10.0.3" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\FSharp.SourceDjinn.TypeModel\FSharp.SourceDjinn.TypeModel.fsproj" />
-    <ProjectReference Include="..\Serde.FS\Serde.FS.fsproj" />
+    <PackageReference Include="Serde.FS" Version="$(SerdeFSVersion)" />
+    <PackageReference Include="Serde.FS.SourceGen" Version="$(SourceGenVersion)" PrivateAssets="all" />
+    <PackageReference Include="FSharp.SourceDjinn" Version="$(SourceDjinnVersion)" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>

@@ -14,33 +14,30 @@ open Fun.Build
 // Paths
 // ---------------------------------------------------------------------------
 
-let sourceGenProj    = "src/FSharp.SourceDjinn/FSharp.SourceDjinn.fsproj"
-let serdeSourceGenProj = "src/Serde.FS.SourceGen/Serde.FS.SourceGen.fsproj"
-let stjProj          = "src/Serde.FS.SystemTextJson/Serde.FS.SystemTextJson.fsproj"
-let sampleAppProj    = "src/Serde.FS.SystemTextJson.SampleApp/Serde.FS.SystemTextJson.SampleApp.fsproj"
+let sourceDjinnProj   = "src/FSharp.SourceDjinn/FSharp.SourceDjinn.fsproj"
+let serdeFSProj       = "src/Serde.FS/Serde.FS.fsproj"
+let sourceGenProj     = "src/Serde.FS.SourceGen/Serde.FS.SourceGen.fsproj"
+let stjProj           = "src/Serde.FS.SystemTextJson/Serde.FS.SystemTextJson.fsproj"
+let sampleAppProj     = "src/Serde.FS.SystemTextJson.SampleApp/Serde.FS.SystemTextJson.SampleApp.fsproj"
+
+let nugetLocalDir     = ".nuget-local"
+let debugCounterFile  = ".debug-counter"
+
+// Base versions (must match .fsproj Version values)
+let sourceDjinnBaseVer = "0.1.0"
+let serdeFSBaseVer     = "1.0.0-alpha.1"
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-let readVersion (projPath: string) =
-    let content = File.ReadAllText(projPath)
-    let m = Regex.Match(content, @"<Version>([^<]+)</Version>")
-    if m.Success then m.Groups.[1].Value
-    else failwith $"Could not find <Version> in {projPath}"
-
-let nextDebugVersion (version: string) =
-    let baseVersion = version.Split('-').[0]
-    let m = Regex.Match(version, @"-debug\.(\d+)$")
-    if m.Success then
-        $"{baseVersion}-debug.{int m.Groups.[1].Value + 1}"
-    else
-        $"{baseVersion}-debug.1"
-
-let writeVersion (projPath: string) (newVersion: string) =
-    let content = File.ReadAllText(projPath)
-    let updated = Regex.Replace(content, @"<Version>[^<]+</Version>", $"<Version>{newVersion}</Version>")
-    File.WriteAllText(projPath, updated)
+let bumpCounter () =
+    let n =
+        if File.Exists(debugCounterFile) then
+            int (File.ReadAllText(debugCounterFile).Trim()) + 1
+        else 1
+    File.WriteAllText(debugCounterFile, string n)
+    n
 
 let updatePackageRef (projPath: string) (packageId: string) (newVersion: string) =
     let content = File.ReadAllText(projPath)
@@ -48,6 +45,18 @@ let updatePackageRef (projPath: string) (packageId: string) (newVersion: string)
     let replacement = $"<PackageReference Include=\"{packageId}\" Version=\"{newVersion}\""
     let updated = Regex.Replace(content, pattern, replacement)
     File.WriteAllText(projPath, updated)
+
+let clearNuGetCache (packageId: string) =
+    let cacheDir =
+        Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".nuget", "packages", packageId.ToLowerInvariant()
+        )
+    if Directory.Exists(cacheDir) then
+        for dir in Directory.GetDirectories(cacheDir) do
+            if Path.GetFileName(dir).Contains("-debug.") then
+                printfn $"  Deleting cache: {dir}"
+                Directory.Delete(dir, true)
 
 let killProcess (name: string) =
     try
@@ -66,40 +75,69 @@ let killProcess (name: string) =
 // ---------------------------------------------------------------------------
 
 pipeline "debug" {
-    description "Build, pack, and test the STJ backend using a local NuGet feed"
+    description "Pack all 4 packages and test the STJ backend via local NuGet feed"
 
-    stage "Bump debug version" {
+    stage "Bump counter and clear caches" {
         run (fun _ ->
-            let version = readVersion stjProj
-            let newVersion = nextDebugVersion version
-            printfn $"Version: {version} -> {newVersion}"
-            writeVersion stjProj newVersion
+            let n = bumpCounter ()
+            printfn $"Debug counter: {n}"
+
+            for pkg in [ "fsharp.sourceDjinn"; "serde.fs"; "serde.fs.sourcegen"; "serde.fs.systemtextjson" ] do
+                clearNuGetCache pkg
         )
     }
 
-    stage "Build SourceDjinn" {
-        run $"dotnet build {sourceGenProj}"
-    }
-
-    stage "Build Serde.FS.SourceGen" {
-        run $"dotnet build {serdeSourceGenProj}"
-    }
-
-    stage "Build STJ" {
-        run $"dotnet build {stjProj}"
-    }
-
-    stage "Update SampleApp package reference" {
+    stage "Pack FSharp.SourceDjinn" {
         run (fun _ ->
-            let version = readVersion stjProj
-            updatePackageRef sampleAppProj "Serde.FS.SystemTextJson" version
-            printfn $"Updated SampleApp to Serde.FS.SystemTextJson {version}"
+            let n = File.ReadAllText(debugCounterFile).Trim()
+            let ver = $"{sourceDjinnBaseVer}-debug.{n}"
+            printfn $"Packing FSharp.SourceDjinn {ver}"
+            $"dotnet pack {sourceDjinnProj} -c Debug -o {nugetLocalDir}/FSharp.SourceDjinn /p:PackageVersion={ver}"
         )
     }
 
-    stage "Restore and build SampleApp" {
+    stage "Pack Serde.FS" {
+        run (fun _ ->
+            let n = File.ReadAllText(debugCounterFile).Trim()
+            let ver = $"{serdeFSBaseVer}-debug.{n}"
+            printfn $"Packing Serde.FS {ver}"
+            $"dotnet pack {serdeFSProj} -c Debug -o {nugetLocalDir}/Serde.FS /p:PackageVersion={ver}"
+        )
+    }
+
+    stage "Pack Serde.FS.SourceGen" {
+        run (fun _ ->
+            let n = File.ReadAllText(debugCounterFile).Trim()
+            let serdeFSVer = $"{serdeFSBaseVer}-debug.{n}"
+            let djinnVer = $"{sourceDjinnBaseVer}-debug.{n}"
+            let ver = $"{serdeFSBaseVer}-debug.{n}"
+            printfn $"Packing Serde.FS.SourceGen {ver}"
+            $"dotnet pack {sourceGenProj} -c Debug -o {nugetLocalDir}/Serde.FS.SourceGen /p:PackageVersion={ver} /p:SerdeFSVersion={serdeFSVer} /p:SourceDjinnVersion={djinnVer}"
+        )
+    }
+
+    stage "Pack Serde.FS.SystemTextJson" {
+        run (fun _ ->
+            let n = File.ReadAllText(debugCounterFile).Trim()
+            let serdeFSVer = $"{serdeFSBaseVer}-debug.{n}"
+            let sourceGenVer = $"{serdeFSBaseVer}-debug.{n}"
+            let djinnVer = $"{sourceDjinnBaseVer}-debug.{n}"
+            let ver = $"{serdeFSBaseVer}-debug.{n}"
+            printfn $"Packing Serde.FS.SystemTextJson {ver}"
+            $"dotnet pack {stjProj} -c Debug -o {nugetLocalDir}/Serde.FS.SystemTextJson /p:PackageVersion={ver} /p:SerdeFSVersion={serdeFSVer} /p:SourceGenVersion={sourceGenVer} /p:SourceDjinnVersion={djinnVer}"
+        )
+    }
+
+    stage "Update SampleApp and build" {
+        run (fun _ ->
+            let n = File.ReadAllText(debugCounterFile).Trim()
+            let ver = $"{serdeFSBaseVer}-debug.{n}"
+            updatePackageRef sampleAppProj "Serde.FS.SystemTextJson" ver
+            printfn $"Updated SampleApp to Serde.FS.SystemTextJson {ver}"
+        )
         run $"dotnet restore {sampleAppProj}"
         run $"dotnet build {sampleAppProj}"
+        run $"dotnet run --project {sampleAppProj}"
     }
 
     runIfOnlySpecified false
@@ -115,28 +153,20 @@ pipeline "clean" {
     // File cleanup runs before process killing because taskkill /F /IM dotnet.exe
     // will terminate this script's host process.
 
-    stage "Delete debug packages" {
+    stage "Delete local NuGet packages" {
         run (fun _ ->
-            let dir = "src/Serde.FS.SystemTextJson/bin/Debug"
-            if Directory.Exists(dir) then
-                for pkg in Directory.GetFiles(dir, "*-debug.*.nupkg") do
-                    printfn $"  Deleting {pkg}"
-                    File.Delete(pkg)
+            if Directory.Exists(nugetLocalDir) then
+                for subdir in Directory.GetDirectories(nugetLocalDir) do
+                    for pkg in Directory.GetFiles(subdir, "*.nupkg") do
+                        printfn $"  Deleting {pkg}"
+                        File.Delete(pkg)
         )
     }
 
     stage "Delete NuGet cache entries" {
         run (fun _ ->
-            let cacheDir =
-                Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                    ".nuget", "packages", "serde.fs.systemtextjson"
-                )
-            if Directory.Exists(cacheDir) then
-                for dir in Directory.GetDirectories(cacheDir) do
-                    if Path.GetFileName(dir).Contains("-debug.") then
-                        printfn $"  Deleting {dir}"
-                        Directory.Delete(dir, true)
+            for pkg in [ "fsharp.sourceDjinn"; "serde.fs"; "serde.fs.sourcegen"; "serde.fs.systemtextjson" ] do
+                clearNuGetCache pkg
         )
     }
 

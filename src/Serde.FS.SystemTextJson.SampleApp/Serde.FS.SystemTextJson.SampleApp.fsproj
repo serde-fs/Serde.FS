@@ -10,11 +10,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\Serde.FS\Serde.FS.fsproj" />
-	</ItemGroup>
-	
-	<ItemGroup>
-		<PackageReference Include="Serde.FS.SystemTextJson" Version="0.1.1-debug.47" />
+		<PackageReference Include="Serde.FS.SystemTextJson" Version="1.0.0-alpha.1" />
 	</ItemGroup>
 
 </Project>

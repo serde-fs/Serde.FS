@@ -1,22 +1,18 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageId>Serde.FS</PackageId>
+    <Version>1.0.0-alpha.1</Version>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="SerdeMetadata.fs" />
     <Compile Include="Attributes.fs" />
     <Compile Include="ISerdeOptions.fs" />
     <Compile Include="ISerdeBackend.fs" />
     <Compile Include="Serde.fs" />
-    <Compile Include="designTime\ISerdeCodeEmitter.fs" />
-    <Compile Include="designTime\DebugEmitter.fs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\FSharp.SourceDjinn.TypeModel\FSharp.SourceDjinn.TypeModel.fsproj" />
   </ItemGroup>
 
 </Project>
