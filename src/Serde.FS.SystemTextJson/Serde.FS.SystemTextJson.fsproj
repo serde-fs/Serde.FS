@@ -14,9 +14,7 @@
 
 		<PackageTags>fsharp;serde;json;system-text-json;fs-djinn;djinn</PackageTags>
 
-		<!-- Only pack *this* project's analyzer output -->
-		<IncludeBuildOutput>false</IncludeBuildOutput>
-		<IncludeAnalyzer>true</IncludeAnalyzer>
+		<IncludeBuildOutput>true</IncludeBuildOutput>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -28,16 +26,11 @@
 		<Compile Include="StjExtensions.fs" />
 	</ItemGroup>
 
-	<!-- Pack only this project's analyzer DLL -->
-	<ItemGroup>
-		<Analyzer Include="$(OutputPath)Serde.FS.SystemTextJson.dll" />
-	</ItemGroup>
-
 	<ItemGroup>
 		<PackageReference Include="System.Text.Json" Version="10.0.3" />
 		<PackageReference Include="FSharp.SourceDjinn" Version="0.1.3" PrivateAssets="all" />
 		<ProjectReference Include="..\Serde.FS\Serde.FS.fsproj" />
-		<ProjectReference Include="..\Serde.FS.SourceGen\Serde.FS.SourceGen.fsproj" PrivateAssets="all" />
+		<ProjectReference Include="..\Serde.FS.SourceGen\Serde.FS.SourceGen.fsproj" />
 	</ItemGroup>
 
 	<ItemGroup>
