@@ -1,7 +1,6 @@
-module FSharp.SourceDjinn.Tests.CodeEmitterTests
+module Serde.FS.SourceGen.Tests.SerdeCodeEmitterTests
 
 open NUnit.Framework
-open Serde.FS
 open FSharp.SourceDjinn.Types
 open Serde.FS.SourceGen
 

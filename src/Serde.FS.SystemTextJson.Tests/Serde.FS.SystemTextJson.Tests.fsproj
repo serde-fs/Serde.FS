@@ -24,7 +24,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\FSharp.SourceDjinn.TypeModel\FSharp.SourceDjinn.TypeModel.fsproj" />
     <ProjectReference Include="..\Serde.FS\Serde.FS.fsproj" />
     <ProjectReference Include="..\Serde.FS.SourceGen\Serde.FS.SourceGen.fsproj" />
     <ProjectReference Include="..\Serde.FS.SystemTextJson\Serde.FS.SystemTextJson.fsproj" />
