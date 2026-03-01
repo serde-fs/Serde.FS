@@ -37,4 +37,16 @@
 		<InternalsVisibleTo Include="Serde.FS.SystemTextJson.Tests" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<None Include="..\Serde.FS.SourceGen\bin\$(Configuration)\net8.0\Serde.FS.SourceGen.dll"
+		      Pack="true"
+		      PackagePath="analyzers/dotnet/fs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="buildTransitive\Serde.FS.SystemTextJson.props"
+		      Pack="true"
+		      PackagePath="buildTransitive" />
+	</ItemGroup>
+
 </Project>
