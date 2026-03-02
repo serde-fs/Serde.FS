@@ -4,6 +4,7 @@
 		<OutputType>Exe</OutputType>
 		<TargetFramework>net8.0</TargetFramework>
 		<SerdeSTJVersion Condition="'$(SerdeSTJVersion)' == ''">1.0.0-alpha.1</SerdeSTJVersion>
+		<NoWarn>$(NoWarn);NU1603</NoWarn>
 	</PropertyGroup>
 
 	<ItemGroup>
