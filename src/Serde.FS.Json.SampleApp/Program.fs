@@ -10,9 +10,10 @@ type Color =
     | Green = 2
     | Blue = 3
 
-[<Serde>]
+[<Serde>] 
 type Address = { Street: string; City: string; Zip: string }
 
+[<Serde>]
 type Name = { Name: string }
 
 [<Serde>]

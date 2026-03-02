@@ -4,14 +4,6 @@ type Serde =
     static member val DefaultBackend : ISerdeBackend option = None
         with get, set
 
-    /// When true, serialization/deserialization of types without generated metadata throws.
-    static member val Strict : bool = false
-        with get, set
-
-    /// When true, enables debug logging for Serde operations.
-    static member val Debug : bool = false
-        with get, set
-
     static member GetBackend() =
         Serde.DefaultBackend
         |> Option.defaultWith (fun () ->

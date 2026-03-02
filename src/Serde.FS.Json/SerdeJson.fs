@@ -3,7 +3,7 @@ module Serde.FS.Json.SerdeJson
 open Serde.FS
 
 /// Sets System.Text.Json as the default backend for Serde.FS.
-/// Call once at application startup. Enables strict mode by default.
+/// Call once at application startup.
 let private triggerBootstrap () =
     match global.Serde.ResolverBootstrap.registerAll with
     | Some _ -> ()
@@ -25,17 +25,9 @@ let useAsDefault () =
     match Serde.DefaultBackend with
     | Some (:? JsonBackend) -> ()
     | _ -> Serde.DefaultBackend <- Some (JsonBackend() :> ISerdeBackend)
-    Serde.Strict <- true
 
-/// The global JSON backend options instance. Strict mode is enabled by default.
+/// The global JSON backend options instance.
 let options = SerdeJsonDefaults.options
 
 /// Apply a configuration function to the global JSON backend options.
 let configure (f: SerdeJsonOptions -> unit) = f options
-
-/// Disables strict mode, allowing reflection-based serialization for types
-/// without generated Serde metadata.
-let allowReflectionFallback () = options.Strict <- false
-
-/// Enables debug logging for Serde operations.
-let enableDebug () = Serde.Debug <- true
