@@ -18,10 +18,6 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<!--
-		<Compile Include="designTime\StjCodeEmitter.fs" />
-		-->
-
 		<Compile Include="ResolverBootstrap.fs" />
 		<Compile Include="StjOptions.fs" />
 		<Compile Include="StjBackend.fs" />
@@ -35,9 +31,6 @@
 		<PackageReference Include="FSharp.SourceDjinn.TypeModel" Version="0.1.1" />
 		<ProjectReference Include="..\Serde.FS\Serde.FS.fsproj" />
 		<ProjectReference Include="..\Serde.FS.SystemTextJson.DesignTime\Serde.FS.SystemTextJson.DesignTime.fsproj" PrivateAssets="all" />
-		<!--
-		<ProjectReference Include="..\Serde.FS.SourceGen\Serde.FS.SourceGen.fsproj" PrivateAssets="all" />
-		-->
 		<PackageReference Include="Serde.FS.SourceGen" Version="$(SourceGenVersion)" PrivateAssets="all" />
 	</ItemGroup>
 
