@@ -3,15 +3,25 @@
 	<PropertyGroup>
 		<TargetFramework>net8.0</TargetFramework>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+		<!-- Serde generator engine + MSBuild task -->
 		<PackageId>Serde.FS.SourceGen</PackageId>
 		<Version>1.0.0-alpha.1</Version>
+
+		<!-- Packed as an analyzer package (design-time only) -->
 		<IsPackable>true</IsPackable>
 		<IncludeBuildOutput>true</IncludeBuildOutput>
+
+		<!-- Ensures all referenced DLLs are copied into the output folder
+         so they can be packed into analyzers/ -->
 		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+
+		<!-- Version properties overridden by pipeline -->
 		<SerdeFSVersion>1.0.0-alpha.1</SerdeFSVersion>
 		<SourceDjinnVersion>0.1.0</SourceDjinnVersion>
 	</PropertyGroup>
 
+	<!-- Generator engine + AST parser + code emitter + MSBuild task -->
 	<ItemGroup>
 		<Compile Include="SerdeMetadata.fs" />
 		<Compile Include="ISerdeCodeEmitter.fs" />
@@ -22,20 +32,27 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<!-- MSBuild task base types -->
 		<PackageReference Include="Microsoft.Build.Utilities.Core" Version="18.3.3" />
+
+		<!-- Serde core library (metadata + semantics) -->
 		<ProjectReference Include="..\Serde.FS\Serde.FS.fsproj" />
+
+		<!-- SourceDjinn engine (design-time only) -->
 		<PackageReference Include="FSharp.SourceDjinn" Version="0.1.3" PrivateAssets="all" />
+
+		<!-- Runtime type model used by the generator -->
 		<PackageReference Include="FSharp.SourceDjinn.TypeModel" Version="0.1.1" />
 	</ItemGroup>
 
-	<!-- Pack the UsingTask file -->
+	<!-- MSBuild task registration (UsingTask) -->
 	<ItemGroup>
 		<None Include="build\Serde.FS.SourceGen.targets"
 			  Pack="true"
 			  PackagePath="build" />
 	</ItemGroup>
 
-	<!-- Pack the analyzer DLL -->
+	<!-- Analyzer payload: generator engine DLL -->
 	<ItemGroup>
 		<None Include="$(OutputPath)Serde.FS.SourceGen.dll"
 			  Pack="true"
