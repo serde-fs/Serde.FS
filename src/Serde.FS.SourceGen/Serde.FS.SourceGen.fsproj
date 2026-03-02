@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<TargetFramework>net8.0</TargetFramework>
@@ -26,6 +26,20 @@
 		<ProjectReference Include="..\Serde.FS\Serde.FS.fsproj" />
 		<PackageReference Include="FSharp.SourceDjinn" Version="0.1.3" PrivateAssets="all" />
 		<PackageReference Include="FSharp.SourceDjinn.TypeModel" Version="0.1.1" />
+	</ItemGroup>
+
+	<!-- Pack the UsingTask file -->
+	<ItemGroup>
+		<None Include="build\Serde.FS.SourceGen.targets"
+			  Pack="true"
+			  PackagePath="build" />
+	</ItemGroup>
+
+	<!-- Pack the analyzer DLL -->
+	<ItemGroup>
+		<None Include="$(OutputPath)Serde.FS.SourceGen.dll"
+			  Pack="true"
+			  PackagePath="analyzers/dotnet/fs" />
 	</ItemGroup>
 
 </Project>

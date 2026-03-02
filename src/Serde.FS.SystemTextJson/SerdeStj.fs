@@ -25,7 +25,6 @@ let useAsDefault () =
     match Serde.DefaultBackend with
     | Some (:? StjBackend) -> ()
     | _ -> Serde.DefaultBackend <- Some (StjBackend() :> ISerdeBackend)
-    SerdeCodegenRegistry.setDefaultEmitter (StjCodeEmitter() :> ISerdeCodeEmitter)
     Serde.Strict <- true
 
 /// The global STJ options instance. Strict mode is enabled by default.

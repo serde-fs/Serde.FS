@@ -1,5 +1,0 @@
-<Project>
-  <ItemGroup>
-    <Analyzer Include="$(MSBuildThisPackageRoot)analyzers/dotnet/fs/Serde.FS.SourceGen.dll" />
-  </ItemGroup>
-</Project>
