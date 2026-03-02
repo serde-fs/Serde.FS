@@ -1,0 +1,710 @@
+module Serde.FS.Json.Tests.StjCodeEmitterTests
+
+open NUnit.Framework
+open Serde.FS
+open FSharp.SourceDjinn
+open FSharp.SourceDjinn.Types
+open Serde.FS.Json
+
+let private emitter = StjCodeEmitter() :> ISerdeCodeEmitter
+let private resolverEmitter = StjCodeEmitter() :> ISerdeResolverEmitter
+
+/// Helper to build a simple field TypeInfo from a type name and primitive kind.
+let private mkPrimType name kind : TypeInfo =
+    { Namespace = None; EnclosingModules = []; TypeName = name; Kind = Primitive kind; Attributes = [] }
+
+/// Helper to build a SerdeFieldInfo from a name and a simple primitive type.
+let private mkField name typeName kind : SerdeFieldInfo =
+    { Name = name; RawName = name; Type = mkPrimType typeName kind; Attributes = SerdeAttributes.empty; Capability = Both }
+
+/// Helper to build a SerdeFieldInfo with a full TypeInfo.
+let private mkFieldWithType name (typeInfo: TypeInfo) : SerdeFieldInfo =
+    { Name = name; RawName = name; Type = typeInfo; Attributes = SerdeAttributes.empty; Capability = Both }
+
+/// Helper to build an option TypeInfo wrapping an inner TypeInfo.
+let private mkOptionType (inner: TypeInfo) : TypeInfo =
+    { Namespace = None; EnclosingModules = []; TypeName = "option"; Kind = Option inner; Attributes = [] }
+
+/// Helper to build a SerdeTypeInfo for an option type.
+let private mkOptionInfo (inner: TypeInfo) : SerdeTypeInfo =
+    let optType = mkOptionType inner
+    {
+        Raw = optType
+        Capability = Both
+        Attributes = SerdeAttributes.empty
+        Fields = None
+        UnionCases = None
+        EnumCases = None
+    }
+
+/// Helper to build a SerdeTypeInfo for a simple record.
+let private mkRecordInfo ns typeName cap (fields: SerdeFieldInfo list) : SerdeTypeInfo =
+    let rawFields =
+        fields |> List.map (fun f -> { Name = f.RawName; Type = f.Type; Attributes = [] } : Types.FieldInfo)
+    {
+        Raw = {
+            Namespace = ns
+            EnclosingModules = []
+            TypeName = typeName
+            Kind = Record rawFields
+            Attributes = []
+        }
+        Capability = cap
+        Attributes = SerdeAttributes.empty
+        Fields = Some fields
+        UnionCases = None
+        EnumCases = None
+    }
+
+[<Test>]
+let ``Emits valid F# for simple record`` () =
+    let info = mkRecordInfo (Some "MyApp") "Person" Both [
+        mkField "FName" "string" String
+        mkField "LName" "string" String
+        mkField "Age" "int" Int32
+    ]
+
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("module rec Serde.Generated.Person"))
+    Assert.That(code, Does.Contain("module internal PersonSerdeTypeInfo"))
+    Assert.That(code, Does.Contain("personJsonTypeInfo"))
+    Assert.That(code, Does.Contain("JsonTypeInfo<MyApp.Person>"))
+    Assert.That(code, Does.Contain("JsonMetadataServices.CreateObjectInfo<MyApp.Person>"))
+    Assert.That(code, Does.Contain("""writer.WriteString("FName", value.FName)"""))
+    Assert.That(code, Does.Contain("""writer.WriteString("LName", value.LName)"""))
+    Assert.That(code, Does.Contain("""writer.WriteNumber("Age", value.Age)"""))
+    Assert.That(code, Does.Contain("writer.WriteStartObject()"))
+    Assert.That(code, Does.Contain("writer.WriteEndObject()"))
+
+[<Test>]
+let ``Emits WriteBoolean for bool fields`` () =
+    let info = mkRecordInfo (Some "MyApp") "Config" Serialize [
+        mkField "IsEnabled" "bool" Bool
+    ]
+
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("""writer.WriteBoolean("IsEnabled", value.IsEnabled)"""))
+
+[<Test>]
+let ``Emits WriteNumber for numeric types`` () =
+    let info = mkRecordInfo (Some "MyApp") "Numbers" Serialize [
+        mkField "I" "int" Int32
+        mkField "I64" "int64" Int64
+        mkField "F" "float" Float64
+        mkField "D" "decimal" Decimal
+    ]
+
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("""writer.WriteNumber("I", value.I)"""))
+    Assert.That(code, Does.Contain("""writer.WriteNumber("I64", value.I64)"""))
+    Assert.That(code, Does.Contain("""writer.WriteNumber("F", value.F)"""))
+    Assert.That(code, Does.Contain("""writer.WriteNumber("D", value.D)"""))
+
+[<Test>]
+let ``Emits option handling for optional fields`` () =
+    let optionType = {
+        Namespace = None; EnclosingModules = []; TypeName = "option"
+        Kind = Option (mkPrimType "string" String); Attributes = []
+    }
+    let info = mkRecordInfo (Some "MyApp") "Person" Serialize [
+        mkFieldWithType "MiddleName" optionType
+    ]
+
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("match value.MiddleName with"))
+    Assert.That(code, Does.Contain("| Some v ->"))
+    Assert.That(code, Does.Contain("| None ->"))
+    Assert.That(code, Does.Contain("""writer.WriteNull("MiddleName")"""))
+
+[<Test>]
+let ``Emits auto-generated header`` () =
+    let info = mkRecordInfo (Some "MyApp") "Foo" Both [
+        mkField "X" "int" Int32
+    ]
+
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.StartWith("// <auto-generated />"))
+
+[<Test>]
+let ``Emits DateTime as WriteString with ISO format`` () =
+    let info = mkRecordInfo (Some "MyApp") "Event" Serialize [
+        mkField "CreatedAt" "System.DateTime" DateTime
+    ]
+
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("""writer.WriteString("CreatedAt", value.CreatedAt.ToString("O"))"""))
+
+[<Test>]
+let ``Emits Guid as WriteString`` () =
+    let info = mkRecordInfo (Some "MyApp") "Entity" Serialize [
+        mkField "Id" "System.Guid" Guid
+    ]
+
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("""writer.WriteString("Id", value.Id.ToString())"""))
+
+[<Test>]
+let ``Full pipeline: parse then emit`` () =
+    let source = """
+namespace TestApp
+
+[<Serde>]
+type Person = { FName: string; LName: string; Age: int }
+"""
+    let types = Serde.FS.SourceGen.SerdeAstParser.parseSource "/test.fs" source
+    Assert.That(types.Length, Is.EqualTo(1))
+
+    let code = emitter.Emit(types.[0])
+    Assert.That(code, Does.Contain("module rec Serde.Generated.Person"))
+    Assert.That(code, Does.Contain("personJsonTypeInfo"))
+    Assert.That(code, Does.Contain("JsonTypeInfo<TestApp.Person>"))
+    Assert.That(code, Does.Contain("""writer.WriteString("FName", value.FName)"""))
+    Assert.That(code, Does.Contain("""writer.WriteString("LName", value.LName)"""))
+    Assert.That(code, Does.Contain("""writer.WriteNumber("Age", value.Age)"""))
+
+[<Test>]
+let ``EmitResolver produces valid resolver for multiple types`` () =
+    let types = [
+        mkRecordInfo (Some "MyApp") "Person" Both [
+            mkField "FName" "string" String
+            mkField "LName" "string" String
+        ]
+        mkRecordInfo (Some "MyApp") "Address" Serialize [
+            mkField "Street" "string" String
+        ]
+    ]
+
+    let result = resolverEmitter.EmitResolver(types)
+    Assert.That(result.IsSome, Is.True)
+    let code = result.Value
+    Assert.That(code, Does.Contain("module Serde.Generated.SerdeStjResolver"))
+    Assert.That(code, Does.Contain("open Serde.Generated.Person"))
+    Assert.That(code, Does.Contain("open Serde.Generated.Address"))
+    Assert.That(code, Does.Contain("SerdeStjGeneratedResolver"))
+    Assert.That(code, Does.Contain("IJsonTypeInfoResolver"))
+    Assert.That(code, Does.Contain("typeof<MyApp.Person>"))
+    Assert.That(code, Does.Contain("typeof<MyApp.Address>"))
+    Assert.That(code, Does.Contain("personJsonTypeInfo"))
+    Assert.That(code, Does.Contain("addressJsonTypeInfo"))
+    Assert.That(code, Does.Contain("if ty = typeof<MyApp.Person>"))
+    Assert.That(code, Does.Contain("elif ty = typeof<MyApp.Address>"))
+    Assert.That(code, Does.Contain("else null"))
+    Assert.That(code, Does.Contain("SerdeStjResolverRegistry.registerResolver"))
+
+[<Test>]
+let ``EmitResolver returns None for empty list`` () =
+    let result = resolverEmitter.EmitResolver([])
+    Assert.That(result.IsNone, Is.True)
+
+[<Test>]
+let ``Emits converter for option int`` () =
+    let info = mkOptionInfo (mkPrimType "int" Int32)
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("IntOptionConverter"))
+    Assert.That(code, Does.Contain("JsonConverter<int option>"))
+    Assert.That(code, Does.Contain("CreateValueInfo"))
+    Assert.That(code, Does.Contain("JsonTokenType.Null then None"))
+    Assert.That(code, Does.Contain("Some(JsonSerializer.Deserialize<int>"))
+    Assert.That(code, Does.Contain("writer.WriteNullValue()"))
+    Assert.That(code, Does.Contain("JsonSerializer.Serialize(writer, v, options)"))
+
+[<Test>]
+let ``Emits converter for option string`` () =
+    let info = mkOptionInfo (mkPrimType "string" String)
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("StringOptionConverter"))
+    Assert.That(code, Does.Contain("JsonConverter<string option>"))
+    Assert.That(code, Does.Not.Contain("intOptionJsonTypeInfo"), "Should not contain int references")
+    Assert.That(code, Does.Contain("stringOptionJsonTypeInfo"))
+
+[<Test>]
+let ``Emits converter for option record`` () =
+    let personType : TypeInfo = {
+        Namespace = Some "MyApp"; EnclosingModules = []; TypeName = "Person"
+        Kind = Record []; Attributes = []
+    }
+    let info = mkOptionInfo personType
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("PersonOptionConverter"))
+    Assert.That(code, Does.Contain("JsonConverter<MyApp.Person option>"))
+    Assert.That(code, Does.Contain("Deserialize<MyApp.Person>"))
+
+[<Test>]
+let ``Emits converter for nested option option int`` () =
+    let innerOption = mkOptionType (mkPrimType "int" Int32)
+    let info = mkOptionInfo innerOption
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("IntOptionOptionConverter"))
+    Assert.That(code, Does.Contain("JsonConverter<int option option>"))
+    Assert.That(code, Does.Contain("Deserialize<int option>"))
+
+[<Test>]
+let ``EmitResolver with mixed record and option types`` () =
+    let recordType = mkRecordInfo (Some "MyApp") "Person" Both [
+        mkField "FName" "string" String
+    ]
+    let optionType = mkOptionInfo (mkPrimType "string" String)
+    let types = [ recordType; optionType ]
+
+    let result = resolverEmitter.EmitResolver(types)
+    Assert.That(result.IsSome, Is.True)
+    let code = result.Value
+    Assert.That(code, Does.Contain("typeof<MyApp.Person>"))
+    Assert.That(code, Does.Contain("typeof<string option>"))
+    Assert.That(code, Does.Contain("personJsonTypeInfo"))
+    Assert.That(code, Does.Contain("stringOptionJsonTypeInfo"))
+    Assert.That(code, Does.Contain("open Serde.Generated.Person"))
+    Assert.That(code, Does.Contain("open Serde.Generated.StringOption"))
+
+[<Test>]
+let ``Emits fully-qualified type for nested record field`` () =
+    let addressType : TypeInfo = {
+        Namespace = Some "My.App"; EnclosingModules = []; TypeName = "Address"
+        Kind = Record []; Attributes = []
+    }
+    let info = mkRecordInfo (Some "My.App") "User" Both [
+        mkField "Name" "string" String
+        mkFieldWithType "Address" addressType
+    ]
+
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("args.[1] :?> My.App.Address"), "Constructor downcast should use FQ name")
+    Assert.That(code, Does.Contain("typeof<My.App.Address>"), "ParameterType should use FQ name")
+    Assert.That(code, Does.Contain("CreatePropertyInfo<My.App.Address>"), "PropertyInfo should use FQ name")
+    Assert.That(code, Does.Contain("JsonPropertyInfoValues<My.App.Address>"), "PropertyInfoValues should use FQ name")
+
+[<Test>]
+let ``Emits fully-qualified type for nested record from another module`` () =
+    let addressType : TypeInfo = {
+        Namespace = Some "Outer"; EnclosingModules = ["Inner"]; TypeName = "Address"
+        Kind = Record []; Attributes = []
+    }
+    let info = mkRecordInfo (Some "My.App") "User" Both [
+        mkFieldWithType "Address" addressType
+    ]
+
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("args.[0] :?> Outer.Inner.Address"), "Constructor downcast should use FQ name with module")
+    Assert.That(code, Does.Contain("typeof<Outer.Inner.Address>"), "ParameterType should use FQ name with module")
+    Assert.That(code, Does.Contain("CreatePropertyInfo<Outer.Inner.Address>"), "PropertyInfo should use FQ name with module")
+
+[<Test>]
+let ``Emits option handling for nested record option field`` () =
+    let addressType : TypeInfo = {
+        Namespace = Some "My.App"; EnclosingModules = []; TypeName = "Address"
+        Kind = Record []; Attributes = []
+    }
+    let optionType = {
+        Namespace = None; EnclosingModules = []; TypeName = "option"
+        Kind = Option addressType; Attributes = []
+    }
+    let info = mkRecordInfo (Some "My.App") "User" Both [
+        mkFieldWithType "Address" optionType
+    ]
+
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("match value.Address with"), "Should emit option match")
+    Assert.That(code, Does.Contain("| Some v ->"), "Should emit Some case")
+    Assert.That(code, Does.Contain("JsonSerializer.Serialize(writer, v, options)"), "Should serialize nested record via JsonSerializer")
+
+/// Helper to build a tuple TypeInfo from a list of element TypeInfos.
+let private mkTupleType (elements: TypeInfo list) : TypeInfo =
+    let fields = elements |> List.mapi (fun i ti -> { Name = sprintf "Item%d" (i+1); Type = ti; Attributes = [] } : Types.FieldInfo)
+    { Namespace = None; EnclosingModules = []; TypeName = "tuple"; Kind = Tuple fields; Attributes = [] }
+
+/// Helper to build a SerdeTypeInfo for a tuple type.
+let private mkTupleInfo (elements: TypeInfo list) : SerdeTypeInfo =
+    let tupType = mkTupleType elements
+    {
+        Raw = tupType
+        Capability = Both
+        Attributes = SerdeAttributes.empty
+        Fields = None
+        UnionCases = None
+        EnumCases = None
+    }
+
+[<Test>]
+let ``Emits converter for simple int * string tuple`` () =
+    let info = mkTupleInfo [ mkPrimType "int" Int32; mkPrimType "string" String ]
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("IntStringTupleConverter"))
+    Assert.That(code, Does.Contain("JsonConverter<(int * string)>"))
+    Assert.That(code, Does.Contain("CreateValueInfo"))
+    Assert.That(code, Does.Contain("WriteStartArray"))
+    Assert.That(code, Does.Contain("WriteEndArray"))
+    Assert.That(code, Does.Contain("JsonSerializer.Serialize(writer, e0, options)"))
+    Assert.That(code, Does.Contain("JsonSerializer.Serialize(writer, e1, options)"))
+    Assert.That(code, Does.Contain("JsonSerializer.Deserialize<int>"))
+    Assert.That(code, Does.Contain("JsonSerializer.Deserialize<string>"))
+    Assert.That(code, Does.Contain("module rec Serde.Generated.IntStringTuple"))
+    Assert.That(code, Does.Contain("intStringTupleJsonTypeInfo"))
+
+[<Test>]
+let ``Emits converter for nested tuple (int * int) * string`` () =
+    let innerTuple = mkTupleType [ mkPrimType "int" Int32; mkPrimType "int" Int32 ]
+    let info = mkTupleInfo [ innerTuple; mkPrimType "string" String ]
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("IntIntTupleStringTupleConverter"))
+    Assert.That(code, Does.Contain("JsonSerializer.Serialize(writer, e0, options)"))
+    Assert.That(code, Does.Contain("JsonSerializer.Deserialize<(int * int)>"))
+
+[<Test>]
+let ``Emits converter for tuple containing record`` () =
+    let addressType : TypeInfo = {
+        Namespace = Some "My.App"; EnclosingModules = []; TypeName = "Address"
+        Kind = Record []; Attributes = []
+    }
+    let info = mkTupleInfo [ mkPrimType "int" Int32; addressType ]
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("JsonSerializer.Deserialize<My.App.Address>"))
+    Assert.That(code, Does.Contain("JsonSerializer.Serialize(writer, e1, options)"))
+
+[<Test>]
+let ``EmitResolver with mixed record option and tuple types`` () =
+    let recordType = mkRecordInfo (Some "MyApp") "Person" Both [
+        mkField "FName" "string" String
+    ]
+    let optionType = mkOptionInfo (mkPrimType "string" String)
+    let tupleType = mkTupleInfo [ mkPrimType "int" Int32; mkPrimType "string" String ]
+    let types = [ recordType; optionType; tupleType ]
+
+    let result = resolverEmitter.EmitResolver(types)
+    Assert.That(result.IsSome, Is.True)
+    let code = result.Value
+    Assert.That(code, Does.Contain("typeof<MyApp.Person>"))
+    Assert.That(code, Does.Contain("typeof<string option>"))
+    Assert.That(code, Does.Contain("typeof<(int * string)>"))
+    Assert.That(code, Does.Contain("personJsonTypeInfo"))
+    Assert.That(code, Does.Contain("stringOptionJsonTypeInfo"))
+    Assert.That(code, Does.Contain("intStringTupleJsonTypeInfo"))
+    Assert.That(code, Does.Contain("open Serde.Generated.Person"))
+    Assert.That(code, Does.Contain("open Serde.Generated.StringOption"))
+    Assert.That(code, Does.Contain("open Serde.Generated.IntStringTuple"))
+
+[<Test>]
+let ``typeInfoToPascalName produces IntStringTuple`` () =
+    let ti = mkTupleType [ mkPrimType "int" Int32; mkPrimType "string" String ]
+    let name = Types.typeInfoToPascalName ti
+    Assert.That(name, Is.EqualTo("IntStringTuple"))
+
+[<Test>]
+let ``typeInfoToFqFSharpType produces parenthesized tuple`` () =
+    let ti = mkTupleType [ mkPrimType "int" Int32; mkPrimType "string" String ]
+    let fq = Types.typeInfoToFqFSharpType ti
+    Assert.That(fq, Is.EqualTo("(int * string)"))
+
+[<Test>]
+let ``typeInfoToFqFSharpType produces parenthesized tuple nested in option`` () =
+    let ti = mkTupleType [ mkPrimType "int" Int32; mkPrimType "string" String ]
+    let optTi = mkOptionType ti
+    let fq = Types.typeInfoToFqFSharpType optTi
+    Assert.That(fq, Is.EqualTo("(int * string) option"))
+
+// --- Enum tests ---
+
+/// Helper to build a SerdeTypeInfo for an enum type.
+let private mkEnumInfo ns typeName (cases: SerdeEnumCaseInfo list) : SerdeTypeInfo =
+    let rawCases =
+        cases |> List.map (fun c ->
+            { CaseName = c.RawCaseName; Value = c.Value; Attributes = [] } : Types.EnumCase)
+    {
+        Raw = {
+            Namespace = ns
+            EnclosingModules = []
+            TypeName = typeName
+            Kind = Enum rawCases
+            Attributes = []
+        }
+        Capability = Both
+        Attributes = SerdeAttributes.empty
+        Fields = None
+        UnionCases = None
+        EnumCases = Some cases
+    }
+
+/// Helper to build a SerdeEnumCaseInfo.
+let private mkEnumCase name value : SerdeEnumCaseInfo =
+    { CaseName = name; RawCaseName = name; Value = value; Attributes = SerdeAttributes.empty; Capability = Both }
+
+/// Helper to build a SerdeEnumCaseInfo with a rename.
+let private mkEnumCaseRenamed rawName effectiveName value : SerdeEnumCaseInfo =
+    { CaseName = effectiveName; RawCaseName = rawName; Value = value
+      Attributes = { SerdeAttributes.empty with Rename = Some effectiveName }; Capability = Both }
+
+[<Test>]
+let ``Emits converter for basic enum`` () =
+    let info = mkEnumInfo (Some "TestNs") "Color" [
+        mkEnumCase "Red" 1
+        mkEnumCase "Blue" 2
+    ]
+
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("module rec Serde.Generated.Color"))
+    Assert.That(code, Does.Contain("ColorConverter"))
+    Assert.That(code, Does.Contain("JsonConverter<TestNs.Color>"))
+    Assert.That(code, Does.Contain("CreateValueInfo"))
+    Assert.That(code, Does.Contain("""if s = "Red" then TestNs.Color.Red"""))
+    Assert.That(code, Does.Contain("""elif s = "Blue" then TestNs.Color.Blue"""))
+    Assert.That(code, Does.Contain("""if value = TestNs.Color.Red then writer.WriteStringValue("Red")"""))
+    Assert.That(code, Does.Contain("""elif value = TestNs.Color.Blue then writer.WriteStringValue("Blue")"""))
+    Assert.That(code, Does.Contain("JsonException"))
+
+[<Test>]
+let ``Emits converter for enum with renamed case`` () =
+    let info = mkEnumInfo (Some "TestNs") "Color" [
+        mkEnumCaseRenamed "Red" "Crimson" 1
+        mkEnumCase "Blue" 2
+    ]
+
+    let code = emitter.Emit(info)
+    // Deserialization uses effective name
+    Assert.That(code, Does.Contain("""if s = "Crimson" then TestNs.Color.Red"""))
+    // Serialization compares raw case, writes effective name
+    Assert.That(code, Does.Contain("""if value = TestNs.Color.Red then writer.WriteStringValue("Crimson")"""))
+    Assert.That(code, Does.Contain("""elif s = "Blue" then TestNs.Color.Blue"""))
+
+[<Test>]
+let ``EmitResolver includes enum type`` () =
+    let enumInfo = mkEnumInfo (Some "TestNs") "Color" [
+        mkEnumCase "Red" 1
+        mkEnumCase "Blue" 2
+    ]
+    let recordInfo = mkRecordInfo (Some "TestNs") "Person" Both [
+        mkField "Name" "string" String
+    ]
+    let types = [ recordInfo; enumInfo ]
+
+    let result = resolverEmitter.EmitResolver(types)
+    Assert.That(result.IsSome, Is.True)
+    let code = result.Value
+    Assert.That(code, Does.Contain("typeof<TestNs.Color>"))
+    Assert.That(code, Does.Contain("colorJsonTypeInfo"))
+    Assert.That(code, Does.Contain("open Serde.Generated.Color"))
+
+[<Test>]
+let ``Full pipeline: parse then emit enum`` () =
+    let source = """
+namespace TestApp
+
+[<Serde>]
+type Color =
+    | Red = 1
+    | Green = 2
+    | Blue = 3
+"""
+    let types = Serde.FS.SourceGen.SerdeAstParser.parseSource "/test.fs" source
+    Assert.That(types.Length, Is.EqualTo(1))
+
+    let code = emitter.Emit(types.[0])
+    Assert.That(code, Does.Contain("module rec Serde.Generated.Color"))
+    Assert.That(code, Does.Contain("ColorConverter"))
+    Assert.That(code, Does.Contain("""if s = "Red" then TestApp.Color.Red"""))
+    Assert.That(code, Does.Contain("""elif s = "Green" then TestApp.Color.Green"""))
+    Assert.That(code, Does.Contain("""elif s = "Blue" then TestApp.Color.Blue"""))
+
+// --- Union tests ---
+
+/// Helper to build a SerdeUnionCaseInfo.
+let private mkUnionCase name (fields: SerdeFieldInfo list) : SerdeUnionCaseInfo =
+    { CaseName = name; RawCaseName = name; Fields = fields; Tag = None; Attributes = SerdeAttributes.empty }
+
+/// Helper to build a SerdeUnionCaseInfo with a rename.
+let private mkUnionCaseRenamed rawName effectiveName (fields: SerdeFieldInfo list) : SerdeUnionCaseInfo =
+    { CaseName = effectiveName; RawCaseName = rawName; Fields = fields; Tag = None
+      Attributes = { SerdeAttributes.empty with Rename = Some effectiveName } }
+
+/// Helper to build a skipped SerdeUnionCaseInfo.
+let private mkUnionCaseSkipped name (fields: SerdeFieldInfo list) : SerdeUnionCaseInfo =
+    { CaseName = name; RawCaseName = name; Fields = fields; Tag = None
+      Attributes = { SerdeAttributes.empty with Skip = true } }
+
+/// Helper to build an unnamed (tuple-like) field for a union case.
+let private mkUnnamedField (typeInfo: TypeInfo) : SerdeFieldInfo =
+    { Name = "Item"; RawName = "Item"; Type = typeInfo; Attributes = SerdeAttributes.empty; Capability = Both }
+
+/// Helper to build a SerdeTypeInfo for a union type.
+let private mkUnionInfo ns typeName (cases: SerdeUnionCaseInfo list) : SerdeTypeInfo =
+    let rawCases =
+        cases |> List.map (fun c ->
+            { CaseName = c.RawCaseName
+              Fields = c.Fields |> List.map (fun f -> { Name = f.RawName; Type = f.Type; Attributes = [] } : Types.FieldInfo)
+              Tag = c.Tag
+              Attributes = [] } : Types.UnionCase)
+    {
+        Raw = {
+            Namespace = ns
+            EnclosingModules = []
+            TypeName = typeName
+            Kind = Union rawCases
+            Attributes = []
+        }
+        Capability = Both
+        Attributes = SerdeAttributes.empty
+        Fields = None
+        UnionCases = Some cases
+        EnumCases = None
+    }
+
+[<Test>]
+let ``Emits converter for union with nullary case`` () =
+    let info = mkUnionInfo (Some "TestNs") "MyUnion" [
+        mkUnionCase "Empty" []
+    ]
+
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("module rec Serde.Generated.MyUnion"))
+    Assert.That(code, Does.Contain("MyUnionConverter"))
+    Assert.That(code, Does.Contain("JsonConverter<TestNs.MyUnion>"))
+    Assert.That(code, Does.Contain("CreateValueInfo"))
+    Assert.That(code, Does.Contain("""writer.WriteNull("Empty")"""))
+    Assert.That(code, Does.Contain("JsonTokenType.Null"))
+    Assert.That(code, Does.Contain("TestNs.MyUnion.Empty"))
+    Assert.That(code, Does.Contain("writer.WriteStartObject()"))
+    Assert.That(code, Does.Contain("writer.WriteEndObject()"))
+
+[<Test>]
+let ``Emits converter for union with single-field case`` () =
+    let info = mkUnionInfo (Some "TestNs") "MyUnion" [
+        mkUnionCase "Value" [ mkField "Value" "int" Int32 ]
+    ]
+
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("""writer.WritePropertyName("Value")"""))
+    Assert.That(code, Does.Contain("JsonSerializer.Serialize(writer, v, options)"))
+    Assert.That(code, Does.Contain("JsonSerializer.Deserialize<int>(&reader, options)"))
+    Assert.That(code, Does.Contain("TestNs.MyUnion.Value(v)"))
+
+[<Test>]
+let ``Emits converter for union with tuple case`` () =
+    let info = mkUnionInfo (Some "TestNs") "MyUnion" [
+        mkUnionCase "Pair" [
+            mkUnnamedField (mkPrimType "float" Float64)
+            mkUnnamedField (mkPrimType "float" Float64)
+        ]
+    ]
+
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("WriteStartArray"))
+    Assert.That(code, Does.Contain("WriteEndArray"))
+    Assert.That(code, Does.Contain("JsonSerializer.Serialize(writer, e0, options)"))
+    Assert.That(code, Does.Contain("JsonSerializer.Serialize(writer, e1, options)"))
+    Assert.That(code, Does.Contain("JsonSerializer.Deserialize<float>(&reader, options)"))
+    Assert.That(code, Does.Contain("TestNs.MyUnion.Pair(e0, e1)"))
+    Assert.That(code, Does.Contain("Expected StartArray for tuple union case"))
+
+[<Test>]
+let ``Emits converter for union with record-like case`` () =
+    let info = mkUnionInfo (Some "TestNs") "MyUnion" [
+        mkUnionCase "Person" [
+            mkField "Name" "string" String
+            mkField "Age" "int" Int32
+        ]
+    ]
+
+    let code = emitter.Emit(info)
+    // Write: nested object with field property names
+    Assert.That(code, Does.Contain("""writer.WritePropertyName("Person")"""))
+    Assert.That(code, Does.Contain("""writer.WritePropertyName("Name")"""))
+    Assert.That(code, Does.Contain("""writer.WritePropertyName("Age")"""))
+    // Read: mutable bindings and property matching
+    Assert.That(code, Does.Contain("let mutable f0 = Unchecked.defaultof<string>"))
+    Assert.That(code, Does.Contain("let mutable f1 = Unchecked.defaultof<int>"))
+    Assert.That(code, Does.Contain("""if propName = "Name" then"""))
+    Assert.That(code, Does.Contain("""elif propName = "Age" then"""))
+    Assert.That(code, Does.Contain("TestNs.MyUnion.Person(f0, f1)"))
+
+[<Test>]
+let ``Emits converter for union with renamed case`` () =
+    let info = mkUnionInfo (Some "TestNs") "MyUnion" [
+        mkUnionCaseRenamed "A" "Alpha" []
+    ]
+
+    let code = emitter.Emit(info)
+    // JSON uses effective name
+    Assert.That(code, Does.Contain("""writer.WriteNull("Alpha")"""))
+    Assert.That(code, Does.Contain("""if caseName = "Alpha" then"""))
+    // F# construction uses raw name
+    Assert.That(code, Does.Contain("TestNs.MyUnion.A"))
+
+[<Test>]
+let ``Emits converter for union with mixed case shapes`` () =
+    let info = mkUnionInfo (Some "TestNs") "Shape" [
+        mkUnionCase "Point" []
+        mkUnionCase "Circle" [ mkField "Radius" "float" Float64 ]
+        mkUnionCase "Line" [
+            mkUnnamedField (mkPrimType "float" Float64)
+            mkUnnamedField (mkPrimType "float" Float64)
+        ]
+        mkUnionCase "Rect" [
+            mkField "Width" "float" Float64
+            mkField "Height" "float" Float64
+        ]
+    ]
+
+    let code = emitter.Emit(info)
+    // All 4 shapes represented
+    Assert.That(code, Does.Contain("""writer.WriteNull("Point")"""))
+    Assert.That(code, Does.Contain("TestNs.Shape.Circle(v)"))
+    Assert.That(code, Does.Contain("TestNs.Shape.Line(e0, e1)"))
+    Assert.That(code, Does.Contain("TestNs.Shape.Rect(e0, e1)"))
+    // Read: if/elif chain
+    Assert.That(code, Does.Contain("""if caseName = "Point" then"""))
+    Assert.That(code, Does.Contain("""elif caseName = "Circle" then"""))
+    Assert.That(code, Does.Contain("""elif caseName = "Line" then"""))
+    Assert.That(code, Does.Contain("""elif caseName = "Rect" then"""))
+
+[<Test>]
+let ``Emits converter for union with skipped case`` () =
+    let info = mkUnionInfo (Some "TestNs") "MyUnion" [
+        mkUnionCase "A" []
+        mkUnionCaseSkipped "B" [ mkField "X" "int" Int32 ]
+    ]
+
+    let code = emitter.Emit(info)
+    // Skipped case excluded from if/elif chain
+    Assert.That(code, Does.Not.Contain("""caseName = "B" then"""))
+    // Wildcard covers skipped cases
+    Assert.That(code, Does.Contain("| _ -> raise"))
+    // Active case present
+    Assert.That(code, Does.Contain("""caseName = "A" then"""))
+
+[<Test>]
+let ``EmitResolver includes union type`` () =
+    let unionInfo = mkUnionInfo (Some "TestNs") "Shape" [
+        mkUnionCase "Circle" [ mkField "Radius" "float" Float64 ]
+        mkUnionCase "Point" []
+    ]
+    let recordInfo = mkRecordInfo (Some "TestNs") "Person" Both [
+        mkField "Name" "string" String
+    ]
+    let types = [ recordInfo; unionInfo ]
+
+    let result = resolverEmitter.EmitResolver(types)
+    Assert.That(result.IsSome, Is.True)
+    let code = result.Value
+    Assert.That(code, Does.Contain("typeof<TestNs.Shape>"))
+    Assert.That(code, Does.Contain("shapeJsonTypeInfo"))
+    Assert.That(code, Does.Contain("open Serde.Generated.Shape"))
+
+[<Test>]
+let ``Full pipeline: parse then emit union`` () =
+    let source = """
+namespace TestApp
+
+[<Serde>]
+type Shape =
+    | Circle of radius: float
+    | Point
+"""
+    let types = Serde.FS.SourceGen.SerdeAstParser.parseSource "/test.fs" source
+    Assert.That(types.Length, Is.EqualTo(1))
+
+    let code = emitter.Emit(types.[0])
+    Assert.That(code, Does.Contain("module rec Serde.Generated.Shape"))
+    Assert.That(code, Does.Contain("ShapeConverter"))
+    Assert.That(code, Does.Contain("JsonConverter<TestApp.Shape>"))
+    Assert.That(code, Does.Contain("""caseName = "Circle" then"""))
+    Assert.That(code, Does.Contain("""caseName = "Point" then"""))
+    Assert.That(code, Does.Contain("TestApp.Shape.Circle(v)"))
+    Assert.That(code, Does.Contain("TestApp.Shape.Point"))

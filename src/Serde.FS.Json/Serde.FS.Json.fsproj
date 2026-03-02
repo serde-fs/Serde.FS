@@ -1,0 +1,88 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<NoWarn>$(NoWarn);NU1603</NoWarn>
+
+		<!-- This project is a packable Serde backend library -->
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<IsPackable>true</IsPackable>
+
+		<PackageId>Serde.FS.Json</PackageId>
+		<Version>1.0.0-alpha.1</Version>
+		<Authors>Jordan Marr</Authors>
+		<Description>System.Text.Json backend for Serde.FS</Description>
+
+		<PackageTags>fsharp;serde;json;system-text-json;fs-djinn;djinn</PackageTags>
+
+		<!-- Runtime DLLs go to lib/, design-time DLLs go to analyzers/ -->
+		<IncludeBuildOutput>true</IncludeBuildOutput>
+	</PropertyGroup>
+
+	<!-- Runtime Serde backend implementation -->
+	<ItemGroup>
+		<Compile Include="ResolverBootstrap.fs" />
+		<Compile Include="StjOptions.fs" />
+		<Compile Include="StjBackend.fs" />
+		<Compile Include="SerdeStj.fs" />
+		<Compile Include="StjExtensions.fs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Runtime dependency on System.Text.Json -->
+		<PackageReference Include="System.Text.Json" Version="10.0.3" />
+
+		<!-- Runtime type model used by the backend -->
+		<PackageReference Include="FSharp.SourceDjinn.TypeModel" Version="0.1.1" />
+
+		<!-- Design-time only dependency (never flows to consumers) -->
+		<PackageReference Include="FSharp.SourceDjinn" Version="0.1.3" PrivateAssets="all" />
+
+		<!-- Core Serde.FS runtime library -->
+		<ProjectReference Include="..\Serde.FS\Serde.FS.fsproj" />
+
+		<!-- Design-time emitter project (never flows to consumers) -->
+		<ProjectReference Include="..\Serde.FS.Json.DesignTime\Serde.FS.Json.DesignTime.fsproj"
+						  PrivateAssets="all" />
+
+		<!-- Generator engine + MSBuild task.
+         PrivateAssets=all ensures consumers do NOT see this dependency. -->
+		<PackageReference Include="Serde.FS.SourceGen"
+						  Version="$(SourceGenVersion)"
+						  PrivateAssets="all" />
+	</ItemGroup>
+
+	<!-- Allow tests to access internal types -->
+	<ItemGroup>
+		<InternalsVisibleTo Include="Serde.FS.Json.Tests" />
+	</ItemGroup>
+
+	<!-- Design-time payload: shipped in analyzers/ so MSBuild loads it automatically -->
+	<ItemGroup>
+		<!-- Generator engine DLLs + dependencies.
+         These MUST be packed so the MSBuild task can load them at build time. -->
+		<None Include="..\Serde.FS.SourceGen\bin\$(Configuration)\net8.0\*.dll"
+			  Pack="true"
+			  PackagePath="analyzers/dotnet/fs" />
+
+		<!-- Backend-specific design-time emitter DLL -->
+		<None Include="..\Serde.FS.Json.DesignTime\bin\$(Configuration)\net8.0\Serde.FS.Json.DesignTime.dll"
+			  Pack="true"
+			  PackagePath="analyzers/dotnet/fs" />
+	</ItemGroup>
+
+	<!-- buildTransitive ensures consumers automatically get the generator target -->
+	<ItemGroup>
+		<!-- This .targets file contains:
+         - <UsingTask> for the generator MSBuild task
+         - The target that invokes the generator
+         - Any backend-specific MSBuild logic
+         It MUST be in buildTransitive so downstream projects inherit it. -->
+		<None Include="buildTransitive\Serde.FS.Json.targets"
+			  Pack="true"
+			  PackagePath="buildTransitive"
+			  Link="buildTransitive\Serde.FS.Json.targets" />
+	</ItemGroup>
+
+</Project>

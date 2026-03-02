@@ -1,0 +1,18 @@
+<Project>
+	<UsingTask TaskName="Serde.FS.SourceGen.SerdeGeneratorTask"
+	           AssemblyFile="$(MSBuildThisFileDirectory)../analyzers/dotnet/fs/Serde.FS.SourceGen.dll" />
+
+	<Target Name="SerdeGenerate" BeforeTargets="CoreCompile">
+		<Message Text="Serde.FS.Json.targets loaded" Importance="High" />
+
+		<SerdeGeneratorTask SourceFiles="@(Compile)"
+							OutputDir="$(IntermediateOutputPath)serde-generated/"
+							EmitterAssemblyPath="$(MSBuildThisFileDirectory)../analyzers/dotnet/fs/Serde.FS.Json.DesignTime.dll" 
+							EmitterTypeName="Serde.FS.Json.DesignTime.StjCodeEmitter" />
+
+		<ItemGroup>
+			<Compile Include="$(IntermediateOutputPath)serde-generated/**/*.fs"
+					 Condition="Exists('$(IntermediateOutputPath)serde-generated/')" />
+		</ItemGroup>
+	</Target>
+</Project>
