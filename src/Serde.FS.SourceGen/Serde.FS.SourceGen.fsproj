@@ -7,6 +7,7 @@
 		<Version>1.0.0-alpha.1</Version>
 		<IsPackable>true</IsPackable>
 		<IncludeBuildOutput>true</IncludeBuildOutput>
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 		<SerdeFSVersion>1.0.0-alpha.1</SerdeFSVersion>
 		<SourceDjinnVersion>0.1.0</SourceDjinnVersion>
 	</PropertyGroup>

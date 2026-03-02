@@ -63,8 +63,11 @@ pipeline "debug" {
                 if Directory.Exists(pkgDir) then
                     for versionDir in Directory.GetDirectories(pkgDir) do
                         if Path.GetFileName(versionDir).Contains("debug") then
-                            printfn $"  Clearing global cache: {versionDir}"
-                            Directory.Delete(versionDir, true)
+                            try
+                                printfn $"  Clearing global cache: {versionDir}"
+                                Directory.Delete(versionDir, true)
+                            with :? UnauthorizedAccessException ->
+                                printfn $"  Skipped (locked): {versionDir}"
             printfn "Global cache debug versions cleared."
         )
     }

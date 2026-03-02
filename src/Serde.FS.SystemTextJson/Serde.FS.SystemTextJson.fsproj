@@ -38,12 +38,22 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<None Include="..\Serde.FS.SourceGen\bin\$(Configuration)\net8.0\Serde.FS.SourceGen.dll"
+		<None Include="..\Serde.FS.SourceGen\bin\$(Configuration)\net8.0\*.dll"
+		      Pack="true"
+		      PackagePath="analyzers/dotnet/fs" />
+		<None Include="$(OutputPath)Serde.FS.SystemTextJson.dll"
 		      Pack="true"
 		      PackagePath="analyzers/dotnet/fs" />
 	</ItemGroup>
 
 	<ItemGroup>
+		<None Include="build\Serde.FS.SystemTextJson.targets"
+		      Pack="true"
+		      PackagePath="build" />
+		<None Include="build\Serde.FS.SystemTextJson.targets"
+		      Pack="true"
+		      PackagePath="buildTransitive"
+		      Link="buildTransitive\Serde.FS.SystemTextJson.targets" />
 		<None Include="buildTransitive\Serde.FS.SystemTextJson.props"
 		      Pack="true"
 		      PackagePath="buildTransitive" />
