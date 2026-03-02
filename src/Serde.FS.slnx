@@ -1,15 +1,19 @@
 <Solution>
   <Folder Name="/Tests/">
+    <Project Path="Serde.FS.Json.SampleApp/Serde.FS.Json.SampleApp.fsproj">
+      <Build Solution="Debug|*" Project="false" />
+    </Project>
+    <Project Path="Serde.FS.Json.Tests/Serde.FS.Json.Tests.fsproj">
+      <Build Solution="Debug|*" Project="false" />
+    </Project>
     <Project Path="Serde.FS.SourceGen.Tests/Serde.FS.SourceGen.Tests.fsproj">
       <Build Solution="Debug|*" Project="false" />
     </Project>
-    <Project Path="Serde.FS.Json.SampleApp/Serde.FS.Json.SampleApp.fsproj" />
-    <Project Path="Serde.FS.Json.Tests/Serde.FS.Json.Tests.fsproj" />
   </Folder>
-  <Project Path="Serde.FS.SourceGen/Serde.FS.SourceGen.fsproj" />
-  <Project Path="Serde.FS.Json.DesignTime/Serde.FS.Json.DesignTime.fsproj" Id="9d6cb6ea-7c3b-4931-b762-c53bd4553bdb">
+  <Project Path="Serde.FS.Json.DesignTime/Serde.FS.Json.DesignTime.fsproj" Id="9d6cb6ea-7c3b-4931-b762-c53bd4553bdb" />
+  <Project Path="Serde.FS.Json/Serde.FS.Json.fsproj">
     <Build Solution="Debug|*" Project="false" />
   </Project>
-  <Project Path="Serde.FS.Json/Serde.FS.Json.fsproj" />
+  <Project Path="Serde.FS.SourceGen/Serde.FS.SourceGen.fsproj" />
   <Project Path="Serde.FS/Serde.FS.fsproj" />
 </Solution>
