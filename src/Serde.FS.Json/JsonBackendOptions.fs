@@ -2,7 +2,7 @@ namespace Serde.FS.Json
 
 open Serde.FS
 
-type SerdeStjOptions() =
+type SerdeJsonOptions() =
     interface ISerdeOptions with
         /// Gets or sets strict mode. Mirrors Serde.Strict.
         member _.Strict
@@ -19,5 +19,5 @@ type SerdeStjOptions() =
         with get () = (this :> ISerdeOptions).Debug
         and set v = (this :> ISerdeOptions).Debug <- v
 
-module internal SerdeStjDefaults =
-    let options = SerdeStjOptions()
+module internal SerdeJsonDefaults =
+    let options = SerdeJsonOptions()

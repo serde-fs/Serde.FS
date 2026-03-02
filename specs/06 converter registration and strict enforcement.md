@@ -19,7 +19,7 @@ namespace Serde.FS.STJ
 
 open System.Text.Json
 
-module internal StjOptionsCache =
+module internal JsonOptionsCache =
     /// Cached JsonSerializerOptions instance used by the STJ backend.
     /// Creating new options per call is expensive and breaks metadata caching.
     /// This instance is initialized once and reused for all serialization.
@@ -28,13 +28,13 @@ module internal StjOptionsCache =
         // TODO: attach generated metadata here
         opts
 
-type StjBackend() =
+type JsonBackend() =
     interface ISerdeBackend with
         member _.Serialize(value, _options) =
-            JsonSerializer.Serialize(value, StjOptionsCache.defaultJsonOptions)
+            JsonSerializer.Serialize(value, JsonOptionsCache.defaultJsonOptions)
 
         member _.Deserialize(json, _options) =
-            JsonSerializer.Deserialize<'T>(json, StjOptionsCache.defaultJsonOptions)
+            JsonSerializer.Deserialize<'T>(json, JsonOptionsCache.defaultJsonOptions)
 ```
 
 ### 1.2. Requirement: register generated resolver on `defaultJsonOptions`
@@ -44,7 +44,7 @@ type StjBackend() =
    ```fsharp
    open System.Text.Json.Serialization.Metadata
 
-   type SerdeStjGeneratedResolver() =
+   type SerdeJsonGeneratedResolver() =
        interface IJsonTypeInfoResolver with
            member _.GetTypeInfo(t, options) =
                // generated JsonTypeInfo for supported types
@@ -52,19 +52,19 @@ type StjBackend() =
                ...
    ```
 
-2. In `StjOptionsCache.defaultJsonOptions`, register this resolver on the cached options instance:
+2. In `JsonOptionsCache.defaultJsonOptions`, register this resolver on the cached options instance:
 
    ```fsharp
-   module internal StjOptionsCache =
+   module internal JsonOptionsCache =
        let defaultJsonOptions =
            let opts = JsonSerializerOptions()
            // Attach generated metadata resolver at the front of the chain
-           let resolver = SerdeStjGeneratedResolver()
+           let resolver = SerdeJsonGeneratedResolver()
            opts.TypeInfoResolverChain.Insert(0, resolver)
            opts
    ```
 
-3. All serialization/deserialization in `StjBackend` must use `defaultJsonOptions` (already true) so that:
+3. All serialization/deserialization in `JsonBackend` must use `defaultJsonOptions` (already true) so that:
 
    - STJ sees the generated metadata.
    - `GetTypeInfo` returns the generated `JsonTypeInfo` for supported types.
@@ -94,18 +94,18 @@ Strict mode must enforce:
 
 Implementation outline (in STJ backend):
 
-1. Add a helper in `StjBackend` (or a small internal module) to enforce strictness:
+1. Add a helper in `JsonBackend` (or a small internal module) to enforce strictness:
 
    ```fsharp
-   module internal StjStrict =
+   module internal JsonStrict =
        let inline enforceStrict<'T>() =
            if Serde.Strict then
                let ty = typeof<'T>
-               let typeInfo = StjOptionsCache.defaultJsonOptions.GetTypeInfo(ty)
+               let typeInfo = JsonOptionsCache.defaultJsonOptions.GetTypeInfo(ty)
                if obj.ReferenceEquals(typeInfo, null) then
                    failwithf
                        "Strict mode is enabled: no generated metadata found for type '%s'. \
-                        Call SerdeStj.allowReflectionFallback() to allow reflection-based serialization."
+                        Call SerdeJson.allowReflectionFallback() to allow reflection-based serialization."
                        ty.FullName
    ```
 
@@ -116,18 +116,18 @@ Implementation outline (in STJ backend):
    - Does **not** use reflection over user types.
    - Is AOT‑safe: it only queries the resolver chain.
 
-2. Call `StjStrict.enforceStrict<'T>()` at the start of both `Serialize` and `Deserialize`:
+2. Call `JsonStrict.enforceStrict<'T>()` at the start of both `Serialize` and `Deserialize`:
 
    ```fsharp
-   type StjBackend() =
+   type JsonBackend() =
        interface ISerdeBackend with
            member _.Serialize(value, _options) =
-               StjStrict.enforceStrict<'T>()
-               JsonSerializer.Serialize(value, StjOptionsCache.defaultJsonOptions)
+               JsonStrict.enforceStrict<'T>()
+               JsonSerializer.Serialize(value, JsonOptionsCache.defaultJsonOptions)
 
            member _.Deserialize(json, _options) =
-               StjStrict.enforceStrict<'T>()
-               JsonSerializer.Deserialize<'T>(json, StjOptionsCache.defaultJsonOptions)
+               JsonStrict.enforceStrict<'T>()
+               JsonSerializer.Deserialize<'T>(json, JsonOptionsCache.defaultJsonOptions)
    ```
 
    (Adjust generic constraints / signatures as needed to access `'T`.)
@@ -140,9 +140,9 @@ Implementation outline (in STJ backend):
   - No reflection fallback is allowed.
 
 - **Strict = false:**
-  - `StjStrict.enforceStrict<'T>()` is a no‑op.
+  - `JsonStrict.enforceStrict<'T>()` is a no‑op.
   - STJ is allowed to use reflection fallback for types without generated metadata.
-  - This mode is not AOT‑safe and is opt‑in via `SerdeStj.allowReflectionFallback()`.
+  - This mode is not AOT‑safe and is opt‑in via `SerdeJson.allowReflectionFallback()`.
 
 ---
 
@@ -165,7 +165,7 @@ Implementation outline (in STJ backend):
 
 3. **Strict OFF, non‑generated type:**
 
-   - After calling `SerdeStj.allowReflectionFallback()`:
+   - After calling `SerdeJson.allowReflectionFallback()`:
      - `Serde.Serialize<'U>` succeeds via STJ reflection.
      - `Serde.Deserialize<'U>` succeeds via STJ reflection.
 
@@ -177,7 +177,7 @@ Implementation outline (in STJ backend):
 ### 3.2. Acceptance criteria
 
 - Generated STJ metadata is attached to the **cached** `JsonSerializerOptions` instance via a generated `IJsonTypeInfoResolver`.
-- `StjBackend` uses the cached options instance for all serialization/deserialization.
+- `JsonBackend` uses the cached options instance for all serialization/deserialization.
 - Strict mode:
   - **does not** use attribute‑based reflection.
   - **does** enforce “metadata must exist” via `GetTypeInfo`.

@@ -49,26 +49,26 @@ type ISerdeBackend =
     abstract Deserialize : string * ISerdeOptions option -> 'T
 ```
 
-### STJ Backend (`Serde.FS.STJ/StjBackend.fs`)
+### STJ Backend (`Serde.FS.STJ/JsonBackend.fs`)
 ```fsharp
-type StjBackend() =
+type JsonBackend() =
     interface ISerdeBackend with
         member _.Serialize(value, options) =
             let opts =
                 match options with
-                | Some (:? StjOptions as o) -> o.JsonOptions
+                | Some (:? JsonBackendOptions as o) -> o.JsonOptions
                 | _ -> JsonSerializerOptions()
             JsonSerializer.Serialize(value, opts)
 
         member _.Deserialize(json, options) =
             let opts =
                 match options with
-                | Some (:? StjOptions as o) -> o.JsonOptions
+                | Some (:? JsonBackendOptions as o) -> o.JsonOptions
                 | _ -> JsonSerializerOptions()
             JsonSerializer.Deserialize<'T>(json, opts)
 ```
 
-The current `StjBackend` uses `JsonSerializer.Serialize/Deserialize` which relies on runtime reflection. The source generator's job is to produce `JsonTypeInfo<'T>` metadata via `System.Text.Json.Serialization.Metadata` so that STJ can serialize without reflection.
+The current `JsonBackend` uses `JsonSerializer.Serialize/Deserialize` which relies on runtime reflection. The source generator's job is to produce `JsonTypeInfo<'T>` metadata via `System.Text.Json.Serialization.Metadata` so that STJ can serialize without reflection.
 
 ## What the Generator Must Do
 

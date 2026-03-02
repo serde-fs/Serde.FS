@@ -127,7 +127,7 @@ open Serde.FS.STJ
 type Person = { Name: string; Age: int }
 
 let run argv =
-    SerdeStj.useAsDefault()
+    SerdeJson.useAsDefault()
 
     let person = { Name = "John"; Age = 30 }
     let json = Serde.Serialize person

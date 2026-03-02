@@ -24,7 +24,7 @@ type ISerdeOptions =
 ### **Replace the old STJ‑specific options with:**
 
 ```fsharp
-type SerdeStjOptions =
+type SerdeJsonOptions =
     { mutable Strict : bool
       // STJ-specific knobs may be added here later
     }
@@ -37,7 +37,7 @@ type SerdeStjOptions =
 ### **Add a module‑level instance with strict ON by default:**
 
 ```fsharp
-module SerdeStj =
+module SerdeJson =
     let options =
         { Strict = true }
 ```
@@ -45,8 +45,8 @@ module SerdeStj =
 ### **Add configuration helpers:**
 
 ```fsharp
-module SerdeStj =
-    let configure (f : SerdeStjOptions -> unit) =
+module SerdeJson =
+    let configure (f : SerdeJsonOptions -> unit) =
         f options
 
     let allowReflectionFallback () =
@@ -101,7 +101,7 @@ if options.Strict && typeInfo = null then
 - Serializing a generated type → succeeds
 
 ### **Strict mode OFF:**
-- `SerdeStj.allowReflectionFallback()` enables reflection fallback
+- `SerdeJson.allowReflectionFallback()` enables reflection fallback
 - Serializing unmarked types works via STJ reflection
 
 ---

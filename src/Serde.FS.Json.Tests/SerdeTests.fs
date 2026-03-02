@@ -23,13 +23,13 @@ type TestResolver() =
 let OneTimeSetup () =
     // Register only in generatedResolvers (for strict mode checking),
     // not in TypeInfoResolverChain (which would need complete metadata for STJ serialization).
-    Serde.FS.Json.StjOptionsCache.generatedResolvers.Add(TestResolver())
+    Serde.FS.Json.JsonOptionsCache.generatedResolvers.Add(TestResolver())
 
 [<SetUp>]
 let Setup () =
-    Serde.FS.Json.SerdeStj.useAsDefault()
+    Serde.FS.Json.SerdeJson.useAsDefault()
     // Existing tests use reflection (no source gen), so allow it.
-    Serde.FS.Json.SerdeStj.allowReflectionFallback()
+    Serde.FS.Json.SerdeJson.allowReflectionFallback()
 
 [<Test>]
 let ``Serialize and deserialize a record`` () =
@@ -69,7 +69,7 @@ let ``Strict mode throws on deserialize for type without generated metadata`` ()
 [<Test>]
 let ``Strict mode succeeds after allowReflectionFallback`` () =
     Serde.Strict <- true
-    Serde.FS.Json.SerdeStj.allowReflectionFallback()
+    Serde.FS.Json.SerdeJson.allowReflectionFallback()
     let json = Serde.Serialize { FName = "Jordan"; LName = "Marr" }
     json |> string =! """{"FName":"Jordan","LName":"Marr"}"""
 

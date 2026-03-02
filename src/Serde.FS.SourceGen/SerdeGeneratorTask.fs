@@ -270,7 +270,7 @@ type SerdeGeneratorTask() =
                     "    let registerAll() =\n" +
                     "        if not initialized then\n" +
                     "            initialized <- true\n" +
-                    "            SerdeStjResolver.register()\n" +
+                    "            SerdeJsonResolver.register()\n" +
                     "\n" +
                     "namespace Djinn.Generated\n" +
                     "\n" +

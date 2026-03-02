@@ -73,7 +73,7 @@ SourceGen should only:
 let emit (info: SerdeTypeInfo) =
     match SerdeCodegenRegistry.getDefaultEmitter() with
     | Some emitter -> emitter.Emit(info)
-    | None -> failwith "No Serde code emitter registered. Call SerdeStj.useAsDefault() or register a backend."
+    | None -> failwith "No Serde code emitter registered. Call SerdeJson.useAsDefault() or register a backend."
 ```
 
 3. Ensure SourceGen no longer references:
@@ -94,21 +94,21 @@ let emit (info: SerdeTypeInfo) =
 STJ becomes a backend that implements `ISerdeCodeEmitter`.
 
 ### **Actions:**
-1. Create a new file in STJ: `StjCodeEmitter.fs`.
+1. Create a new file in STJ: `JsonCodeEmitter.fs`.
 2. Move the entire STJ-specific codegen logic from SourceGen into:
 
 ```fsharp
-type StjCodeEmitter() =
+type JsonCodeEmitter() =
     interface ISerdeCodeEmitter with
         member _.Emit(info) =
             // existing STJ codegen logic goes here
 ```
 
-3. Update `SerdeStj.useAsDefault()` to register the emitter:
+3. Update `SerdeJson.useAsDefault()` to register the emitter:
 
 ```fsharp
 let useAsDefault () =
-    SerdeCodegenRegistry.setDefaultEmitter (StjCodeEmitter())
+    SerdeCodegenRegistry.setDefaultEmitter (JsonCodeEmitter())
     // existing backend registration logic stays
 ```
 
@@ -186,7 +186,7 @@ This proves:
 - `ISerdeCodeEmitter` lives in Serde.FS.
 - SourceGen no longer emits STJ code.
 - STJ implements `ISerdeCodeEmitter`.
-- `SerdeStj.useAsDefault()` registers the STJ emitter.
+- `SerdeJson.useAsDefault()` registers the STJ emitter.
 - A Debug backend exists and works.
 - All tests pass after updates.
 - SampleApp works with STJ backend.

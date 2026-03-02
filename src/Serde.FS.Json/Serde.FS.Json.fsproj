@@ -23,10 +23,10 @@
 	<!-- Runtime Serde backend implementation -->
 	<ItemGroup>
 		<Compile Include="ResolverBootstrap.fs" />
-		<Compile Include="StjOptions.fs" />
-		<Compile Include="StjBackend.fs" />
-		<Compile Include="SerdeStj.fs" />
-		<Compile Include="StjExtensions.fs" />
+		<Compile Include="JsonBackendOptions.fs" />
+		<Compile Include="JsonBackend.fs" />
+		<Compile Include="SerdeJson.fs" />
+		<Compile Include="JsonExtensions.fs" />
 	</ItemGroup>
 
 	<ItemGroup>

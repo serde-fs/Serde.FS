@@ -1,4 +1,4 @@
-module Serde.FS.Json.SerdeStj
+module Serde.FS.Json.SerdeJson
 
 open Serde.FS
 
@@ -23,15 +23,15 @@ let useAsDefault () =
     | Some f -> f()
     | None -> ()
     match Serde.DefaultBackend with
-    | Some (:? StjBackend) -> ()
-    | _ -> Serde.DefaultBackend <- Some (StjBackend() :> ISerdeBackend)
+    | Some (:? JsonBackend) -> ()
+    | _ -> Serde.DefaultBackend <- Some (JsonBackend() :> ISerdeBackend)
     Serde.Strict <- true
 
-/// The global STJ options instance. Strict mode is enabled by default.
-let options = SerdeStjDefaults.options
+/// The global JSON backend options instance. Strict mode is enabled by default.
+let options = SerdeJsonDefaults.options
 
-/// Apply a configuration function to the global STJ options.
-let configure (f: SerdeStjOptions -> unit) = f options
+/// Apply a configuration function to the global JSON backend options.
+let configure (f: SerdeJsonOptions -> unit) = f options
 
 /// Disables strict mode, allowing reflection-based serialization for types
 /// without generated Serde metadata.

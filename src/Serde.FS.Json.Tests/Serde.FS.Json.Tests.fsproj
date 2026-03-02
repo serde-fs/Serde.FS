@@ -10,7 +10,7 @@
 
   <ItemGroup>
     <Compile Include="TestHelpers.fs" />
-    <Compile Include="StjCodeEmitterTests.fs" />
+    <Compile Include="JsonCodeEmitterTests.fs" />
     <Compile Include="SerdeTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>

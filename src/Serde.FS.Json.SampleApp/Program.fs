@@ -41,7 +41,7 @@ type Person = {
 
 [<EntryPoint>]
 let run argv =
-    SerdeStj.useAsDefault()
+    SerdeJson.useAsDefault()
     let pets = [
         Dog { Name = "Fido" }
         Cat "Whiskers"

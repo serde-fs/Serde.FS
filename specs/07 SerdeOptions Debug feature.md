@@ -1,9 +1,9 @@
-# ⭐ Claude Spec — Add Debug Mode to SerdeOptions + SerdeStj.enableDebug()
+# ⭐ Claude Spec — Add Debug Mode to SerdeOptions + SerdeJson.enableDebug()
 
 This spec introduces:
 
 - A new `Debug` flag on `SerdeOptions`
-- A `SerdeStj.enableDebug()` helper
+- A `SerdeJson.enableDebug()` helper
 - A `SerdeDebug` internal module for logging
 - Debug hooks in generated converters
 - Debug hooks in strict‑mode enforcement
@@ -34,12 +34,12 @@ Debug must be **off by default**.
 
 ---
 
-# 2. Add `enableDebug()` to `SerdeStj`
+# 2. Add `enableDebug()` to `SerdeJson`
 
 Expose a simple, intention‑revealing API:
 
 ```fsharp
-module SerdeStj =
+module SerdeJson =
     let enableDebug () =
         Serde.Options.Debug <- true
 ```
@@ -154,4 +154,4 @@ This spec gives Serde.FS:
 - A way for users to *see* that generated converters are being used  
 - Zero overhead when disabled  
 - AOT‑safe, reflection‑free behavior  
-- A simple, discoverable API (`SerdeStj.enableDebug()`)  
+- A simple, discoverable API (`SerdeJson.enableDebug()`)  

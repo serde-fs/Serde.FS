@@ -1,4 +1,4 @@
-module Serde.FS.Json.Tests.StjCodeEmitterTests
+module Serde.FS.Json.Tests.JsonCodeEmitterTests
 
 open NUnit.Framework
 open Serde.FS
@@ -6,8 +6,8 @@ open FSharp.SourceDjinn
 open FSharp.SourceDjinn.Types
 open Serde.FS.Json
 
-let private emitter = StjCodeEmitter() :> ISerdeCodeEmitter
-let private resolverEmitter = StjCodeEmitter() :> ISerdeResolverEmitter
+let private emitter = JsonCodeEmitter() :> ISerdeCodeEmitter
+let private resolverEmitter = JsonCodeEmitter() :> ISerdeResolverEmitter
 
 /// Helper to build a simple field TypeInfo from a type name and primitive kind.
 let private mkPrimType name kind : TypeInfo =
@@ -177,10 +177,10 @@ let ``EmitResolver produces valid resolver for multiple types`` () =
     let result = resolverEmitter.EmitResolver(types)
     Assert.That(result.IsSome, Is.True)
     let code = result.Value
-    Assert.That(code, Does.Contain("module Serde.Generated.SerdeStjResolver"))
+    Assert.That(code, Does.Contain("module Serde.Generated.SerdeJsonResolver"))
     Assert.That(code, Does.Contain("open Serde.Generated.Person"))
     Assert.That(code, Does.Contain("open Serde.Generated.Address"))
-    Assert.That(code, Does.Contain("SerdeStjGeneratedResolver"))
+    Assert.That(code, Does.Contain("SerdeJsonGeneratedResolver"))
     Assert.That(code, Does.Contain("IJsonTypeInfoResolver"))
     Assert.That(code, Does.Contain("typeof<MyApp.Person>"))
     Assert.That(code, Does.Contain("typeof<MyApp.Address>"))
@@ -189,7 +189,7 @@ let ``EmitResolver produces valid resolver for multiple types`` () =
     Assert.That(code, Does.Contain("if ty = typeof<MyApp.Person>"))
     Assert.That(code, Does.Contain("elif ty = typeof<MyApp.Address>"))
     Assert.That(code, Does.Contain("else null"))
-    Assert.That(code, Does.Contain("SerdeStjResolverRegistry.registerResolver"))
+    Assert.That(code, Does.Contain("SerdeJsonResolverRegistry.registerResolver"))
 
 [<Test>]
 let ``EmitResolver returns None for empty list`` () =

@@ -20,12 +20,12 @@ module ResolverBootstrap =
     let mutable registerAll : (unit -> unit) option = None
 
 Edit: src/Serde.FS.Json/Serde.FS.Json.fsproj
-- Add <Compile Include="ResolverBootstrap.fs" /> BEFORE StjOptions.fs (so it's available to later files)
+- Add <Compile Include="ResolverBootstrap.fs" /> BEFORE JsonBackendOptions.fs (so it's available to later files)
 
 ---
 Step 2: Invoke callback from useAsDefault()
 
-Edit: src/Serde.FS.Json/SerdeStj.fs
+Edit: src/Serde.FS.Json/SerdeJson.fs
 
 Add callback invocation at the top of useAsDefault():
 
@@ -41,14 +41,14 @@ Note: global.Serde.ResolverBootstrap disambiguates the Serde namespace from the 
 ---
 Step 3: Change resolver emitter — do → register()
 
-Edit: src/Serde.FS.Json/designTime/StjCodeEmitter.fs — emitResolver method (line 478)
+Edit: src/Serde.FS.Json/designTime/JsonCodeEmitter.fs — emitResolver method (line 478)
 
 Replace:
-append "do Serde.FS.Json.SerdeStjResolverRegistry.registerResolver(SerdeStjGeneratedResolver())"
+append "do Serde.FS.Json.SerdeJsonResolverRegistry.registerResolver(SerdeJsonGeneratedResolver())"
 
 With:
 append "let register() ="
-append "    Serde.FS.Json.SerdeStjResolverRegistry.registerResolver(SerdeStjGeneratedResolver())"
+append "    Serde.FS.Json.SerdeJsonResolverRegistry.registerResolver(SerdeJsonGeneratedResolver())"
 
 No other changes to the resolver emitter. The resolver type and GetTypeInfo dispatch remain the same.
 
@@ -67,7 +67,7 @@ module ResolverRegistration =
     let registerAll() =
         if not initialized then
             initialized <- true
-            SerdeStjResolver.register()
+            SerdeJsonResolver.register()
 
 module internal ResolverBootstrap =
     [<System.Runtime.CompilerServices.ModuleInitializer>]
@@ -110,9 +110,9 @@ Assembly loads
 → [ModuleInitializer] fires: sets Serde.ResolverBootstrap.registerAll callback
 → ~~EntryPoint.djinn.g.fs: DjinnEntryPoint.main argv
     → Program.run argv
-    → SerdeStj.useAsDefault()
+    → SerdeJson.useAsDefault()
         → invokes callback → ResolverRegistration.registerAll()
-        → SerdeStjResolver.register()
-            → SerdeStjResolverRegistry.registerResolver(...)
+        → SerdeJsonResolver.register()
+            → SerdeJsonResolverRegistry.registerResolver(...)
         → Serde.Strict <- true
     → Serde.Serialize person  // strict check passes
