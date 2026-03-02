@@ -10,22 +10,22 @@ The fix: replace the module-level do registration with explicit register() funct
 useAsDefault() triggers registration without reflection.
 
 ---
-Step 1: Add callback slot to SystemTextJson
+Step 1: Add callback slot to Json
 
-New file: src/Serde.FS.SystemTextJson/ResolverBootstrap.fs
+New file: src/Serde.FS.Json/ResolverBootstrap.fs
 
 namespace Serde
 
 module ResolverBootstrap =
     let mutable registerAll : (unit -> unit) option = None
 
-Edit: src/Serde.FS.SystemTextJson/Serde.FS.SystemTextJson.fsproj
+Edit: src/Serde.FS.Json/Serde.FS.Json.fsproj
 - Add <Compile Include="ResolverBootstrap.fs" /> BEFORE StjOptions.fs (so it's available to later files)
 
 ---
 Step 2: Invoke callback from useAsDefault()
 
-Edit: src/Serde.FS.SystemTextJson/SerdeStj.fs
+Edit: src/Serde.FS.Json/SerdeStj.fs
 
 Add callback invocation at the top of useAsDefault():
 
@@ -41,14 +41,14 @@ Note: global.Serde.ResolverBootstrap disambiguates the Serde namespace from the 
 ---
 Step 3: Change resolver emitter — do → register()
 
-Edit: src/Serde.FS.SystemTextJson/designTime/StjCodeEmitter.fs — emitResolver method (line 478)
+Edit: src/Serde.FS.Json/designTime/StjCodeEmitter.fs — emitResolver method (line 478)
 
 Replace:
-append "do Serde.FS.SystemTextJson.SerdeStjResolverRegistry.registerResolver(SerdeStjGeneratedResolver())"
+append "do Serde.FS.Json.SerdeStjResolverRegistry.registerResolver(SerdeStjGeneratedResolver())"
 
 With:
 append "let register() ="
-append "    Serde.FS.SystemTextJson.SerdeStjResolverRegistry.registerResolver(SerdeStjGeneratedResolver())"
+append "    Serde.FS.Json.SerdeStjResolverRegistry.registerResolver(SerdeStjGeneratedResolver())"
 
 No other changes to the resolver emitter. The resolver type and GetTypeInfo dispatch remain the same.
 

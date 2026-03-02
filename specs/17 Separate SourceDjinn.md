@@ -212,7 +212,7 @@ Serde.FS.SourceGen exposes:
 ## 6. Build + Packaging Notes
 
 - After refactor, FSharp.SourceDjinn becomes a standalone analyzer package.
-- Serde.FS.SystemTextJson references it via:
+- Serde.FS.Json references it via:
   ```xml
   <PackageReference Include="FSharp.SourceDjinn" Version="x.y.z" PrivateAssets="all" />
   ```

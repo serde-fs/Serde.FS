@@ -9,7 +9,7 @@ Early development. APIs and package structure are still evolving.
 ## Projects
 
 - **Serde.FS** — core abstractions, attributes, and type‑shape model
-- **Serde.FS.SystemTextJson** — System.Text.Json backend powered by source generation
+- **Serde.FS.Json** — System.Text.Json backend powered by source generation
 
 ## Goals
 

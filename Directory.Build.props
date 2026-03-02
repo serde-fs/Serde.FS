@@ -3,6 +3,6 @@
     <!-- Defaults -->
     <SerdeFSVersion>1.0.0-alpha.1</SerdeFSVersion>
     <SourceGenVersion>1.0.0-alpha.1</SourceGenVersion>
-    <SerdeSTJVersion>1.0.0-alpha.1</SerdeSTJVersion>
+    <SerdeJsonVersion>1.0.0-alpha.1</SerdeJsonVersion>
   </PropertyGroup>
 </Project>

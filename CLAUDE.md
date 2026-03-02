@@ -2,8 +2,8 @@
 
 ## Local debug build
 
-* Run `dotnet fsi debug-systemtextjson.fsx` to build, pack, and test the SystemTextJson backend against the SampleApp.
-* Run `dotnet fsi debug-systemtextjson.fsx -- -p clean` to delete debug packages and SampleApp build artifacts.
+* Run `dotnet fsi debug-build.fsx` to build, pack, and test the Json backend against the SampleApp.
+* Run `dotnet fsi debug-build.fsx -- -p clean` to delete debug packages and SampleApp build artifacts.
 
 * The pipeline uses timestamped debug versions (e.g., `1.0.0-alpha.1.debug.20260228T120000`) derived from the stable version in `.fsproj` files.
 * FSharp.SourceDjinn is consumed from nuget.org at its stable version — it is never packed locally.

@@ -15,7 +15,7 @@ type Serde =
     static member GetBackend() =
         Serde.DefaultBackend
         |> Option.defaultWith (fun () ->
-            failwith "No backend registered. Reference a backend package such as Serde.FS.SystemTextJson."
+            failwith "No backend registered. Reference a backend package such as Serde.FS.Json."
         )
 
     static member inline Serialize(value: 'T) =

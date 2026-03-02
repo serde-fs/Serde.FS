@@ -1,7 +1,7 @@
-# **Spec: Debug Pipeline for Serde.FS (SystemTextJson)**
+# **Spec: Debug Pipeline for Serde.FS (Json)**
 
 ## **Purpose**
-Implement a Fun.Build‑based debug pipeline (`debug-systemtextjson.fsx`) that builds, packs, and tests the Serde.FS SystemTextJson backend using a **timestamped debug version** and a **clean, isolated local NuGet feed**. This pipeline is the primary local development loop.
+Implement a Fun.Build‑based debug pipeline (`debug-build.fsx`) that builds, packs, and tests the Serde.FS Json backend using a **timestamped debug version** and a **clean, isolated local NuGet feed**. This pipeline is the primary local development loop.
 
 The pipeline must be deterministic, isolated, and must not modify project files.
 
@@ -15,7 +15,7 @@ The debug pipeline must:
 3. Pack the three Serde packages:
    - `Serde.FS`
    - `Serde.FS.SourceGen`
-   - `Serde.FS.SystemTextJson`
+   - `Serde.FS.Json`
 4. Apply the timestamped version using `/p:PackageVersion=…` overrides.
 5. **Do not pack Djinn.** Djinn is consumed from nuget.org as a stable dependency.
 6. Restore the SampleApp using:
@@ -84,7 +84,7 @@ Stages:
 3. **Pack Serde packages**
    - Pack `Serde.FS`
    - Pack `Serde.FS.SourceGen`
-   - Pack `Serde.FS.SystemTextJson`
+   - Pack `Serde.FS.Json`
    - All using the same timestamped version override.
 
 4. **Restore SampleApp (isolated)**
@@ -137,7 +137,7 @@ No implementation details belong in CLAUDE.md.
 ## **Deliverables**
 Claude must produce:
 
-- A complete `debug-systemtextjson.fsx` implementing this spec.
+- A complete `debug-build.fsx` implementing this spec.
 - Clean, intention‑revealing Fun.Build stages.
 - A summary block printed at the end.
 - A simplified `clean` pipeline.

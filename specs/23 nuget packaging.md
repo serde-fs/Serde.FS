@@ -6,13 +6,13 @@ Claude should:
    - `FSharp.SourceDjinn` (engine, analyzer package)
    - `Serde.FS` (runtime)
    - `Serde.FS.SourceGen` (Serde generator, analyzer package)
-   - `Serde.FS.SystemTextJson` (backend generator, analyzer package)
+   - `Serde.FS.Json` (backend generator, analyzer package)
 
 2. Set up:
    - unified versioning for all **Serde** packages starting at `1.0.0-alpha.1`
    - independent SemVer for **SourceDjinn**
    - a local NuGet feed `.nuget-local/`
-   - an updated `debug-systemtextjson.fsx` that works via packages, not `bin/Debug`
+   - an updated `debug-build.fsx` that works via packages, not `bin/Debug`
 
 3. Prepare the repo so `FSharp.SourceDjinn` can later be moved to its own repo without changing public behavior.
 
@@ -33,7 +33,7 @@ All three Serde packages share the **same version number**:
 
 - `Serde.FS`
 - `Serde.FS.SourceGen`
-- `Serde.FS.SystemTextJson`
+- `Serde.FS.Json`
 
 **Initial version for all three:**
 
@@ -134,14 +134,14 @@ All three Serde packages always share the same version.
 
 ---
 
-### 3.4 Serde.FS.SystemTextJson
+### 3.4 Serde.FS.Json
 
-**Project:** `Serde.FS.SystemTextJson`  
+**Project:** `Serde.FS.Json`  
 **Type:** analyzer NuGet package
 
 **Requirements:**
 
-- `PackageId`: `Serde.FS.SystemTextJson`
+- `PackageId`: `Serde.FS.Json`
 - `Version`: `1.0.0-alpha.1`
 - Pack as analyzer:
 
@@ -152,7 +152,7 @@ All three Serde packages always share the same version.
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="$(OutputPath)Serde.FS.SystemTextJson.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
+    <None Include="$(OutputPath)Serde.FS.Json.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
   </ItemGroup>
   ```
 
@@ -181,7 +181,7 @@ In the **Serde repo root**, Claude should:
      FSharp.SourceDjinn/
      Serde.FS/
      Serde.FS.SourceGen/
-     Serde.FS.SystemTextJson/
+     Serde.FS.Json/
    ```
 
 2. Add `nuget.config` in the repo root:
@@ -200,16 +200,16 @@ In the **Serde repo root**, Claude should:
 
 ---
 
-## 5. Debug script: debug-systemtextjson.fsx
+## 5. Debug script: debug-build.fsx
 
-Claude should **rewrite** `debug-systemtextjson.fsx` so that it:
+Claude should **rewrite** `debug-build.fsx` so that it:
 
-1. **Does not** point to `src/Serde.FS.SystemTextJson/bin/Debug` anymore.
+1. **Does not** point to `src/Serde.FS.Json/bin/Debug` anymore.
 2. Uses `dotnet pack` to create `.nupkg` files for:
    - `FSharp.SourceDjinn`
    - `Serde.FS`
    - `Serde.FS.SourceGen`
-   - `Serde.FS.SystemTextJson`
+   - `Serde.FS.Json`
 3. Writes them to the local feed:
 
    ```bash
@@ -228,9 +228,9 @@ Claude should **rewrite** `debug-systemtextjson.fsx` so that it:
      -o .nuget-local/Serde.FS.SourceGen \
      /p:PackageVersion=1.0.0-alpha.1-debug.<N>
 
-   dotnet pack path/to/Serde.FS.SystemTextJson.fsproj \
+   dotnet pack path/to/Serde.FS.Json.fsproj \
      -c Debug \
-     -o .nuget-local/Serde.FS.SystemTextJson \
+     -o .nuget-local/Serde.FS.Json \
      /p:PackageVersion=1.0.0-alpha.1-debug.<N>
    ```
 
@@ -255,7 +255,7 @@ Claude should ensure the dependency graph behaves like this:
 - A user only adds:
 
   ```xml
-  <PackageReference Include="Serde.FS.SystemTextJson" Version="1.0.0-alpha.1" />
+  <PackageReference Include="Serde.FS.Json" Version="1.0.0-alpha.1" />
   ```
 
 - They automatically get:
