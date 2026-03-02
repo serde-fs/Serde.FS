@@ -16,7 +16,8 @@
          so they can be packed into analyzers/ -->
 		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 
-		<!-- Version properties overridden by pipeline -->
+		<!-- Local fallback versions.
+			 The debug pipeline supplies real versions via /p:SerdeFSVersion and /p:SourceDjinnVersion. -->
 		<SerdeFSVersion>1.0.0-alpha.1</SerdeFSVersion>
 		<SourceDjinnVersion>0.1.0</SourceDjinnVersion>
 	</PropertyGroup>
