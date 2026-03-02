@@ -1,6 +1,8 @@
 <Solution>
   <Folder Name="/Tests/">
-    <Project Path="Serde.FS.SourceGen.Tests/Serde.FS.SourceGen.Tests.fsproj" />
+    <Project Path="Serde.FS.SourceGen.Tests/Serde.FS.SourceGen.Tests.fsproj">
+      <Build Solution="Debug|*" Project="false" />
+    </Project>
     <Project Path="Serde.FS.SystemTextJson.SampleApp/Serde.FS.SystemTextJson.SampleApp.fsproj" />
     <Project Path="Serde.FS.SystemTextJson.Tests/Serde.FS.SystemTextJson.Tests.fsproj" />
   </Folder>
