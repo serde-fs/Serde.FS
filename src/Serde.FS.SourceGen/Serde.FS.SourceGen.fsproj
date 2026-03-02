@@ -22,6 +22,10 @@
 		<SourceDjinnVersion>0.1.0</SourceDjinnVersion>
 	</PropertyGroup>
 
+	<ItemGroup>
+		<InternalsVisibleTo Include="Serde.FS.SourceGen.Tests" />
+	</ItemGroup>
+
 	<!-- Generator engine + AST parser + code emitter + MSBuild task -->
 	<ItemGroup>
 		<Compile Include="SerdeMetadata.fs" />

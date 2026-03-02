@@ -125,6 +125,43 @@ module private FieldTypeResolver =
             | None -> None
         { sti with Fields = resolvedFields; UnionCases = resolvedUnionCases }
 
+module internal NestedTypeValidator =
+
+    let private fullyQualifiedName (ti: TypeInfo) : string =
+        let parts =
+            [ yield! ti.Namespace |> Option.toList
+              yield! ti.EnclosingModules
+              yield ti.TypeName ]
+        String.concat "." parts
+
+    let rec private validateTypeInfo (serdeNames: Set<string>) (ti: TypeInfo) : string list =
+        match ti.Kind with
+        | Primitive _ -> []
+        | Option inner | List inner | Array inner | Set inner ->
+            validateTypeInfo serdeNames inner
+        | Map (k, v) ->
+            validateTypeInfo serdeNames k @ validateTypeInfo serdeNames v
+        | Tuple elements ->
+            elements |> List.collect (fun f -> validateTypeInfo serdeNames f.Type)
+        | AnonymousRecord fields ->
+            fields |> List.collect (fun f -> validateTypeInfo serdeNames f.Type)
+        | Record _ | Union _ | Enum _ ->
+            let fqn = fullyQualifiedName ti
+            if serdeNames.Contains fqn then []
+            else
+                [ sprintf "Serde error: Type '%s' is used in serialization but does not have Serde metadata. Add [<Serde>] to the type definition." fqn ]
+
+    let validate (serdeNames: Set<string>) (types: SerdeTypeInfo list) : string list =
+        let errors = ResizeArray<string>()
+        for t in types do
+            match t.Fields with
+            | Some fields -> for f in fields do errors.AddRange(validateTypeInfo serdeNames f.Type)
+            | None -> ()
+            match t.UnionCases with
+            | Some cases -> for c in cases do for f in c.Fields do errors.AddRange(validateTypeInfo serdeNames f.Type)
+            | None -> ()
+        errors |> Seq.distinct |> Seq.toList
+
 type SerdeGeneratorTask() =
     inherit Task()
 
@@ -189,65 +226,47 @@ type SerdeGeneratorTask() =
                 |> Seq.map (FieldTypeResolver.resolveSerdeTypeInfo lookup)
                 |> Seq.toList
 
-            // Phase 3: Emit all types
-            for typeInfo in resolvedTypes do
-                let code = SerdeCodeEmitter.emit emitter typeInfo
-                let outputFile = Path.Combine(this.OutputDir, sprintf "%s.serde.g.fs" typeInfo.Raw.TypeName)
-                let existingContent =
-                    if File.Exists(outputFile) then Some (File.ReadAllText(outputFile))
-                    else None
+            // Phase 2.5: Validate nested user-defined types have Serde metadata
+            let serdeTypeNames =
+                parsedTypes
+                |> Seq.map (fun t ->
+                    let parts =
+                        [ yield! t.Raw.Namespace |> Option.toList
+                          yield! t.Raw.EnclosingModules
+                          yield t.Raw.TypeName ]
+                    String.concat "." parts)
+                |> Set.ofSeq
+            let violations = NestedTypeValidator.validate serdeTypeNames resolvedTypes
+            for msg in violations do
+                this.Log.LogError(msg)
+            if not (List.isEmpty violations) then
+                success <- false
 
-                // Only write if content changed (deterministic output)
-                match existingContent with
-                | Some existing when existing = code -> ()
-                | _ -> File.WriteAllText(outputFile, code)
+            if success then
+                // Phase 3: Emit all types
+                for typeInfo in resolvedTypes do
+                    let code = SerdeCodeEmitter.emit emitter typeInfo
+                    let outputFile = Path.Combine(this.OutputDir, sprintf "%s.serde.g.fs" typeInfo.Raw.TypeName)
+                    let existingContent =
+                        if File.Exists(outputFile) then Some (File.ReadAllText(outputFile))
+                        else None
 
-                generatedFiles.Add(outputFile) |> ignore
-                this.Log.LogMessage(MessageImportance.Low, "Serde: Generated {0}", outputFile)
-                allTypes.Add(typeInfo)
+                    // Only write if content changed (deterministic output)
+                    match existingContent with
+                    | Some existing when existing = code -> ()
+                    | _ -> File.WriteAllText(outputFile, code)
 
-            // Discover and emit option types from record fields
-            let optionTypeInfos = OptionDiscovery.discoverOptionTypes allTypes
-            for optTi in optionTypeInfos do
-                let optSerdeInfo = OptionDiscovery.mkOptionSerdeTypeInfo optTi
-                let code = SerdeCodeEmitter.emit emitter optSerdeInfo
-                let pascalName = typeInfoToPascalName optTi
-                let outputFile = Path.Combine(this.OutputDir, sprintf "%s.serde.g.fs" pascalName)
-                let existingContent =
-                    if File.Exists(outputFile) then Some (File.ReadAllText(outputFile))
-                    else None
-                match existingContent with
-                | Some existing when existing = code -> ()
-                | _ -> File.WriteAllText(outputFile, code)
-                generatedFiles.Add(outputFile) |> ignore
-                this.Log.LogMessage(MessageImportance.Low, "Serde: Generated {0}", outputFile)
-                allTypes.Add(optSerdeInfo)
+                    generatedFiles.Add(outputFile) |> ignore
+                    this.Log.LogMessage(MessageImportance.Low, "Serde: Generated {0}", outputFile)
+                    allTypes.Add(typeInfo)
 
-            // Discover and emit tuple types from record fields
-            let tupleTypeInfos = TupleDiscovery.discoverTupleTypes allTypes
-            for tupTi in tupleTypeInfos do
-                let tupSerdeInfo = TupleDiscovery.mkTupleSerdeTypeInfo tupTi
-                let code = SerdeCodeEmitter.emit emitter tupSerdeInfo
-                let pascalName = typeInfoToPascalName tupTi
-                let outputFile = Path.Combine(this.OutputDir, sprintf "%s.serde.g.fs" pascalName)
-                let existingContent =
-                    if File.Exists(outputFile) then Some (File.ReadAllText(outputFile))
-                    else None
-                match existingContent with
-                | Some existing when existing = code -> ()
-                | _ -> File.WriteAllText(outputFile, code)
-                generatedFiles.Add(outputFile) |> ignore
-                this.Log.LogMessage(MessageImportance.Low, "Serde: Generated {0}", outputFile)
-                allTypes.Add(tupSerdeInfo)
-
-            // Emit resolver file if the emitter supports it
-            let mutable hasResolver = false
-            match emitter with
-            | :? ISerdeResolverEmitter as resolverEmitter ->
-                match resolverEmitter.EmitResolver(Seq.toList allTypes) with
-                | Some code ->
-                    hasResolver <- true
-                    let outputFile = Path.Combine(this.OutputDir, "~SerdeResolver.serde.g.fs")
+                // Discover and emit option types from record fields
+                let optionTypeInfos = OptionDiscovery.discoverOptionTypes allTypes
+                for optTi in optionTypeInfos do
+                    let optSerdeInfo = OptionDiscovery.mkOptionSerdeTypeInfo optTi
+                    let code = SerdeCodeEmitter.emit emitter optSerdeInfo
+                    let pascalName = typeInfoToPascalName optTi
+                    let outputFile = Path.Combine(this.OutputDir, sprintf "%s.serde.g.fs" pascalName)
                     let existingContent =
                         if File.Exists(outputFile) then Some (File.ReadAllText(outputFile))
                         else None
@@ -256,46 +275,33 @@ type SerdeGeneratorTask() =
                     | _ -> File.WriteAllText(outputFile, code)
                     generatedFiles.Add(outputFile) |> ignore
                     this.Log.LogMessage(MessageImportance.Low, "Serde: Generated {0}", outputFile)
-                | None -> ()
-            | _ -> ()
+                    allTypes.Add(optSerdeInfo)
 
-            // Emit resolver registration + bootstrap file
-            if hasResolver then
-                let code =
-                    "// <auto-generated />\n" +
-                    "namespace Serde.Generated\n" +
-                    "\n" +
-                    "module ResolverRegistration =\n" +
-                    "    let mutable private initialized = false\n" +
-                    "    let registerAll() =\n" +
-                    "        if not initialized then\n" +
-                    "            initialized <- true\n" +
-                    "            SerdeJsonResolver.register()\n" +
-                    "\n" +
-                    "namespace Djinn.Generated\n" +
-                    "\n" +
-                    "module Bootstrap =\n" +
-                    "    let init () =\n" +
-                    "        Serde.ResolverBootstrap.registerAll <- Some Serde.Generated.ResolverRegistration.registerAll\n"
-                let outputFile = Path.Combine(this.OutputDir, "~SerdeResolverRegistration.djinn.g.fs")
-                let existingContent =
-                    if File.Exists(outputFile) then Some (File.ReadAllText(outputFile))
-                    else None
-                match existingContent with
-                | Some existing when existing = code -> ()
-                | _ -> File.WriteAllText(outputFile, code)
-                generatedFiles.Add(outputFile) |> ignore
-                this.Log.LogMessage(MessageImportance.Low, "Serde: Generated {0}", outputFile)
+                // Discover and emit tuple types from record fields
+                let tupleTypeInfos = TupleDiscovery.discoverTupleTypes allTypes
+                for tupTi in tupleTypeInfos do
+                    let tupSerdeInfo = TupleDiscovery.mkTupleSerdeTypeInfo tupTi
+                    let code = SerdeCodeEmitter.emit emitter tupSerdeInfo
+                    let pascalName = typeInfoToPascalName tupTi
+                    let outputFile = Path.Combine(this.OutputDir, sprintf "%s.serde.g.fs" pascalName)
+                    let existingContent =
+                        if File.Exists(outputFile) then Some (File.ReadAllText(outputFile))
+                        else None
+                    match existingContent with
+                    | Some existing when existing = code -> ()
+                    | _ -> File.WriteAllText(outputFile, code)
+                    generatedFiles.Add(outputFile) |> ignore
+                    this.Log.LogMessage(MessageImportance.Low, "Serde: Generated {0}", outputFile)
+                    allTypes.Add(tupSerdeInfo)
 
-            // Emit entry point wrapper if any source file has [<EntryPoint>]
-            for item in this.SourceFiles do
-                let filePath = item.ItemSpec
-                if File.Exists(filePath) && filePath.EndsWith(".fs") then
-                    let sourceText = File.ReadAllText(filePath)
-                    match EntryPointDetector.detect filePath sourceText with
-                    | Some info ->
-                        let code = EntryPointEmitter.emit info
-                        let outputFile = Path.Combine(this.OutputDir, "~~EntryPoint.djinn.g.fs")
+                // Emit resolver file if the emitter supports it
+                let mutable hasResolver = false
+                match emitter with
+                | :? ISerdeResolverEmitter as resolverEmitter ->
+                    match resolverEmitter.EmitResolver(Seq.toList allTypes) with
+                    | Some code ->
+                        hasResolver <- true
+                        let outputFile = Path.Combine(this.OutputDir, "~SerdeResolver.serde.g.fs")
                         let existingContent =
                             if File.Exists(outputFile) then Some (File.ReadAllText(outputFile))
                             else None
@@ -305,16 +311,64 @@ type SerdeGeneratorTask() =
                         generatedFiles.Add(outputFile) |> ignore
                         this.Log.LogMessage(MessageImportance.Low, "Serde: Generated {0}", outputFile)
                     | None -> ()
+                | _ -> ()
 
-            // Remove stale generated files for types that no longer exist
-            for existingFile in Directory.GetFiles(this.OutputDir, "*.serde.g.fs") do
-                if not (generatedFiles.Contains(existingFile)) then
-                    File.Delete(existingFile)
-                    this.Log.LogMessage(MessageImportance.Low, "Serde: Removed stale {0}", existingFile)
-            for existingFile in Directory.GetFiles(this.OutputDir, "*.djinn.g.fs") do
-                if not (generatedFiles.Contains(existingFile)) then
-                    File.Delete(existingFile)
-                    this.Log.LogMessage(MessageImportance.Low, "Serde: Removed stale {0}", existingFile)
+                // Emit resolver registration + bootstrap file
+                if hasResolver then
+                    let code =
+                        "// <auto-generated />\n" +
+                        "namespace Serde.Generated\n" +
+                        "\n" +
+                        "module ResolverRegistration =\n" +
+                        "    let mutable private initialized = false\n" +
+                        "    let registerAll() =\n" +
+                        "        if not initialized then\n" +
+                        "            initialized <- true\n" +
+                        "            SerdeJsonResolver.register()\n" +
+                        "\n" +
+                        "namespace Djinn.Generated\n" +
+                        "\n" +
+                        "module Bootstrap =\n" +
+                        "    let init () =\n" +
+                        "        Serde.ResolverBootstrap.registerAll <- Some Serde.Generated.ResolverRegistration.registerAll\n"
+                    let outputFile = Path.Combine(this.OutputDir, "~SerdeResolverRegistration.djinn.g.fs")
+                    let existingContent =
+                        if File.Exists(outputFile) then Some (File.ReadAllText(outputFile))
+                        else None
+                    match existingContent with
+                    | Some existing when existing = code -> ()
+                    | _ -> File.WriteAllText(outputFile, code)
+                    generatedFiles.Add(outputFile) |> ignore
+                    this.Log.LogMessage(MessageImportance.Low, "Serde: Generated {0}", outputFile)
+
+                // Emit entry point wrapper if any source file has [<EntryPoint>]
+                for item in this.SourceFiles do
+                    let filePath = item.ItemSpec
+                    if File.Exists(filePath) && filePath.EndsWith(".fs") then
+                        let sourceText = File.ReadAllText(filePath)
+                        match EntryPointDetector.detect filePath sourceText with
+                        | Some info ->
+                            let code = EntryPointEmitter.emit info
+                            let outputFile = Path.Combine(this.OutputDir, "~~EntryPoint.djinn.g.fs")
+                            let existingContent =
+                                if File.Exists(outputFile) then Some (File.ReadAllText(outputFile))
+                                else None
+                            match existingContent with
+                            | Some existing when existing = code -> ()
+                            | _ -> File.WriteAllText(outputFile, code)
+                            generatedFiles.Add(outputFile) |> ignore
+                            this.Log.LogMessage(MessageImportance.Low, "Serde: Generated {0}", outputFile)
+                        | None -> ()
+
+                // Remove stale generated files for types that no longer exist
+                for existingFile in Directory.GetFiles(this.OutputDir, "*.serde.g.fs") do
+                    if not (generatedFiles.Contains(existingFile)) then
+                        File.Delete(existingFile)
+                        this.Log.LogMessage(MessageImportance.Low, "Serde: Removed stale {0}", existingFile)
+                for existingFile in Directory.GetFiles(this.OutputDir, "*.djinn.g.fs") do
+                    if not (generatedFiles.Contains(existingFile)) then
+                        File.Delete(existingFile)
+                        this.Log.LogMessage(MessageImportance.Low, "Serde: Removed stale {0}", existingFile)
 
             success
         with ex ->
