@@ -115,7 +115,7 @@ type UppercaseNameConverter() =
 ### 2. Attach it to a type
 
 ```fsharp
-[<Serde(Custom = typeof<UppercaseNameConverter>)>]
+[<Serde(Converter = typeof<UppercaseNameConverter>)>]
 type FancyName = { Value : string }
 ```
 
