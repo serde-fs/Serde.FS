@@ -22,6 +22,7 @@
 
 	<!-- Runtime Serde backend implementation -->
 	<ItemGroup>
+		<Compile Include="ISerdeConverter.fs" />
 		<Compile Include="ResolverBootstrap.fs" />
 		<Compile Include="JsonBackendOptions.fs" />
 		<Compile Include="JsonBackend.fs" />

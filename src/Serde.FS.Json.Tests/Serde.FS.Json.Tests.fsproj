@@ -27,6 +27,7 @@
     <ProjectReference Include="..\Serde.FS\Serde.FS.fsproj" />
     <ProjectReference Include="..\Serde.FS.SourceGen\Serde.FS.SourceGen.fsproj" />
     <ProjectReference Include="..\Serde.FS.Json\Serde.FS.Json.fsproj" />
+    <ProjectReference Include="..\Serde.FS.Json.DesignTime\Serde.FS.Json.DesignTime.fsproj" />
   </ItemGroup>
 
 </Project>

@@ -2,9 +2,10 @@ module Serde.FS.Json.Tests.JsonCodeEmitterTests
 
 open NUnit.Framework
 open Serde.FS
-open FSharp.SourceDjinn
-open FSharp.SourceDjinn.Types
+open FSharp.SourceDjinn.TypeModel
+open FSharp.SourceDjinn.TypeModel.Types
 open Serde.FS.Json
+open Serde.FS.Json.DesignTime
 
 let private emitter = JsonCodeEmitter() :> ISerdeCodeEmitter
 let private resolverEmitter = JsonCodeEmitter() :> ISerdeResolverEmitter
@@ -32,6 +33,7 @@ let private mkOptionInfo (inner: TypeInfo) : SerdeTypeInfo =
         Raw = optType
         Capability = Both
         Attributes = SerdeAttributes.empty
+        CustomConverter = None
         Fields = None
         UnionCases = None
         EnumCases = None
@@ -51,6 +53,7 @@ let private mkRecordInfo ns typeName cap (fields: SerdeFieldInfo list) : SerdeTy
         }
         Capability = cap
         Attributes = SerdeAttributes.empty
+        CustomConverter = None
         Fields = Some fields
         UnionCases = None
         EnumCases = None
@@ -319,6 +322,7 @@ let private mkTupleInfo (elements: TypeInfo list) : SerdeTypeInfo =
         Raw = tupType
         Capability = Both
         Attributes = SerdeAttributes.empty
+        CustomConverter = None
         Fields = None
         UnionCases = None
         EnumCases = None
@@ -418,6 +422,7 @@ let private mkEnumInfo ns typeName (cases: SerdeEnumCaseInfo list) : SerdeTypeIn
         }
         Capability = Both
         Attributes = SerdeAttributes.empty
+        CustomConverter = None
         Fields = None
         UnionCases = None
         EnumCases = Some cases
@@ -541,6 +546,7 @@ let private mkUnionInfo ns typeName (cases: SerdeUnionCaseInfo list) : SerdeType
         }
         Capability = Both
         Attributes = SerdeAttributes.empty
+        CustomConverter = None
         Fields = None
         UnionCases = Some cases
         EnumCases = None
@@ -708,3 +714,60 @@ type Shape =
     Assert.That(code, Does.Contain("""caseName = "Point" then"""))
     Assert.That(code, Does.Contain("TestApp.Shape.Circle(v)"))
     Assert.That(code, Does.Contain("TestApp.Shape.Point"))
+
+// --- Custom converter tests ---
+
+/// Helper to build a SerdeTypeInfo with a custom converter.
+let private mkCustomInfo ns typeName converterFqn : SerdeTypeInfo =
+    let rawField : Types.FieldInfo =
+        { Name = "Value"; Type = mkPrimType "string" String; Attributes = [] }
+    {
+        Raw = {
+            Namespace = ns
+            EnclosingModules = []
+            TypeName = typeName
+            Kind = Record [ rawField ]
+            Attributes = []
+        }
+        Capability = Both
+        Attributes = SerdeAttributes.empty
+        CustomConverter = Some converterFqn
+        Fields = Some [
+            mkField "Value" "string" String
+        ]
+        UnionCases = None
+        EnumCases = None
+    }
+
+[<Test>]
+let ``Emits converter for type with custom converter`` () =
+    let info = mkCustomInfo (Some "TestNs") "FancyName" "TestNs.MyConverter"
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("module rec Serde.Generated.FancyName"))
+    Assert.That(code, Does.Contain("FancyNameConverter"))
+    Assert.That(code, Does.Contain("JsonConverter<TestNs.FancyName>"))
+    Assert.That(code, Does.Contain("MyConverter()"))
+    Assert.That(code, Does.Contain("ISerdeConverter<TestNs.FancyName>"))
+    Assert.That(code, Does.Contain("CreateValueInfo"))
+    Assert.That(code, Does.Contain("WriteTo"))
+    Assert.That(code, Does.Contain("Deserialize<System.Text.Json.Nodes.JsonNode>"))
+
+[<Test>]
+let ``Full pipeline: parse then emit custom converter`` () =
+    let source = """
+namespace TestApp
+
+[<Serde(Custom = "MyConverter")>]
+type FancyName = { Value: string }
+"""
+    let types = Serde.FS.SourceGen.SerdeAstParser.parseSource "/test.fs" source
+    Assert.That(types.Length, Is.EqualTo(1))
+    Assert.That(types.[0].CustomConverter, Is.EqualTo(Some "MyConverter"))
+
+    let code = emitter.Emit(types.[0])
+    Assert.That(code, Does.Contain("module rec Serde.Generated.FancyName"))
+    Assert.That(code, Does.Contain("FancyNameConverter"))
+    Assert.That(code, Does.Contain("ISerdeConverter<TestApp.FancyName>"))
+    Assert.That(code, Does.Contain("MyConverter()"))
+    Assert.That(code, Does.Contain("WriteTo"))
+    Assert.That(code, Does.Contain("Deserialize<System.Text.Json.Nodes.JsonNode>"))

@@ -4,7 +4,9 @@ open System
 
 /// Marks a type for both serialization and deserialization code generation.
 [<AttributeUsage(AttributeTargets.Class ||| AttributeTargets.Struct ||| AttributeTargets.Interface ||| AttributeTargets.Enum, AllowMultiple = false)>]
-type SerdeAttribute() = inherit Attribute()
+type SerdeAttribute() =
+    inherit Attribute()
+    member val Custom : string = null with get, set
 
 /// Marks a type for serialization code generation only.
 [<AttributeUsage(AttributeTargets.Class ||| AttributeTargets.Struct ||| AttributeTargets.Interface ||| AttributeTargets.Enum, AllowMultiple = false)>]

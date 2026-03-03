@@ -159,6 +159,23 @@ type Person = { Name: string; Age: int }
     Assert.That(t.Raw.TypeName, Is.EqualTo("Person"))
 
 [<Test>]
+let ``Parses record with Serde Custom attribute`` () =
+    let source = """
+namespace MyApp
+
+open Serde.FS
+
+[<Serde(Custom = "MyConverter")>]
+type FancyName = { Value: string }
+"""
+    let types = SerdeAstParser.parseSource "/test.fs" source
+    Assert.That(types.Length, Is.EqualTo(1))
+
+    let t = types.[0]
+    Assert.That(t.Raw.TypeName, Is.EqualTo("FancyName"))
+    Assert.That(t.CustomConverter, Is.EqualTo(Some "MyConverter"))
+
+[<Test>]
 let ``Parses type inside nested module under namespace`` () =
     let source = """
 namespace MyApp

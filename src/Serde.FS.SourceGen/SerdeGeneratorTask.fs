@@ -44,6 +44,7 @@ module private OptionDiscovery =
             Raw = ti
             Capability = Both
             Attributes = SerdeAttributes.empty
+            CustomConverter = None
             Fields = None
             UnionCases = None
             EnumCases = None
@@ -84,6 +85,7 @@ module private TupleDiscovery =
             Raw = ti
             Capability = Both
             Attributes = SerdeAttributes.empty
+            CustomConverter = None
             Fields = None
             UnionCases = None
             EnumCases = None
@@ -224,6 +226,19 @@ type SerdeGeneratorTask() =
             let resolvedTypes =
                 parsedTypes
                 |> Seq.map (FieldTypeResolver.resolveSerdeTypeInfo lookup)
+                |> Seq.map (fun sti ->
+                    match sti.CustomConverter with
+                    | Some name ->
+                        match Map.tryFind name lookup with
+                        | Some ti ->
+                            let fqn =
+                                [ yield! ti.Namespace |> Option.toList
+                                  yield! ti.EnclosingModules
+                                  yield ti.TypeName ]
+                                |> String.concat "."
+                            { sti with CustomConverter = Some fqn }
+                        | None -> sti
+                    | None -> sti)
                 |> Seq.toList
 
             // Phase 2.5: Validate nested user-defined types have Serde metadata

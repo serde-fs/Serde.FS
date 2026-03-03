@@ -1,5 +1,6 @@
 module Program
 
+open System.Text.Json.Nodes
 open Serde.FS
 open Serde.FS.Json
 open FSharp.SourceDjinn.TypeModel
@@ -27,6 +28,16 @@ type Shape =
     | Rectangle of width: float * height: float
     | Point
 
+[<Serde(Custom = "Program.UppercaseNameConverter")>]
+type FancyName = { Value: string }
+
+type UppercaseNameConverter() =
+    interface ISerdeConverter<FancyName> with
+        member _.Serialize(n: FancyName) =
+            JsonValue.Create(n.Value.ToUpperInvariant()) :> JsonNode
+        member _.Deserialize(node: JsonNode) =
+            { Value = node.GetValue<string>().ToLowerInvariant() }
+
 [<Serde>]
 type Person = {
     Name: string
@@ -38,6 +49,7 @@ type Person = {
     Position: float * float
     PetMap: Map<string, Pet>
     Shapes: Shape list
+    Fancy: FancyName
 }
 
 [<EntryPoint>]
@@ -57,6 +69,7 @@ let run argv =
         Position = 10.5, 20.5
         PetMap = pets |> List.map (fun p -> match p with Dog n -> n.Name, p | Cat name -> name, p) |> Map.ofList
         Shapes = [ Shape.Circle(3.14); Shape.Rectangle(10.0, 20.0); Shape.Point ]
+        Fancy = { Value = "Jordan" }
     }
     let json = Serde.Serialize person
     printfn "Serialized: %s" json
