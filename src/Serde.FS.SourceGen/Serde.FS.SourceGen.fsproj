@@ -7,6 +7,10 @@
 		<!-- Serde generator engine + MSBuild task -->
 		<PackageId>Serde.FS.SourceGen</PackageId>
 		<Version>1.0.0-alpha.1</Version>
+		<Authors>Jordan Marr</Authors>
+		<Description>
+			Source generator for Serde.FS. Produces metadata and serializers for [Serde] types with full recursive strictness validation. Used by all Serde.FS backends.
+		</Description>
 
 		<!-- Packed as an analyzer package (design-time only) -->
 		<IsPackable>true</IsPackable>

@@ -1,18 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <PackageId>Serde.FS</PackageId>
-    <Version>1.0.0-alpha.1</Version>
-    <IsPackable>true</IsPackable>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<PackageId>Serde.FS</PackageId>
+		<Version>1.0.0-alpha.1</Version>
+		<Authors>Jordan Marr</Authors>
+		<Description>
+			Strict, deterministic serialization core for F#. Provides the [Serde] attribute, metadata model, and compile‑time validation used by all Serde.FS backends. Backend‑agnostic and reflection‑free.
+		</Description>
+		<IsPackable>true</IsPackable>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <Compile Include="Attributes.fs" />
-    <Compile Include="ISerdeOptions.fs" />
-    <Compile Include="ISerdeBackend.fs" />
-    <Compile Include="Serde.fs" />
-  </ItemGroup>
+	<ItemGroup>
+		<Compile Include="Attributes.fs" />
+		<Compile Include="ISerdeOptions.fs" />
+		<Compile Include="ISerdeBackend.fs" />
+		<Compile Include="Serde.fs" />
+	</ItemGroup>
 
 </Project>

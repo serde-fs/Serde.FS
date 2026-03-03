@@ -1,5 +1,15 @@
 <Solution>
-  <Folder Name="/Tests/">
+  <Folder Name="/Core/">
+    <Project Path="Serde.FS.SourceGen/Serde.FS.SourceGen.fsproj" />
+    <Project Path="Serde.FS/Serde.FS.fsproj" />
+  </Folder>
+  <Folder Name="/Json/">
+    <Project Path="Serde.FS.Json.SourceGen/Serde.FS.Json.SourceGen.fsproj" Id="9d6cb6ea-7c3b-4931-b762-c53bd4553bdb" />
+    <Project Path="Serde.FS.Json/Serde.FS.Json.fsproj">
+      <Build Solution="Debug|*" Project="false" />
+    </Project>
+  </Folder>
+  <Folder Name="/_Tests/">
     <Project Path="Serde.FS.Json.SampleApp/Serde.FS.Json.SampleApp.fsproj">
       <Build Solution="Debug|*" Project="false" />
     </Project>
@@ -10,10 +20,4 @@
       <Build Solution="Debug|*" Project="false" />
     </Project>
   </Folder>
-  <Project Path="Serde.FS.Json.SourceGen/Serde.FS.Json.SourceGen.fsproj" Id="9d6cb6ea-7c3b-4931-b762-c53bd4553bdb" />
-  <Project Path="Serde.FS.Json/Serde.FS.Json.fsproj">
-    <Build Solution="Debug|*" Project="false" />
-  </Project>
-  <Project Path="Serde.FS.SourceGen/Serde.FS.SourceGen.fsproj" />
-  <Project Path="Serde.FS/Serde.FS.fsproj" />
 </Solution>

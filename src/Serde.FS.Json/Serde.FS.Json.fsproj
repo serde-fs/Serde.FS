@@ -12,7 +12,9 @@
 		<PackageId>Serde.FS.Json</PackageId>
 		<Version>1.0.0-alpha.1</Version>
 		<Authors>Jordan Marr</Authors>
-		<Description>System.Text.Json backend for Serde.FS</Description>
+		<Description>
+			High‑performance JSON backend for Serde.FS. Uses generated serializers—no reflection, no runtime inference. Includes JSON‑specific converter support and design‑time code generation.
+		</Description>
 
 		<PackageTags>fsharp;serde;json;system-text-json;fs-djinn;djinn</PackageTags>
 
