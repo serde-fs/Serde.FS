@@ -44,7 +44,7 @@ module private OptionDiscovery =
             Raw = ti
             Capability = Both
             Attributes = SerdeAttributes.empty
-            CustomConverter = None
+            ConverterType = None
             Fields = None
             UnionCases = None
             EnumCases = None
@@ -85,7 +85,7 @@ module private TupleDiscovery =
             Raw = ti
             Capability = Both
             Attributes = SerdeAttributes.empty
-            CustomConverter = None
+            ConverterType = None
             Fields = None
             UnionCases = None
             EnumCases = None
@@ -227,7 +227,7 @@ type SerdeGeneratorTask() =
                 parsedTypes
                 |> Seq.map (FieldTypeResolver.resolveSerdeTypeInfo lookup)
                 |> Seq.map (fun sti ->
-                    match sti.CustomConverter with
+                    match sti.ConverterType with
                     | Some name ->
                         match Map.tryFind name lookup with
                         | Some ti ->
@@ -236,8 +236,15 @@ type SerdeGeneratorTask() =
                                   yield! ti.EnclosingModules
                                   yield ti.TypeName ]
                                 |> String.concat "."
-                            { sti with CustomConverter = Some fqn }
-                        | None -> sti
+                            { sti with ConverterType = Some fqn }
+                        | None ->
+                            // Converter type not in type lookup (e.g. a class);
+                            // qualify with the [<Serde>] type's own scope.
+                            let prefix =
+                                [ yield! sti.Raw.Namespace |> Option.toList
+                                  yield! sti.Raw.EnclosingModules ]
+                            if prefix.IsEmpty then sti
+                            else { sti with ConverterType = Some (String.concat "." (prefix @ [name])) }
                     | None -> sti)
                 |> Seq.toList
 

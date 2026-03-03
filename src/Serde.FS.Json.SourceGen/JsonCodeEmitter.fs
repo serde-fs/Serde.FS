@@ -457,7 +457,7 @@ module internal JsonCodeEmitterImpl =
         sb.ToString()
 
     let emit (info: SerdeTypeInfo) : string =
-        match info.CustomConverter with
+        match info.ConverterType with
         | Some converterFqn -> emitCustom info converterFqn
         | None ->
             match info.Raw.Kind with

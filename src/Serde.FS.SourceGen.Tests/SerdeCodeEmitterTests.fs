@@ -24,7 +24,7 @@ let ``CodeEmitter delegates to ISerdeCodeEmitter`` () =
         }
         Capability = Both
         Attributes = SerdeAttributes.empty
-        CustomConverter = None
+        ConverterType = None
         Fields = Some [
             { Name = "FName"; RawName = "FName"; Type = { Namespace = None; EnclosingModules = []; TypeName = "string"; Kind = Primitive String; Attributes = [] }; Attributes = SerdeAttributes.empty; Capability = Both }
         ]
@@ -50,7 +50,7 @@ let ``DebugEmitter emits debug comment`` () =
         }
         Capability = Both
         Attributes = SerdeAttributes.empty
-        CustomConverter = None
+        ConverterType = None
         Fields = Some [
             { Name = "FName"; RawName = "FName"; Type = { Namespace = None; EnclosingModules = []; TypeName = "string"; Kind = Primitive String; Attributes = [] }; Attributes = SerdeAttributes.empty; Capability = Both }
         ]

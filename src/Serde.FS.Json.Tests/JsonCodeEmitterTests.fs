@@ -33,7 +33,7 @@ let private mkOptionInfo (inner: TypeInfo) : SerdeTypeInfo =
         Raw = optType
         Capability = Both
         Attributes = SerdeAttributes.empty
-        CustomConverter = None
+        ConverterType = None
         Fields = None
         UnionCases = None
         EnumCases = None
@@ -53,7 +53,7 @@ let private mkRecordInfo ns typeName cap (fields: SerdeFieldInfo list) : SerdeTy
         }
         Capability = cap
         Attributes = SerdeAttributes.empty
-        CustomConverter = None
+        ConverterType = None
         Fields = Some fields
         UnionCases = None
         EnumCases = None
@@ -322,7 +322,7 @@ let private mkTupleInfo (elements: TypeInfo list) : SerdeTypeInfo =
         Raw = tupType
         Capability = Both
         Attributes = SerdeAttributes.empty
-        CustomConverter = None
+        ConverterType = None
         Fields = None
         UnionCases = None
         EnumCases = None
@@ -422,7 +422,7 @@ let private mkEnumInfo ns typeName (cases: SerdeEnumCaseInfo list) : SerdeTypeIn
         }
         Capability = Both
         Attributes = SerdeAttributes.empty
-        CustomConverter = None
+        ConverterType = None
         Fields = None
         UnionCases = None
         EnumCases = Some cases
@@ -546,7 +546,7 @@ let private mkUnionInfo ns typeName (cases: SerdeUnionCaseInfo list) : SerdeType
         }
         Capability = Both
         Attributes = SerdeAttributes.empty
-        CustomConverter = None
+        ConverterType = None
         Fields = None
         UnionCases = Some cases
         EnumCases = None
@@ -731,7 +731,7 @@ let private mkCustomInfo ns typeName converterFqn : SerdeTypeInfo =
         }
         Capability = Both
         Attributes = SerdeAttributes.empty
-        CustomConverter = Some converterFqn
+        ConverterType = Some converterFqn
         Fields = Some [
             mkField "Value" "string" String
         ]
@@ -757,12 +757,14 @@ let ``Full pipeline: parse then emit custom converter`` () =
     let source = """
 namespace TestApp
 
-[<Serde(Custom = "MyConverter")>]
+type MyConverter() = class end
+
+[<Serde(Converter = typeof<MyConverter>)>]
 type FancyName = { Value: string }
 """
     let types = Serde.FS.SourceGen.SerdeAstParser.parseSource "/test.fs" source
     Assert.That(types.Length, Is.EqualTo(1))
-    Assert.That(types.[0].CustomConverter, Is.EqualTo(Some "MyConverter"))
+    Assert.That(types.[0].ConverterType, Is.EqualTo(Some "MyConverter"))
 
     let code = emitter.Emit(types.[0])
     Assert.That(code, Does.Contain("module rec Serde.Generated.FancyName"))

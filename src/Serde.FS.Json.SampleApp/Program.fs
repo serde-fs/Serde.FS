@@ -28,15 +28,15 @@ type Shape =
     | Rectangle of width: float * height: float
     | Point
 
-[<Serde(Custom = "Program.UppercaseNameConverter")>]
-type FancyName = { Value: string }
-
 type UppercaseNameConverter() =
     interface ISerdeConverter<FancyName> with
         member _.Serialize(n: FancyName) =
             JsonValue.Create(n.Value.ToUpperInvariant()) :> JsonNode
         member _.Deserialize(node: JsonNode) =
             { Value = node.GetValue<string>().ToLowerInvariant() }
+
+and [<Serde(Converter = typeof<UppercaseNameConverter>)>]
+    FancyName = { Value: string }
 
 [<Serde>]
 type Person = {

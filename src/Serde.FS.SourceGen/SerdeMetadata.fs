@@ -1,5 +1,6 @@
 namespace Serde.FS
 
+open FSharp.SourceDjinn
 open FSharp.SourceDjinn.TypeModel.Types
 
 type SerdeCapability =
@@ -50,7 +51,7 @@ type SerdeTypeInfo = {
     Raw: TypeInfo
     Capability: SerdeCapability
     Attributes: SerdeAttributes
-    CustomConverter: string option
+    ConverterType: string option
     Fields: SerdeFieldInfo list option
     UnionCases: SerdeUnionCaseInfo list option
     EnumCases: SerdeEnumCaseInfo list option
@@ -144,13 +145,17 @@ module SerdeMetadataBuilder =
     let buildSerdeTypeInfo (ti: TypeInfo) : SerdeTypeInfo =
         let capability = resolveCapability ti.Attributes
         let typeAttrs = buildSerdeAttributes ti.Attributes
-        let customConverter =
+        let converterType =
             ti.Attributes |> List.tryPick (fun a ->
                 let sn = shortName a.Name
                 if sn = "Serde" || sn = "SerdeAttribute" then
                     a.NamedArgs |> List.tryPick (fun (name, value) ->
-                        if name = "Custom" then
-                            match value with :? string as s -> Some s | _ -> None
+                        if name = "Converter" then
+                            match value with
+                            | :? TypeKindExtractor.AttrArgValue as av ->
+                                let (TypeKindExtractor.AttrArgValue.TypeOf fqn) = av
+                                Some fqn
+                            | _ -> None
                         else None)
                 else None)
         let fields, unionCases, enumCases =
@@ -167,7 +172,7 @@ module SerdeMetadataBuilder =
             Raw = ti
             Capability = capability
             Attributes = typeAttrs
-            CustomConverter = customConverter
+            ConverterType = converterType
             Fields = fields
             UnionCases = unionCases
             EnumCases = enumCases

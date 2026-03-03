@@ -20,7 +20,7 @@
 		<PackageReference Include="NUnit" Version="3.14.0" />
 		<PackageReference Include="NUnit.Analyzers" Version="3.9.0" />
 		<PackageReference Include="NUnit3TestAdapter" Version="4.5.0" />
-		<!-- Same version used in FSharp.SourceDjinn v0.1.3 (version used by Serde.FS.SourceGen) -->
+		<!-- Same version used in FSharp.SourceDjinn v0.1.4 (version used by Serde.FS.SourceGen) -->
 		<PackageReference Include="FSharp.Compiler.Service" Version="43.10.103" />
 	</ItemGroup>
 

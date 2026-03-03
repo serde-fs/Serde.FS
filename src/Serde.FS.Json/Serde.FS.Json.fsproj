@@ -42,7 +42,7 @@
 		<PackageReference Include="FSharp.SourceDjinn.TypeModel" Version="0.1.1" />
 
 		<!-- Design-time only dependency (never flows to consumers) -->
-		<PackageReference Include="FSharp.SourceDjinn" Version="0.1.3" PrivateAssets="all" />
+		<PackageReference Include="FSharp.SourceDjinn" Version="0.1.4" PrivateAssets="all" />
 
 		<!-- Core Serde.FS runtime library -->
 		<ProjectReference Include="..\Serde.FS\Serde.FS.fsproj" />
