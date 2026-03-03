@@ -1,4 +1,9 @@
 # **Serde.FS — Strict, Deterministic Serialization for F#**
+[![Serde.FS](https://img.shields.io/nuget/vpre/Serde.FS.svg?label=Serde.FS)](https://www.nuget.org/packages/Serde.FS/)
+[![Serde.FS.SourceGen](https://img.shields.io/nuget/vpre/Serde.FS.SourceGen.svg?label=Serde.FS.SourceGen)](https://www.nuget.org/packages/Serde.FS.SourceGen/)
+[![Serde.FS.Json](https://img.shields.io/nuget/vpre/Serde.FS.Json.svg?label=Serde.FS.Json)](https://www.nuget.org/packages/Serde.FS.Json/)
+
+
 
 Serde.FS is a strict, deterministic, compile‑time–validated serialization framework for F#. It brings the core ideas of Rust Serde into the .NET ecosystem:
 
