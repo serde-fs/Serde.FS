@@ -10,7 +10,7 @@
       <Build Solution="Debug|*" Project="false" />
     </Project>
   </Folder>
-  <Project Path="Serde.FS.Json.DesignTime/Serde.FS.Json.DesignTime.fsproj" Id="9d6cb6ea-7c3b-4931-b762-c53bd4553bdb" />
+  <Project Path="Serde.FS.Json.SourceGen/Serde.FS.Json.SourceGen.fsproj" Id="9d6cb6ea-7c3b-4931-b762-c53bd4553bdb" />
   <Project Path="Serde.FS.Json/Serde.FS.Json.fsproj">
     <Build Solution="Debug|*" Project="false" />
   </Project>

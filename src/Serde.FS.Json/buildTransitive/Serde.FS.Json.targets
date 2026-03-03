@@ -7,8 +7,8 @@
 
 		<SerdeGeneratorTask SourceFiles="@(Compile)"
 							OutputDir="$(IntermediateOutputPath)serde-generated/"
-							EmitterAssemblyPath="$(MSBuildThisFileDirectory)../analyzers/dotnet/fs/Serde.FS.Json.DesignTime.dll" 
-							EmitterTypeName="Serde.FS.Json.DesignTime.JsonCodeEmitter" />
+							EmitterAssemblyPath="$(MSBuildThisFileDirectory)../analyzers/dotnet/fs/Serde.FS.Json.SourceGen.dll"
+							EmitterTypeName="Serde.FS.Json.SourceGen.JsonCodeEmitter" />
 
 		<ItemGroup>
 			<Compile Include="$(IntermediateOutputPath)serde-generated/**/*.fs"

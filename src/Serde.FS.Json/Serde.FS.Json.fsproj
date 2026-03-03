@@ -44,7 +44,7 @@
 		<ProjectReference Include="..\Serde.FS\Serde.FS.fsproj" />
 
 		<!-- Design-time emitter project (never flows to consumers) -->
-		<ProjectReference Include="..\Serde.FS.Json.DesignTime\Serde.FS.Json.DesignTime.fsproj"
+		<ProjectReference Include="..\Serde.FS.Json.SourceGen\Serde.FS.Json.SourceGen.fsproj"
 						  PrivateAssets="all" />
 
 		<!-- Generator engine + MSBuild task.
@@ -68,7 +68,7 @@
 			  PackagePath="analyzers/dotnet/fs" />
 
 		<!-- Backend-specific design-time emitter DLL -->
-		<None Include="..\Serde.FS.Json.DesignTime\bin\$(Configuration)\net8.0\Serde.FS.Json.DesignTime.dll"
+		<None Include="..\Serde.FS.Json.SourceGen\bin\$(Configuration)\net8.0\Serde.FS.Json.SourceGen.dll"
 			  Pack="true"
 			  PackagePath="analyzers/dotnet/fs" />
 	</ItemGroup>

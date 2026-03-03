@@ -5,7 +5,7 @@ open Serde.FS
 open FSharp.SourceDjinn.TypeModel
 open FSharp.SourceDjinn.TypeModel.Types
 open Serde.FS.Json
-open Serde.FS.Json.DesignTime
+open Serde.FS.Json.SourceGen
 
 let private emitter = JsonCodeEmitter() :> ISerdeCodeEmitter
 let private resolverEmitter = JsonCodeEmitter() :> ISerdeResolverEmitter

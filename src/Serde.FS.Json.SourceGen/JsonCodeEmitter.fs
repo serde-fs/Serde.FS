@@ -1,4 +1,4 @@
-namespace Serde.FS.Json.DesignTime
+namespace Serde.FS.Json.SourceGen
 
 open System.Text
 open Serde.FS
