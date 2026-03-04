@@ -146,7 +146,7 @@ Because Serde.FS uses source generation, it cannot safely generate the real entr
 To solve this, mark your intended entry point with:  
  
 ```fsharp
-[<FSharp.SourceDjinn.EntryPoint>]
+[<FSharp.SourceDjinn.TypeModel.EntryPoint>]
 let main argv = ...
 ```  
  
