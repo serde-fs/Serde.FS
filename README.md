@@ -16,6 +16,8 @@ Every serialized type must explicitly opt in using `[<Serde>]`. Metadata is gene
 
 Serde.FS.Json is the first backend, built on System.Text.Json — but without reflection or runtime inference.
 
+Serde.FS.Json is powered by [FSharp.SourceDjinn](https://github.com/fs-djinn/FSharp.SourceDjinn), a lightweight source generator engine.
+
 ---
 
 ## 🚀 Quick Start (the whole system in 20 seconds)
