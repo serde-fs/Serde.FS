@@ -25,7 +25,8 @@ let readVersion (projPath: string) =
     let endIdx = content.IndexOf("</Version>", start)
     content.Substring(start, endIdx - start).Trim()
 
-let version = readVersion serdeFSProj
+let serdeVersion = readVersion serdeFSProj
+let jsonVersion  = readVersion jsonProj
 
 // ---------------------------------------------------------------------------
 // Pipeline: build (default)
@@ -47,21 +48,21 @@ pipeline "build" {
 
     stage "Pack Serde.FS.SourceGen" {
         run $"dotnet clean {sourceGenProj}"
-        run $"dotnet build {sourceGenProj} -c Release /p:PackageVersion={version} /p:SerdeFSVersion={version}"
-        run $"dotnet pack {sourceGenProj} -c Release -o {buildDir} --no-build /p:NoBuild=true /p:BuildProjectReferences=false /p:PackageVersion={version} /p:SerdeFSVersion={version}"
+        run $"dotnet build {sourceGenProj} -c Release /p:PackageVersion={serdeVersion} /p:SerdeFSVersion={serdeVersion}"
+        run $"dotnet pack {sourceGenProj} -c Release -o {buildDir} --no-build /p:NoBuild=true /p:BuildProjectReferences=false /p:PackageVersion={serdeVersion} /p:SerdeFSVersion={serdeVersion}"
     }
 
     stage "Pack Serde.FS" {
         run $"dotnet clean {serdeFSProj}"
-        run $"dotnet build {serdeFSProj} -c Release /p:PackageVersion={version}"
-        run $"dotnet pack {serdeFSProj} -c Release -o {buildDir} --no-build /p:NoBuild=true /p:BuildProjectReferences=false /p:PackageVersion={version}"
+        run $"dotnet build {serdeFSProj} -c Release /p:PackageVersion={serdeVersion}"
+        run $"dotnet pack {serdeFSProj} -c Release -o {buildDir} --no-build /p:NoBuild=true /p:BuildProjectReferences=false /p:PackageVersion={serdeVersion}"
     }
 
     stage "Pack Serde.FS.Json" {
-        run $"dotnet restore {jsonProj} /p:SourceGenVersion={version}"
+        run $"dotnet restore {jsonProj} /p:SourceGenVersion={serdeVersion} --source {buildDir} --source https://api.nuget.org/v3/index.json"
         run $"dotnet clean {jsonProj}"
-        run $"dotnet build {jsonProj} -c Release /p:PackageVersion={version} /p:SerdeFSVersion={version} /p:SourceGenVersion={version}"
-        run $"dotnet pack {jsonProj} -c Release -o {buildDir} --no-build /p:NoBuild=true /p:BuildProjectReferences=false /p:PackageVersion={version} /p:SerdeFSVersion={version} /p:SourceGenVersion={version}"
+        run $"dotnet build {jsonProj} -c Release /p:PackageVersion={jsonVersion} /p:SerdeFSVersion={serdeVersion} /p:SourceGenVersion={serdeVersion}"
+        run $"dotnet pack {jsonProj} -c Release -o {buildDir} --no-build /p:NoBuild=true /p:BuildProjectReferences=false /p:PackageVersion={jsonVersion} /p:SerdeFSVersion={serdeVersion} /p:SourceGenVersion={serdeVersion}"
     }
 
     stage "Summary" {
@@ -70,7 +71,8 @@ pipeline "build" {
             printfn "========================================"
             printfn "  Build Summary"
             printfn "========================================"
-            printfn $"  Version:  {version}"
+            printfn $"  Serde.FS version:      {serdeVersion}"
+            printfn $"  Serde.FS.Json version:  {jsonVersion}"
             printfn $"  Output:   {buildDir}/"
             printfn $"  Packages:"
             if Directory.Exists(buildDir) then
