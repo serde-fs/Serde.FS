@@ -10,7 +10,7 @@
 		<IsPackable>true</IsPackable>
 
 		<PackageId>Serde.FS.Json</PackageId>
-		<Version>1.0.0-alpha.2</Version>
+		<Version>1.0.0-alpha.3</Version>
 		<Authors>Jordan Marr</Authors>
 		<Description>
 			High‑performance JSON backend for Serde.FS. Uses generated serializers—no reflection, no runtime inference. Includes JSON‑specific converter support and design‑time code generation.
