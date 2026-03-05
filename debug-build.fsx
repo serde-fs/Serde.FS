@@ -50,8 +50,13 @@ pipeline "debug" {
         run (fun _ ->
             if Directory.Exists(nugetLocalDir) then
                 for pkg in Directory.GetFiles(nugetLocalDir, "*.nupkg", SearchOption.AllDirectories) do
-                    printfn $"  Deleting {pkg}"
-                    File.Delete(pkg)
+                    let name = Path.GetFileName(pkg)
+                    // Only prune Serde debug packages; keep third-party packages (e.g., FSharp.SourceDjinn)
+                    if name.StartsWith("Serde.", StringComparison.OrdinalIgnoreCase) then
+                        printfn $"  Deleting {pkg}"
+                        File.Delete(pkg)
+                    else
+                        printfn $"  Keeping  {pkg}"
             else
                 Directory.CreateDirectory(nugetLocalDir) |> ignore
             printfn "Local feed pruned."
@@ -74,7 +79,8 @@ pipeline "debug" {
 
     stage "Pack Serde.FS.SourceGen" {
         run $"dotnet clean {sourceGenProj}"
-        run $"dotnet build {sourceGenProj} -c Debug /p:PackageVersion={debugVersion} /p:SerdeFSVersion={debugVersion}"
+        run $"dotnet restore {sourceGenProj} --source https://api.nuget.org/v3/index.json --source {Path.GetFullPath(nugetLocalDir)}"
+        run $"dotnet build {sourceGenProj} -c Debug --no-restore /p:PackageVersion={debugVersion} /p:SerdeFSVersion={debugVersion}"
         run $"dotnet pack {sourceGenProj} -c Debug -o {nugetLocalDir} --no-build /p:NoBuild=true /p:BuildProjectReferences=false /p:PackageVersion={debugVersion} /p:SerdeFSVersion={debugVersion}"
     }
 

@@ -294,6 +294,7 @@ type SerdeGeneratorTask() =
             let generatedFiles = System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase)
 
             // Phase 1: Parse all source files
+            let rootTypeArgs = System.Collections.Generic.List<TypeInfo>()
             for item in this.SourceFiles do
                 let filePath = item.ItemSpec
 
@@ -305,6 +306,10 @@ type SerdeGeneratorTask() =
                         // Also collect ALL type definitions for the lookup map
                         let allTypesInFile = SerdeAstParser.parseFileAllTypes filePath
                         allTypeInfos.AddRange(allTypesInFile)
+
+                        // Phase 1b: Discover root-level constructed generics from Serde.Serialize<T>/Deserialize<T> calls
+                        let typeArgs = SerdeAstParser.parseFileRootTypeArgs filePath
+                        rootTypeArgs.AddRange(typeArgs)
 
                     with ex ->
                         this.Log.LogWarning("Serde: Failed to process {0}: {1}", filePath, ex.Message)
@@ -341,9 +346,24 @@ type SerdeGeneratorTask() =
                     | None -> sti)
                 |> Seq.toList
 
-            // Phase 2.3: Discover constructed generics from fields/union cases
+            // Phase 2.3: Discover constructed generics from fields/union cases and root-level calls
             let genericDefinitions = GenericDiscovery.buildDefinitionMap resolvedTypes
-            let constructedGenerics = GenericDiscovery.discoverConstructedGenerics resolvedTypes
+            let fieldConstructedGenerics = GenericDiscovery.discoverConstructedGenerics resolvedTypes
+
+            // Merge root-level constructed generics (from Serde.Serialize<T>/Deserialize<T> calls)
+            let rootConstructed =
+                rootTypeArgs
+                |> Seq.map (FieldTypeResolver.resolveTypeInfo lookup)
+                |> Seq.filter (fun ti -> ti.Kind = ConstructedGenericType)
+                |> Seq.toList
+
+            let constructedGenerics =
+                let mutable acc = fieldConstructedGenerics |> List.map (fun ti -> typeInfoToPascalName ti, ti) |> Map.ofList
+                for ti in rootConstructed do
+                    let key = typeInfoToPascalName ti
+                    if not (acc |> Map.containsKey key) then
+                        acc <- acc |> Map.add key ti
+                acc |> Map.toList |> List.map snd
             let constructedSerdeTypes = System.Collections.Generic.List<SerdeTypeInfo>()
             let mutable genericErrors = []
             for constructed in constructedGenerics do
