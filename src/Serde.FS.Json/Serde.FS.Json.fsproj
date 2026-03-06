@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net10.0</TargetFramework>
+		<TargetFramework>net8.0</TargetFramework>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 		<NoWarn>$(NoWarn);NU1603</NoWarn>
 
@@ -64,10 +64,10 @@
 	<ItemGroup>
 		<!-- Generator engine DLLs + dependencies.
          These MUST be packed so the MSBuild task can load them at build time. -->
-		<None Include="..\Serde.FS.SourceGen\bin\$(Configuration)\net10.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
+		<None Include="..\Serde.FS.SourceGen\bin\$(Configuration)\net8.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
 
 		<!-- Backend-specific design-time emitter DLL -->
-		<None Include="..\Serde.FS.Json.SourceGen\bin\$(Configuration)\net10.0\Serde.FS.Json.SourceGen.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
+		<None Include="..\Serde.FS.Json.SourceGen\bin\$(Configuration)\net8.0\Serde.FS.Json.SourceGen.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
 	</ItemGroup>
 
 	<!-- buildTransitive ensures consumers automatically get the analyzer declarations -->
