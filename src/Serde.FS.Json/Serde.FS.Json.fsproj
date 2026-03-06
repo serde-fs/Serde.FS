@@ -70,6 +70,15 @@
 		<None Include="..\Serde.FS.Json.SourceGen\bin\$(Configuration)\net10.0\Serde.FS.Json.SourceGen.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
 	</ItemGroup>
 
-	<!-- buildTransitive ensures consumers automatically get the generator target -->
+	<!-- buildTransitive ensures consumers automatically get the analyzer declarations -->
+	<ItemGroup>
+		<!-- This .targets file contains only <Analyzer> entries.
+			It must be in buildTransitive so downstream projects inherit the analyzers. -->
+		<None Include="buildTransitive\Serde.FS.Json.targets"
+			Pack="true"
+			PackagePath="buildTransitive"
+			Link="buildTransitive\Serde.FS.Json.targets" />
+	</ItemGroup>
+
 
 </Project>

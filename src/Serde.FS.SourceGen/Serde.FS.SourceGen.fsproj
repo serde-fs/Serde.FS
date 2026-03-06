@@ -57,9 +57,7 @@
 		<PackageReference Include="FSharp.SourceDjinn.TypeModel" Version="0.2.2" />
 	</ItemGroup>
 
-	<!-- MSBuild task registration (UsingTask) -->
-
-	<!-- Analyzer payload: generator engine DLL + all dependencies -->
+<!-- Analyzer payload: generator engine DLL + all dependencies -->
 	<ItemGroup>
 	  <None Include="$(OutputPath)Serde.FS.SourceGen.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
 
