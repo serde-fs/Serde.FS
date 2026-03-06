@@ -28,10 +28,18 @@ module SerdeAstParser =
     let parseFileAllTypes (filePath: string) : TypeInfo list =
         AstParser.parseFileAllTypes filePath
 
+    /// Parse F# source text and return ALL type definitions (for building lookup maps).
+    let parseSourceAllTypes (filePath: string) (sourceText: string) : TypeInfo list =
+        AstParser.parseSourceAllTypes filePath sourceText
+
     let private serdeCallNames = set [ "Serde.Serialize"; "Serde.Deserialize" ]
 
     /// Extract type arguments from explicit Serde.Serialize<T>/Serde.Deserialize<T> calls.
     let parseFileRootTypeArgs (filePath: string) : TypeInfo list =
         let sourceText = System.IO.File.ReadAllText(filePath)
+        AstParser.extractCallTypeArgs serdeCallNames filePath sourceText
+
+    /// Extract type arguments from explicit Serde.Serialize<T>/Serde.Deserialize<T> calls (from source text).
+    let parseSourceRootTypeArgs (filePath: string) (sourceText: string) : TypeInfo list =
         AstParser.extractCallTypeArgs serdeCallNames filePath sourceText
 

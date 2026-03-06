@@ -4,7 +4,7 @@
 		<TargetFramework>net8.0</TargetFramework>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 
-		<!-- Serde generator engine + MSBuild task -->
+		<!-- Serde generator engine + Roslyn source generator -->
 		<PackageId>Serde.FS.SourceGen</PackageId>
 		<Authors>Jordan Marr</Authors>
 		<Description>
@@ -32,7 +32,7 @@
 		<InternalsVisibleTo Include="Serde.FS.SourceGen.Tests" />
 	</ItemGroup>
 
-	<!-- Generator engine + AST parser + code emitter + MSBuild task -->
+	<!-- Generator engine + AST parser + code emitter + Roslyn generator -->
 	<ItemGroup>
 		<Compile Include="SerdeMetadata.fs" />
 		<Compile Include="ISerdeCodeEmitter.fs" />
@@ -40,13 +40,11 @@
 		<Compile Include="SerdeAstParser.fs" />
 		<Compile Include="SerdeCodeEmitter.fs" />
 		<Compile Include="RootGenericDiagnostics.fs" />
-		<Compile Include="SerdeGeneratorTask.fs" />
+		<Compile Include="SerdeGeneratorEngine.fs" />
+		<Compile Include="SerdeSourceGenerator.fs" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- MSBuild task base types -->
-		<PackageReference Include="Microsoft.Build.Utilities.Core" Version="18.3.3" />
-
 		<!-- Serde core library (metadata + semantics) -->
 		<ProjectReference Include="..\Serde.FS\Serde.FS.fsproj" />
 
@@ -57,7 +55,7 @@
 		<PackageReference Include="FSharp.SourceDjinn.TypeModel" Version="0.2.2" />
 	</ItemGroup>
 
-<!-- Analyzer payload: generator engine DLL + all dependencies -->
+	<!-- Analyzer payload: generator engine DLL + all dependencies -->
 	<ItemGroup>
 	  <None Include="$(OutputPath)Serde.FS.SourceGen.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
 
@@ -66,5 +64,13 @@
 	<ItemGroup>
 	  <PackageReference Update="FSharp.Core" Version="10.0.103" />
 	</ItemGroup>
+
+	<!-- Roslyn Packages -->
+	<ItemGroup>
+	  <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="5.0.0" PrivateAssets="all" />
+	  <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" PrivateAssets="all" />
+	  <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" />
+	</ItemGroup>
+
 
 </Project>

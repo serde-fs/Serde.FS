@@ -3,4 +3,7 @@
     <Analyzer Include="$(MSBuildThisPackageRoot)analyzers/dotnet/fs/Serde.FS.SourceGen.dll" />
     <Analyzer Include="$(MSBuildThisPackageRoot)analyzers/dotnet/fs/Serde.FS.Json.SourceGen.dll" />
   </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="@(Compile)" />
+  </ItemGroup>
 </Project>
