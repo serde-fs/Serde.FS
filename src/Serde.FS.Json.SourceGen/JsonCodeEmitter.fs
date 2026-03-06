@@ -560,6 +560,9 @@ module internal JsonCodeEmitterImpl =
             append "            else null"
             append ""
             append "let register() ="
+            for info in types do
+                let fqn = resolverFqn info
+                append $"    Serde.FS.SerdeMetadata.register typeof<%s{fqn}>"
             append "    Serde.FS.Json.SerdeJsonResolverRegistry.registerResolver(SerdeJsonGeneratedResolver())"
 
             Some (sb.ToString())

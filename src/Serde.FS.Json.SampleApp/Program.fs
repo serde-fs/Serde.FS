@@ -17,10 +17,8 @@ let main argv =
 
     SerdeJson.useAsDefault()
 
-    //let json = Serde.Serialize<Wrapper<Person>>(Wrapper { Name = "Jordan"})
-    let json = ""
-    //let person = Serde.Deserialize<Wrapper<Person>> json
-    let person = Serde.Deserialize json
+    let json = Serde.Serialize<Wrapper<Person>>(Wrapper { Name = "Jordan"})
+    let person = Serde.Deserialize<Wrapper<Person>> json
 
     printfn "JSON: %s" json
     printfn "Person: %A" person

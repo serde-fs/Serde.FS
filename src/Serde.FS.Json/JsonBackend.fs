@@ -19,27 +19,12 @@ module SerdeJsonResolverRegistry =
         JsonOptionsCache.generatedResolvers.Add(resolver)
         JsonOptionsCache.defaultJsonOptions.TypeInfoResolverChain.Insert(0, resolver)
 
-/// Strict enforcement using generated resolvers (AOT-safe, no reflection).
-/// Throws if a type has no generated Serde metadata.
-module internal JsonStrict =
-    let enforceStrict (ty: System.Type) =
-        let opts = JsonOptionsCache.defaultJsonOptions
-        let found =
-            JsonOptionsCache.generatedResolvers
-            |> Seq.exists (fun resolver ->
-                resolver.GetTypeInfo(ty, opts) <> null
-            )
-        if not found then
-            failwithf
-                "Type '%s' has no generated Serde metadata. Mark it with [<Serde>] to enable serialization."
-                ty.FullName
-
 type JsonBackend() =
     interface ISerdeBackend with
         member _.Serialize(value, runtimeType, _options) =
-            JsonStrict.enforceStrict(runtimeType)
+            SerdeMetadata.get runtimeType |> ignore
             JsonSerializer.Serialize(value, runtimeType, JsonOptionsCache.defaultJsonOptions)
 
         member _.Deserialize(json, runtimeType, _options) =
-            JsonStrict.enforceStrict(runtimeType)
+            SerdeMetadata.get runtimeType |> ignore
             JsonSerializer.Deserialize(json, runtimeType, JsonOptionsCache.defaultJsonOptions) :?> 'T
