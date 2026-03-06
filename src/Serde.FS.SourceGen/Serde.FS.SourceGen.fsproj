@@ -58,21 +58,12 @@
 	</ItemGroup>
 
 	<!-- MSBuild task registration (UsingTask) -->
-	<ItemGroup>
-		<None Include="build\Serde.FS.SourceGen.targets"
-			  Pack="true"
-			  PackagePath="build" />
-	</ItemGroup>
 
 	<!-- Analyzer payload: generator engine DLL + all dependencies -->
 	<ItemGroup>
-	  <None Include="$(OutputPath)Serde.FS.SourceGen.dll"
-			Pack="true"
-			PackagePath="analyzers/dotnet/fs" />
+	  <None Include="$(OutputPath)Serde.FS.SourceGen.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
 
-	  <None Include="$(OutputPath)Serde.FS.SourceGen.*.dll"
-			Pack="true"
-			PackagePath="analyzers/dotnet/fs" />
+	  <None Include="$(OutputPath)Serde.FS.SourceGen.*.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
 	</ItemGroup>
 
 </Project>

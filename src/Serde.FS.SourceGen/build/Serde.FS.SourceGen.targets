@@ -1,4 +1,0 @@
-<Project>
-	<UsingTask TaskName="Serde.FS.SourceGen.SerdeGeneratorTask"
-			   AssemblyFile="$(MSBuildThisPackageRoot)analyzers/dotnet/fs/Serde.FS.SourceGen.dll" />
-</Project>

@@ -48,14 +48,11 @@
 		<ProjectReference Include="..\Serde.FS\Serde.FS.fsproj" />
 
 		<!-- Design-time emitter project (never flows to consumers) -->
-		<ProjectReference Include="..\Serde.FS.Json.SourceGen\Serde.FS.Json.SourceGen.fsproj"
-						  PrivateAssets="all" />
+		<ProjectReference Include="..\Serde.FS.Json.SourceGen\Serde.FS.Json.SourceGen.fsproj" PrivateAssets="all" />
 
 		<!-- Generator engine + MSBuild task.
          PrivateAssets=all ensures consumers do NOT see this dependency. -->
-		<PackageReference Include="Serde.FS.SourceGen"
-						  Version="$(SourceGenVersion)"
-						  PrivateAssets="all" />
+		<PackageReference Include="Serde.FS.SourceGen" Version="$(SourceGenVersion)" PrivateAssets="all" />
 	</ItemGroup>
 
 	<!-- Allow tests to access internal types -->
@@ -67,27 +64,12 @@
 	<ItemGroup>
 		<!-- Generator engine DLLs + dependencies.
          These MUST be packed so the MSBuild task can load them at build time. -->
-		<None Include="..\Serde.FS.SourceGen\bin\$(Configuration)\net10.0\*.dll"
-			  Pack="true"
-			  PackagePath="analyzers/dotnet/fs" />
+		<None Include="..\Serde.FS.SourceGen\bin\$(Configuration)\net10.0\*.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
 
 		<!-- Backend-specific design-time emitter DLL -->
-		<None Include="..\Serde.FS.Json.SourceGen\bin\$(Configuration)\net10.0\Serde.FS.Json.SourceGen.dll"
-			  Pack="true"
-			  PackagePath="analyzers/dotnet/fs" />
+		<None Include="..\Serde.FS.Json.SourceGen\bin\$(Configuration)\net10.0\Serde.FS.Json.SourceGen.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
 	</ItemGroup>
 
 	<!-- buildTransitive ensures consumers automatically get the generator target -->
-	<ItemGroup>
-		<!-- This .targets file contains:
-         - <UsingTask> for the generator MSBuild task
-         - The target that invokes the generator
-         - Any backend-specific MSBuild logic
-         It MUST be in buildTransitive so downstream projects inherit it. -->
-		<None Include="buildTransitive\Serde.FS.Json.targets"
-			  Pack="true"
-			  PackagePath="buildTransitive"
-			  Link="buildTransitive\Serde.FS.Json.targets" />
-	</ItemGroup>
 
 </Project>
