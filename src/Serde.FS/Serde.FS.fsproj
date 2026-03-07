@@ -4,7 +4,7 @@
 		<TargetFramework>net8.0</TargetFramework>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 		<PackageId>Serde.FS</PackageId>
-		<Version>1.0.0-alpha.3</Version>
+		<Version>1.0.0-alpha.4</Version>
 		<Authors>Jordan Marr</Authors>
 		<Description>
 			Strict, deterministic serialization core for F#. Provides the [Serde] attribute, metadata model, and compile‑time validation used by all Serde.FS backends. Backend‑agnostic and reflection‑free.
