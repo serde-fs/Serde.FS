@@ -2,6 +2,7 @@ namespace Serde.FS
 
 open System
 open System.Collections.Concurrent
+open Microsoft.FSharp.Reflection
 
 type TypeMetadata = { Type: Type }
 
@@ -10,6 +11,17 @@ module SerdeMetadata =
 
     let register (ty: Type) =
         registry.TryAdd(ty, { Type = ty }) |> ignore
+
+    let tryFindGenericWrapperByCaseName (caseName: string) : string option =
+        registry.Keys
+        |> Seq.tryFind (fun ty ->
+            ty.IsGenericType
+            && not ty.IsGenericTypeDefinition
+            && FSharpType.IsUnion(ty)
+            && (let cases = FSharpType.GetUnionCases(ty)
+                cases.Length = 1 && cases.[0].Name = caseName)
+        )
+        |> Option.map (fun ty -> ty.GetGenericTypeDefinition().Name.Split('`').[0])
 
     let get (ty: Type) : TypeMetadata =
         match registry.TryGetValue(ty) with
