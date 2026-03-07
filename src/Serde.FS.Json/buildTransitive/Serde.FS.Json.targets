@@ -1,6 +1,16 @@
 <Project>
-  <ItemGroup>
-    <Analyzer Include="$(MSBuildThisPackageRoot)analyzers/dotnet/fs/Serde.FS.SourceGen.dll" />
-    <Analyzer Include="$(MSBuildThisPackageRoot)analyzers/dotnet/fs/Serde.FS.Json.SourceGen.dll" />
-  </ItemGroup>
+	<UsingTask TaskName="Serde.FS.SourceGen.SerdeGeneratorTask"
+	           AssemblyFile="$(MSBuildThisFileDirectory)../analyzers/dotnet/fs/Serde.FS.SourceGen.dll" />
+
+	<Target Name="SerdeGenerate" BeforeTargets="CoreCompile">
+		<SerdeGeneratorTask SourceFiles="@(Compile)"
+							OutputDir="$(IntermediateOutputPath)serde-generated/"
+							EmitterAssemblyPath="$(MSBuildThisFileDirectory)../analyzers/dotnet/fs/Serde.FS.Json.SourceGen.dll"
+							EmitterTypeName="Serde.FS.Json.SourceGen.JsonCodeEmitter" />
+
+		<ItemGroup>
+			<Compile Include="$(IntermediateOutputPath)serde-generated/**/*.fs"
+					 Condition="Exists('$(IntermediateOutputPath)serde-generated/')" />
+		</ItemGroup>
+	</Target>
 </Project>
