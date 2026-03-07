@@ -1,8 +1,13 @@
 <Project>
-  <PropertyGroup>
-    <!-- Defaults -->
-    <SerdeFSVersion>1.0.0-alpha.1</SerdeFSVersion>
-    <SourceGenVersion>1.0.0-alpha.1</SourceGenVersion>
-    <SerdeJsonVersion>1.0.0-alpha.1</SerdeJsonVersion>
-  </PropertyGroup>
+	<PropertyGroup>
+		<!-- Defaults -->
+		<SerdeFSVersion>1.0.0-alpha.1</SerdeFSVersion>
+		<SourceGenVersion>1.0.0-alpha.1</SourceGenVersion>
+		<SerdeJsonVersion>1.0.0-alpha.1</SerdeJsonVersion>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<!-- Suppress MSB3277: generator host targets net9 (for FCS) but references net8 SourceGen projects, producing expected System.* version conflicts -->
+		<NoWarn>$(NoWarn);MSB3277</NoWarn>
+	</PropertyGroup>
 </Project>
