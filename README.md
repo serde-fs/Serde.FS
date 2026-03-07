@@ -124,22 +124,7 @@ Converters are explicit, compile‑time validated, and do not introduce fallback
 
 ---
 
-## 🧠 Mental Model
-
-Serde.FS is not a general‑purpose .NET serializer. It is a **compile‑time, explicit, deterministic system** inspired by Rust Serde.
-
-- Only annotated types participate.  
-- No runtime inference or fallback.  
-- Errors surface early and predictably.  
-- Backends follow Serde semantics, not their own.  
-
-Ideal for stable domain models, configuration files, deterministic logs, and interop formats.
-
-Not designed for dynamic JSON, schema‑drifting storage, partial deserialization, or runtime‑mutable behavior.
-
----
-
-### 🏁 Custom EntryPoint for CLI apps  
+## 🏁 Custom EntryPoint for CLI apps  
 F# requires the real `[<EntryPoint>]` function to appear last in compilation order.  
 Because Serde.FS uses source generation, it cannot safely generate the real entry point directly.  
  
@@ -177,6 +162,107 @@ Serde.FS.Json uses generated code at runtime
 - **Determinism** — No runtime inference or fallback.  
 - **Compile‑time validation** — Errors surface early.  
 - **Backend independence** — Metadata is backend‑agnostic.
+
+---
+
+
+## 🧠 Mental Model
+
+Serde.FS is not a general‑purpose .NET serializer. It is a **compile‑time, explicit, deterministic system** inspired by Rust Serde.
+
+- Only annotated types participate.  
+- No runtime inference or fallback.  
+- Errors surface early and predictably.  
+- Backends follow Serde semantics, not their own.  
+
+Ideal for stable domain models, configuration files, deterministic logs, and interop formats.
+
+Not designed for dynamic JSON, schema‑drifting storage, partial deserialization, or runtime‑mutable behavior.
+
+---
+
+## 🎯 When Serde.FS is the right tool
+
+Serde.FS is designed for developers who want:
+
+### **Compile‑time validated serialization**
+Serde.FS generates metadata and serializers at build time.  
+If your types are invalid or incomplete, you find out *before* your program runs.
+
+### **Deterministic, reflection‑free JSON**
+No runtime shape inference.  
+No reflection.  
+No surprises.
+
+The JSON encoding is stable, predictable, and part of the contract.
+
+### **High performance**
+All serializers and deserializers are generated ahead of time.  
+No runtime metadata discovery.
+
+### **Schema‑aware systems**
+If you care about correctness, versioning, or long‑term stability, Serde.FS gives you a rock‑solid foundation.
+
+### **Interop with Serde‑style ecosystems**
+The design mirrors Rust Serde: metadata‑driven, explicit, principled.
+
+If your goal is:
+
+> “Make my JSON encoding correct, stable, and compile‑time validated — and don’t let me shoot myself in the foot.”
+
+Serde.FS is the right tool.
+
+---
+
+## 🛑 When Serde.FS is *not* the right tool
+
+Serde.FS intentionally does **not** support:
+
+### **Custom DU encodings**
+If you need to shape JSON for SQL Server, legacy systems, or custom wire formats, Serde.FS is not designed for that.
+
+### **Runtime configuration**
+Serde.FS does not allow per‑type or per‑case overrides of encoding rules.  
+The encoding is fixed and deterministic.
+
+### **Dynamic or untyped JSON**
+If you need to deserialize into `obj`, dictionaries, or unknown shapes, a reflection‑based library is a better fit.
+
+### **Highly flexible or ad‑hoc JSON**
+If your JSON shape is not under your control, or you need to adapt to many different formats, use a dynamic library.
+
+### **Recommended alternative**
+If you need flexible, customizable, runtime‑driven JSON encoding, consider:
+
+- **Thoth.Json** — excellent for hand‑crafted decoders/encoders and custom DU shapes.
+
+Serde.FS is not trying to replace Thoth.  
+It’s a different tool for a different philosophy.
+
+---
+
+## 🧭 Choosing the Right JSON Library for Your F# Project
+
+| Scenario / Requirement | **Serde.FS.Json** | **FSharp.SystemTextJson** | **Thoth.Json** |
+|------------------------|-------------------|----------------------------|-----------------|
+| **Compile‑time validated serialization** | ⭐ **Best choice** | ❌ No | ❌ No |
+| **Deterministic, reflection‑free encoding** | ⭐ **Yes** | ❌ Reflection‑based | ❌ Manual decoders |
+| **High performance, ahead‑of‑time generation** | ⭐ **Yes** | ⚠️ Mixed | ❌ No |
+| **Custom DU encoding** | ❌ Not supported | ⭐ **Yes** | ⭐ **Yes** |
+| **Dynamic / untyped JSON** | ❌ No | ⭐ **Yes** | ⭐ **Yes** |
+| **Interop with legacy JSON formats** | ❌ No | ⭐ **Yes** | ⭐ **Yes** |
+| **Hand‑crafted decoders / domain‑driven parsing** | ❌ No | ⚠️ Possible | ⭐ **Best choice** |
+| **Strict schema stability** | ⭐ **Yes** | ❌ No | ❌ No |
+| **Zero reflection (AOT‑friendly)** | ⭐ **Yes** | ❌ No | ⭐ **Yes** |
+| **Best for SQL‑shaped JSON** | ❌ No | ⭐ **Yes** | ⭐ **Yes** |
+| **Best for F# domain models** | ⭐ **Yes** | ⚠️ Good | ⭐ **Good** |
+| **Best for dynamic JSON APIs** | ❌ No | ⭐ **Best choice** | ⭐ **Best choice** |
+
+### Summary
+
+- **Choose Serde.FS.Json** if you want correctness, determinism, and compile‑time guarantees.  
+- **Choose FSharp.SystemTextJson** if you need flexibility, custom DU encodings, or interop with existing JSON.  
+- **Choose Thoth.Json** if you want explicit, hand‑crafted decoders and total control over parsing.
 
 ---
 
