@@ -60,7 +60,8 @@ nunit-*.xml
 .vs/
 /src/Serde.FS.Json/analyzers/dotnet/fs/*.dll
 /src/FSharp.SourceDjinn/analyzers/dotnet/fs/*.dll
-.nuget-local/
+.nuget-local/*
+!.nuget-local/.keep
 src/Serde.FS.Json.SampleApp/Directory.Build.props
 .debug-counter
 .build/
