@@ -48,14 +48,10 @@ pipeline "build" {
 
     stage "Pack Serde.FS.Json" {
         // Restore using the locally packed SourceGen
-        run $"""
-            dotnet restore {jsonProj} \
-                --source {Path.GetFullPath(buildDir)} \
-                --source "https://api.nuget.org/v3/index.json"
-        """
-
+        run $"""dotnet restore {jsonProj} --source {Path.GetFullPath(buildDir)} --source "https://api.nuget.org/v3/index.json" """
         run $"dotnet clean {jsonProj}"
         run $"dotnet pack {jsonProj} -c Release -o {buildDir}"
+
     }
 
     stage "Summary" {

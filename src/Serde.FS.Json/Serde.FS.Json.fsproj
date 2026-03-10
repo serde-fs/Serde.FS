@@ -6,7 +6,6 @@
 		<NoWarn>$(NoWarn);NU1603</NoWarn>
 
 		<!-- This project is a packable Serde backend library -->
-		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		<IsPackable>true</IsPackable>
 
 		<PackageId>Serde.FS.Json</PackageId>
