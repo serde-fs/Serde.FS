@@ -1,8 +1,8 @@
 <Project>
 	<PropertyGroup>
-		<SerdeFSVersion>1.0.0-alpha.4</SerdeFSVersion>
-		<SourceGenVersion>1.0.0-alpha.4</SourceGenVersion>
-		<SerdeJsonVersion>1.0.0-alpha.4</SerdeJsonVersion>
+		<SerdeFSVersion>1.0.0-alpha.5</SerdeFSVersion>
+		<SourceGenVersion>1.0.0-alpha.5</SourceGenVersion>
+		<SerdeJsonVersion>1.0.0-alpha.5</SerdeJsonVersion>
 		<SourceDjinnVersion>0.2.3</SourceDjinnVersion>
 	</PropertyGroup>
 
