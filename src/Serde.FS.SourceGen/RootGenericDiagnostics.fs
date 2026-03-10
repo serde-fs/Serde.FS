@@ -8,7 +8,12 @@ open FSharp.SourceDjinn.TypeModel.Types
 
 module internal RootGenericDiagnostics =
 
+    type DiagnosticKind =
+        | MissingTypeArg
+        | WildcardTypeArg
+
     type CallSiteDiagnostic = {
+        Kind: DiagnosticKind
         FunctionName: string
         TypeDisplay: string
         SuggestedFix: string
@@ -64,6 +69,28 @@ module internal RootGenericDiagnostics =
                     | _ -> "_")
             Some(baseName, args)
         | _ -> None
+
+    /// Check if a SynType contains a wildcard `_` type argument.
+    let rec private hasWildcardTypeArg (synType: SynType) =
+        match synType with
+        | SynType.Anon _ -> true
+        | SynType.App(_, _, typeArgs, _, _, _, _) ->
+            typeArgs |> List.exists hasWildcardTypeArg
+        | SynType.Paren(inner, _) -> hasWildcardTypeArg inner
+        | _ -> false
+
+    /// Render a SynType for display purposes.
+    let rec private synTypeToDisplay (synType: SynType) =
+        match synType with
+        | SynType.LongIdent(SynLongIdent(id = idents)) -> identToString idents
+        | SynType.App(typeName, _, typeArgs, _, _, _, _) ->
+            let baseName = synTypeToDisplay typeName
+            let args = typeArgs |> List.map synTypeToDisplay |> String.concat ", "
+            $"%s{baseName}<%s{args}>"
+        | SynType.Anon _ -> "_"
+        | SynType.Var(SynTypar(ident, _, _), _) -> $"'%s{ident.idText}"
+        | SynType.Paren(inner, _) -> synTypeToDisplay inner
+        | _ -> "?"
 
     let private computeRelativePath (projectDir: string) (filePath: string) =
         let fullPath = System.IO.Path.GetFullPath(filePath)
@@ -140,9 +167,25 @@ module internal RootGenericDiagnostics =
     let rec private walkExpr (ctx: Ctx) (letPatType: (string * string list) option) (expr: SynExpr) =
         // Check for Serde calls
         match expr with
-        // WITH explicit TypeApp — skip
-        | SynExpr.App(_, _, SynExpr.TypeApp(SynExpr.LongIdent(_, lid, _, _), _, _, _, _, _, _), _, _)
-            when isSerdeCall lid -> ()
+        // WITH explicit TypeApp — check for wildcard `_` type args
+        | SynExpr.App(_, _, SynExpr.TypeApp(SynExpr.LongIdent(_, lid, _, _), _, typeArgs, _, _, _, _), argExpr, range)
+            when isSerdeCall lid ->
+            if typeArgs |> List.exists hasWildcardTypeArg then
+                match getSerdeFunc lid with
+                | Some funcName ->
+                    let typeDisplay = typeArgs |> List.map synTypeToDisplay |> String.concat ", "
+                    let argName = tryGetArgName argExpr |> Option.defaultValue "value"
+                    let pos = range.Start
+                    ctx.Diagnostics.Add({
+                        Kind = WildcardTypeArg
+                        FunctionName = funcName
+                        TypeDisplay = typeDisplay
+                        SuggestedFix = $"Serde.%s{funcName}<%s{typeDisplay}>(%s{argName})"
+                        RelativePath = computeRelativePath ctx.ProjectDir ctx.FilePath
+                        Line = pos.Line
+                        Column = pos.Column
+                    })
+                | None -> ()
 
         // WITHOUT TypeApp — potential diagnostic
         | SynExpr.App(_, _, SynExpr.LongIdent(_, lid, _, _), argExpr, range)
@@ -159,6 +202,7 @@ module internal RootGenericDiagnostics =
                             let suggestedFix = $"Serde.Serialize<%s{fixType}>(%s{argName})"
                             let pos = range.Start
                             ctx.Diagnostics.Add({
+                                Kind = MissingTypeArg
                                 FunctionName = funcName
                                 TypeDisplay = typeDisplay
                                 SuggestedFix = suggestedFix
@@ -178,6 +222,7 @@ module internal RootGenericDiagnostics =
                             let suggestedFix = $"Serde.Deserialize<%s{typeDisplay}>(json)"
                             let pos = range.Start
                             ctx.Diagnostics.Add({
+                                Kind = MissingTypeArg
                                 FunctionName = funcName
                                 TypeDisplay = typeDisplay
                                 SuggestedFix = suggestedFix
@@ -294,8 +339,12 @@ module internal RootGenericDiagnostics =
         Seq.toList ctx.Diagnostics
 
     let formatMessage (d: CallSiteDiagnostic) =
-        let verb =
-            if d.FunctionName = "Serialize" then "The value passed to"
-            else "The return type of"
         let nl = System.Environment.NewLine
-        $"%s{verb} `%s{d.FunctionName}` has a constructed generic type: %s{d.TypeDisplay}  --  at: %s{d.RelativePath}(%d{d.Line},%d{d.Column})%s{nl}%s{nl}Root-level constructed generics require an explicit type argument. Use: %s{d.SuggestedFix}"
+        match d.Kind with
+        | MissingTypeArg ->
+            let verb =
+                if d.FunctionName = "Serialize" then "The value passed to"
+                else "The return type of"
+            $"%s{verb} `%s{d.FunctionName}` has a constructed generic type: %s{d.TypeDisplay}  --  at: %s{d.RelativePath}(%d{d.Line},%d{d.Column})%s{nl}%s{nl}Root-level constructed generics require an explicit type argument. Use: %s{d.SuggestedFix}"
+        | WildcardTypeArg ->
+            $"`Serde.%s{d.FunctionName}<%s{d.TypeDisplay}>` contains a wildcard type argument `_`.  --  at: %s{d.RelativePath}(%d{d.Line},%d{d.Column})%s{nl}%s{nl}Serde requires fully specified type arguments — replace `_` with the concrete type."
