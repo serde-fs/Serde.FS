@@ -60,7 +60,7 @@ module internal RootGenericDiagnostics =
                 |> List.map (fun t ->
                     match t with
                     | SynType.LongIdent(SynLongIdent(id = argIdents)) -> identToString argIdents
-                    | SynType.Var(SynTypar(ident, _, _), _) -> sprintf "'%s" ident.idText
+                    | SynType.Var(SynTypar(ident, _, _), _) -> $"'%s{ident.idText}"
                     | _ -> "_")
             Some(baseName, args)
         | _ -> None
@@ -90,17 +90,19 @@ module internal RootGenericDiagnostics =
         let fqBase = buildFqBase lookup baseName
         let fqArgs = args |> List.map (resolveArgName lookup)
         let argStr = String.concat ", " fqArgs
-        sprintf "%s<%s>" fqBase argStr
+        $"%s{fqBase}<%s{argStr}>"
 
     let private buildFqTypeUnknownArgs (lookup: Map<string, TypeInfo>) (baseName: string) =
         let fqBase = buildFqBase lookup baseName
         let paramNames =
             match Map.tryFind baseName lookup with
             | Some ti when not ti.GenericParameters.IsEmpty ->
-                ti.GenericParameters |> List.map (fun p -> sprintf "'%s" p.Name)
+                ti.GenericParameters |> List.map (fun p -> $"'%s{p.Name}")
             | _ -> [ "'T" ]
-        let displayType = sprintf "%s<%s>" fqBase (String.concat ", " paramNames)
-        let fixType = sprintf "%s<%s>" fqBase (paramNames |> List.map (fun _ -> "_") |> String.concat ", ")
+        let displayArgs = String.concat ", " paramNames
+        let fixArgs = paramNames |> List.map (fun _ -> "_") |> String.concat ", "
+        let displayType = $"%s{fqBase}<%s{displayArgs}>"
+        let fixType = $"%s{fqBase}<%s{fixArgs}>"
         (displayType, fixType)
 
     /// Try to resolve a name against generic def names and case-to-type map.
@@ -154,7 +156,7 @@ module internal RootGenericDiagnostics =
                         | Some tn ->
                             let (typeDisplay, fixType) = buildFqTypeUnknownArgs ctx.Lookup tn
                             let argName = tryGetArgName argExpr |> Option.defaultValue "value"
-                            let suggestedFix = sprintf "Serde.Serialize<%s>(%s)" fixType argName
+                            let suggestedFix = $"Serde.Serialize<%s{fixType}>(%s{argName})"
                             let pos = range.Start
                             ctx.Diagnostics.Add({
                                 FunctionName = funcName
@@ -173,7 +175,7 @@ module internal RootGenericDiagnostics =
                         match tryResolveGenericDef ctx.GenericDefNames ctx.CaseToTypeName baseName with
                         | Some tn ->
                             let typeDisplay = buildFqTypeKnownArgs ctx.Lookup tn args
-                            let suggestedFix = sprintf "Serde.Deserialize<%s>(json)" typeDisplay
+                            let suggestedFix = $"Serde.Deserialize<%s{typeDisplay}>(json)"
                             let pos = range.Start
                             ctx.Diagnostics.Add({
                                 FunctionName = funcName
@@ -295,5 +297,5 @@ module internal RootGenericDiagnostics =
         let verb =
             if d.FunctionName = "Serialize" then "The value passed to"
             else "The return type of"
-        sprintf "%s `%s` has a constructed generic type:\n    %s\n\nat: %s(%d,%d)\n\nRoot-level constructed generics require an explicit type argument.\nUse:\n    %s"
-            verb d.FunctionName d.TypeDisplay d.RelativePath d.Line d.Column d.SuggestedFix
+        let nl = System.Environment.NewLine
+        $"%s{verb} `%s{d.FunctionName}` has a constructed generic type: %s{d.TypeDisplay}  --  at: %s{d.RelativePath}(%d{d.Line},%d{d.Column})%s{nl}%s{nl}Root-level constructed generics require an explicit type argument. Use: %s{d.SuggestedFix}"
