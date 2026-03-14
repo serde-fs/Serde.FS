@@ -35,3 +35,15 @@ type CodecRegistry() =
     /// Creates an empty registry. (CodecBuilder will populate it in later specs.)
     static member Create(_types: Type list) =
         CodecRegistry()
+
+    /// Creates a registry pre-populated with all primitive codecs.
+    static member WithPrimitives() =
+        let registry = CodecRegistry()
+        registry.Add(PrimitiveCodecs.boolEncoder, PrimitiveCodecs.boolDecoder)
+        registry.Add(PrimitiveCodecs.stringEncoder, PrimitiveCodecs.stringDecoder)
+        registry.Add(PrimitiveCodecs.decimalEncoder, PrimitiveCodecs.decimalDecoder)
+        registry.Add(PrimitiveCodecs.intEncoder, PrimitiveCodecs.intDecoder)
+        registry.Add(PrimitiveCodecs.floatEncoder, PrimitiveCodecs.floatDecoder)
+        registry.Add(PrimitiveCodecs.unitEncoder, PrimitiveCodecs.unitDecoder)
+        registry.Add(PrimitiveCodecs.byteArrayEncoder, PrimitiveCodecs.byteArrayDecoder)
+        registry

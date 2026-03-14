@@ -26,6 +26,7 @@
 		<Compile Include="Codec\JsonValue.fs" />
 		<Compile Include="Codec\IJsonEncoder.fs" />
 		<Compile Include="Codec\IJsonDecoder.fs" />
+		<Compile Include="Codec\PrimitiveCodecs.fs" />
 		<Compile Include="Codec\CodecRegistry.fs" />
 		<Compile Include="Codec\CodecBuilder.fs" />
 	</ItemGroup>
