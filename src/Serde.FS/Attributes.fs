@@ -6,7 +6,6 @@ open System
 [<AttributeUsage(AttributeTargets.Class ||| AttributeTargets.Struct ||| AttributeTargets.Interface ||| AttributeTargets.Enum, AllowMultiple = false)>]
 type SerdeAttribute() =
     inherit Attribute()
-    [<Obsolete("System.Text.Json converters are no longer supported. Use Serde(Codec = typeof<MyCodec>) instead.")>]
     member val Converter : obj = null with get, set
     member val Codec : Type = null with get, set
 
