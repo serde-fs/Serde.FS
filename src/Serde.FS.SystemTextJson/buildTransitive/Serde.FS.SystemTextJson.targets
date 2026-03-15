@@ -1,0 +1,13 @@
+<Project>
+	<Target Name="SerdeGenerate" BeforeTargets="CoreCompile">
+		<SerdeGeneratorTask SourceFiles="@(Compile)"
+		                    OutputDir="$(IntermediateOutputPath)serde-stj-generated/"
+		                    EmitterAssemblyPath="$(MSBuildThisFileDirectory)../analyzers/dotnet/fs/Serde.FS.SystemTextJson.SourceGen.dll"
+		                    EmitterTypeName="StjCodeEmitter" />
+
+		<ItemGroup>
+			<Compile Include="$(IntermediateOutputPath)serde-stj-generated/**/*.fs"
+			         Condition="Exists('$(IntermediateOutputPath)serde-stj-generated/')" />
+		</ItemGroup>
+	</Target>
+</Project>
