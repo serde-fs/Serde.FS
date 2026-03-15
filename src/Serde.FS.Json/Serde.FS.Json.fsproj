@@ -31,6 +31,8 @@
 		<Compile Include="Codec\CodecRegistry.fs" />
 		<Compile Include="Codec\CodecResolver.fs" />
 		<Compile Include="Codec\CodecBuilder.fs" />
+		<Compile Include="Codec\SerdeJsonWriter.fs" />
+		<Compile Include="Codec\SerdeJsonReader.fs" />
 		<Compile Include="Codec\CodecConverter.fs" />
 		<Compile Include="Codec\JsonTypeInfoBuilder.fs" />
 	</ItemGroup>

@@ -1,9 +1,5 @@
 module Serde.FS.Json.SerdeJson
 
-open System
-open System.Buffers
-open System.Text
-open System.Text.Json
 open Serde.FS
 open Serde.FS.Json.Codec
 
@@ -51,62 +47,26 @@ let private decodeFromJsonValue<'T> (jsonValue: JsonValue) : 'T =
     let codec = CodecResolver.resolve typeof<'T> GlobalCodecRegistry.Current
     codec.Decode jsonValue :?> 'T
 
-/// Parses a JSON string into a JsonValue tree.
-let private parseJsonValue (json: string) : JsonValue =
-    try
-        let bytes = Encoding.UTF8.GetBytes(json)
-        let mutable reader = Utf8JsonReader(ReadOnlySpan<byte>(bytes))
-        reader.Read() |> ignore
-        JsonValueBridge.readJsonValue &reader
-    with
-    | :? SerdeJsonException -> reraise()
-    | :? JsonException as ex ->
-        raise (SerdeJsonException("Failed to parse JSON input.", ex))
-    | ex ->
-        raise (SerdeJsonException("Failed to parse JSON input.", ex))
-
-/// Parses a UTF-8 byte array into a JsonValue tree.
-let private parseJsonValueFromUtf8 (bytes: byte[]) : JsonValue =
-    try
-        let mutable reader = Utf8JsonReader(ReadOnlySpan<byte>(bytes))
-        reader.Read() |> ignore
-        JsonValueBridge.readJsonValue &reader
-    with
-    | :? SerdeJsonException -> reraise()
-    | :? JsonException as ex ->
-        raise (SerdeJsonException("Failed to parse JSON input.", ex))
-    | ex ->
-        raise (SerdeJsonException("Failed to parse JSON input.", ex))
-
-/// Writes a JsonValue to a UTF-8 byte array.
-let private writeJsonValueToUtf8 (jsonValue: JsonValue) : byte[] =
-    let buffer = ArrayBufferWriter<byte>()
-    use writer = new Utf8JsonWriter(buffer)
-    JsonValueBridge.writeJsonValue writer jsonValue
-    writer.Flush()
-    buffer.WrittenSpan.ToArray()
-
 /// Codec-driven serialization of a value to a JSON string.
-/// Does not use JsonSerializer, STJ converters, or reflection.
+/// Pure Serde implementation — no System.Text.Json dependency.
 let serialize<'T> (value: 'T) : string =
     let jsonValue = encodeToJsonValue<'T> value
-    let bytes = writeJsonValueToUtf8 jsonValue
-    Encoding.UTF8.GetString(bytes)
+    SerdeJsonWriter.writeToString jsonValue
 
 /// Codec-driven serialization of a value to a UTF-8 byte array.
-/// Does not use JsonSerializer, STJ converters, or reflection.
+/// Pure Serde implementation — no System.Text.Json dependency.
 let serializeToUtf8<'T> (value: 'T) : byte[] =
     let jsonValue = encodeToJsonValue<'T> value
-    writeJsonValueToUtf8 jsonValue
+    SerdeJsonWriter.writeToUtf8 jsonValue
 
 /// Codec-driven deserialization of a JSON string to a value of type 'T.
-/// Does not use JsonSerializer, STJ converters, or reflection.
+/// Pure Serde implementation — no System.Text.Json dependency.
 let deserialize<'T> (json: string) : 'T =
-    let jsonValue = parseJsonValue json
+    let jsonValue = SerdeJsonReader.readFromString json
     decodeFromJsonValue<'T> jsonValue
 
 /// Codec-driven deserialization of a UTF-8 byte array to a value of type 'T.
-/// Does not use JsonSerializer, STJ converters, or reflection.
+/// Pure Serde implementation — no System.Text.Json dependency.
 let deserializeFromUtf8<'T> (bytes: byte[]) : 'T =
-    let jsonValue = parseJsonValueFromUtf8 bytes
+    let jsonValue = SerdeJsonReader.readFromUtf8 bytes
     decodeFromJsonValue<'T> jsonValue

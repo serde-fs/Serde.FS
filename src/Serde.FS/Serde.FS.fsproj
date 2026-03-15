@@ -23,6 +23,7 @@
 		<Compile Include="SerdeCodecException.fs" />
 		<Compile Include="SerdeCodecNotFoundException.fs" />
 		<Compile Include="SerdeJsonException.fs" />
+		<Compile Include="SerdeJsonParseException.fs" />
 		<Compile Include="SerdeMetadata.fs" />
 		<Compile Include="Serde.fs" />
 	</ItemGroup>

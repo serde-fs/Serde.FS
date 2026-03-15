@@ -117,10 +117,14 @@ let ``serializeToUtf8 and deserializeFromUtf8 round-trip`` () =
 // ---------------------------------------------------------------------------
 
 [<Test>]
-let ``deserialize invalid JSON throws SerdeJsonException`` () =
-    Assert.Throws<SerdeJsonException>(fun () ->
-        SerdeJson.deserialize<int> "not valid json" |> ignore
-    ) |> ignore
+let ``deserialize invalid JSON throws SerdeJsonParseException`` () =
+    let ex =
+        Assert.Throws<SerdeJsonParseException>(fun () ->
+            SerdeJson.deserialize<int> "not valid json" |> ignore
+        )
+    Assert.That(ex.Position, Is.GreaterThanOrEqualTo(0))
+    // Verify it is also catchable as SerdeJsonException
+    Assert.That(ex, Is.InstanceOf<SerdeJsonException>())
 
 [<Test>]
 let ``serialize unregistered type throws SerdeCodecNotFoundException`` () =
