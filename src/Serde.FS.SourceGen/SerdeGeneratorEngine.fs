@@ -405,9 +405,18 @@ module SerdeGeneratorEngine =
                     String.concat "." parts
                 knownSerdeTypeNames.Contains fqn
 
+        // Helper: detect generic single-case single-field DU definitions (factory-based)
+        let isGenericSingleCaseWrapperDef (defInfo: SerdeTypeInfo) =
+            defInfo.Raw.IsGenericDefinition
+            && match defInfo.UnionCases with
+               | Some [case] when case.Fields.Length = 1 -> true
+               | _ -> false
+
         for constructed in constructedGenerics do
             match GenericDiscovery.tryFindDefinition genericDefinitions constructed with
             | Some defInfo ->
+                // Skip concrete instantiations of generic single-case wrapper DUs (factory handles them)
+                if isGenericSingleCaseWrapperDef defInfo then () else
                 let mutable argValid = true
                 for arg in constructed.GenericArguments do
                     if not (isSerdeEnabled arg) then
@@ -451,9 +460,9 @@ module SerdeGeneratorEngine =
             success <- false
 
         if success then
-            // Phase 3: Emit all types (skip generic definitions — only emit concrete types)
+            // Phase 3: Emit all types (skip generic definitions, except single-case wrapper DU factories)
             for typeInfo in resolvedTypes do
-                if typeInfo.Raw.IsGenericDefinition then () else
+                if typeInfo.Raw.IsGenericDefinition && not (isGenericSingleCaseWrapperDef typeInfo) then () else
                 let fileName =
                     match typeInfo.GenericContext with
                     | Some ctx ->
