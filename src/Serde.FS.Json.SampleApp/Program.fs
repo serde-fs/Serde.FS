@@ -1,10 +1,8 @@
 module SampleApp
 
-open System.Text.Json.Nodes
 open Serde.FS
 open Serde.FS.Json
 open Serde.FS.Json.Codec
-open FSharp.SourceDjinn.TypeModel
 
 // -----------------------------
 // Basic Serde Types
@@ -102,7 +100,7 @@ type Person = {
 // Entry Point
 // -----------------------------
 
-[<EntryPoint>]
+[<FSharp.SourceDjinn.TypeModel.EntryPoint>]
 let run argv =
     SerdeJson.useAsDefault()
 
@@ -110,7 +108,7 @@ let run argv =
     // 1. Generic Wrapper Example
     // -----------------------------------------
     let wrapperJson =
-        Serde.Serialize<Wrapper<Person>>(
+        SerdeJson.serialize<Wrapper<Person>>(
             Wrapper { 
                 Name = "Jordan"
                 Age = 0
@@ -127,7 +125,7 @@ let run argv =
         )
 
     let wrapperRoundtrip : Wrapper<Person> =
-        Serde.Deserialize wrapperJson
+        SerdeJson.deserialize wrapperJson
 
     printfn "Wrapper JSON: %s" wrapperJson
     printfn "Wrapper roundtrip: %A" wrapperRoundtrip
@@ -142,8 +140,8 @@ let run argv =
     ]
 
     for shape in shapes do
-        let shapeJson = Serde.Serialize shape
-        let back : Shape = Serde.Deserialize shapeJson
+        let shapeJson = SerdeJson.serialize shape
+        let back : Shape = SerdeJson.deserialize shapeJson
         printfn "Shape JSON: %s" shapeJson
         printfn "Shape roundtrip: %A" back
 
@@ -170,8 +168,8 @@ let run argv =
         WrappedGuid = Wrapper (System.Guid.Parse("12345678-1234-1234-1234-123456789abc"))
     }
 
-    let personJson = Serde.Serialize person
-    let personRoundtrip : Person = Serde.Deserialize personJson
+    let personJson = SerdeJson.serialize person
+    let personRoundtrip : Person = SerdeJson.deserialize personJson
 
     printfn "Person JSON: %s" personJson
     printfn "Person roundtrip: %A" personRoundtrip
