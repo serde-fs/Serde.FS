@@ -9,10 +9,7 @@ open Serde.FS.Json.Codec
 // -----------------------------
 
 [<Serde>]
-type Color =
-    | Red = 1
-    | Green = 2
-    | Blue = 3
+type Color = | Red = 1 | Green = 2 | Blue = 3
 
 [<Serde>]
 type Address = { Street: string; City: string; Zip: string }
@@ -50,19 +47,6 @@ type FancyNameCodec() =
 and 
     [<Serde(Codec = typeof<FancyNameCodec>)>]
     FancyName = { Value : string }
-
-
-//type UppercaseNameConverter() =
-//    interface ISerdeConverter<FancyName> with
-//        member _.Serialize(n: FancyName) =
-//            JsonValue.Create(n.Value.ToUpperInvariant()) :> JsonNode
-
-//        member _.Deserialize(node: JsonNode) =
-//            { Value = node.GetValue<string>().ToLowerInvariant() }
-
-//and [<Serde(Converter = typeof<UppercaseNameConverter>)>]
-//[<Serde>]
-//type FancyName = { Value: string }
 
 // -----------------------------
 // Generic Wrapper Example
