@@ -86,8 +86,6 @@ type Person = {
 
 [<FSharp.SourceDjinn.TypeModel.EntryPoint>]
 let run argv =
-    SerdeJson.useAsDefault()
-
     // -----------------------------------------
     // 1. Generic Wrapper Example
     // -----------------------------------------
