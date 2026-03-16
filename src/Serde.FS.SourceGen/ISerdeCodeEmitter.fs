@@ -11,6 +11,8 @@ type ISerdeResolverEmitter =
     abstract member EmitRegistrationFiles : unit -> (string * string) list
     /// Whether this backend should emit the Djinn entry point wrapper.
     abstract member EmitEntryPoint : bool
+    /// Whether this backend emits per-type files (true) or consolidates all codecs into the resolver (false).
+    abstract member EmitPerTypeFiles : bool
 
 module SerdeCodegenRegistry =
     let mutable private defaultEmitter : ISerdeCodeEmitter option = None

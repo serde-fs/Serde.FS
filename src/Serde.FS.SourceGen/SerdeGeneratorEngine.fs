@@ -460,40 +460,49 @@ module SerdeGeneratorEngine =
             success <- false
 
         if success then
+            // Determine whether per-type files should be emitted
+            let emitPerTypeFiles =
+                match emitter with
+                | :? ISerdeResolverEmitter as re -> re.EmitPerTypeFiles
+                | _ -> true
+
             // Phase 3: Emit all types (skip generic definitions, except single-case wrapper DU factories)
             for typeInfo in resolvedTypes do
                 if typeInfo.Raw.IsGenericDefinition && not (isGenericSingleCaseWrapperDef typeInfo) then () else
-                let fileName =
-                    match typeInfo.GenericContext with
-                    | Some ctx ->
-                        let rec argPascalName (ti: TypeInfo) =
-                            if not ti.GenericArguments.IsEmpty then
-                                let argPart = ti.GenericArguments |> List.map argPascalName |> String.concat ""
-                                typeInfoToPascalName { ti with GenericArguments = [] } + argPart
-                            else typeInfoToPascalName ti
-                        let argNames = ctx.GenericArguments |> List.map argPascalName
-                        sprintf "%s_%s" typeInfo.Raw.TypeName (String.concat "" argNames)
-                    | None -> typeInfo.Raw.TypeName
-                let code = SerdeCodeEmitter.emit emitter typeInfo
-                generatedSources.Add({ HintName = sprintf "%s.serde.g.fs" fileName; Code = code })
+                if emitPerTypeFiles then
+                    let fileName =
+                        match typeInfo.GenericContext with
+                        | Some ctx ->
+                            let rec argPascalName (ti: TypeInfo) =
+                                if not ti.GenericArguments.IsEmpty then
+                                    let argPart = ti.GenericArguments |> List.map argPascalName |> String.concat ""
+                                    typeInfoToPascalName { ti with GenericArguments = [] } + argPart
+                                else typeInfoToPascalName ti
+                            let argNames = ctx.GenericArguments |> List.map argPascalName
+                            sprintf "%s_%s" typeInfo.Raw.TypeName (String.concat "" argNames)
+                        | None -> typeInfo.Raw.TypeName
+                    let code = SerdeCodeEmitter.emit emitter typeInfo
+                    generatedSources.Add({ HintName = sprintf "%s.serde.g.fs" fileName; Code = code })
                 allTypes.Add(typeInfo)
 
             // Discover and emit option types from record fields
             let optionTypeInfos = OptionDiscovery.discoverOptionTypes allTypes
             for optTi in optionTypeInfos do
                 let optSerdeInfo = OptionDiscovery.mkOptionSerdeTypeInfo optTi
-                let code = SerdeCodeEmitter.emit emitter optSerdeInfo
-                let pascalName = typeInfoToPascalName optTi
-                generatedSources.Add({ HintName = sprintf "%s.serde.g.fs" pascalName; Code = code })
+                if emitPerTypeFiles then
+                    let code = SerdeCodeEmitter.emit emitter optSerdeInfo
+                    let pascalName = typeInfoToPascalName optTi
+                    generatedSources.Add({ HintName = sprintf "%s.serde.g.fs" pascalName; Code = code })
                 allTypes.Add(optSerdeInfo)
 
             // Discover and emit tuple types from record fields
             let tupleTypeInfos = TupleDiscovery.discoverTupleTypes allTypes
             for tupTi in tupleTypeInfos do
                 let tupSerdeInfo = TupleDiscovery.mkTupleSerdeTypeInfo tupTi
-                let code = SerdeCodeEmitter.emit emitter tupSerdeInfo
-                let pascalName = typeInfoToPascalName tupTi
-                generatedSources.Add({ HintName = sprintf "%s.serde.g.fs" pascalName; Code = code })
+                if emitPerTypeFiles then
+                    let code = SerdeCodeEmitter.emit emitter tupSerdeInfo
+                    let pascalName = typeInfoToPascalName tupTi
+                    generatedSources.Add({ HintName = sprintf "%s.serde.g.fs" pascalName; Code = code })
                 allTypes.Add(tupSerdeInfo)
 
             // Emit resolver file if the emitter supports it

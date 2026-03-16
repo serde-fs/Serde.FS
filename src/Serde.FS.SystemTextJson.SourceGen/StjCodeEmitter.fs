@@ -599,3 +599,4 @@ type StjCodeEmitter() =
                 ("~SerdeStjBootstrap.g.fs", bootstrapCode)
             ]
         member _.EmitEntryPoint = true
+        member _.EmitPerTypeFiles = true

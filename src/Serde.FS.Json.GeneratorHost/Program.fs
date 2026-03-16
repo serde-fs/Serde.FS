@@ -23,7 +23,7 @@ let main argv =
             Directory.GetFiles(projectDir, "*.fs", SearchOption.TopDirectoryOnly)
             |> Array.filter (fun f ->
                 let name = Path.GetFileName(f)
-                not (name.EndsWith(".serde.g.fs")) && not (name.EndsWith(".djinn.g.fs")))
+                not (name.EndsWith(".serde.g.fs")) && not (name.EndsWith(".djinn.g.fs")) && not (name.EndsWith(".json.g.fs")))
             |> Array.map (fun f -> f, File.ReadAllText f)
             |> Array.toList
 
@@ -53,7 +53,7 @@ let main argv =
 
             // Remove stale generated files
             if Directory.Exists outputDir then
-                for ext in ["*.serde.g.fs"; "*.djinn.g.fs"] do
+                for ext in ["*.serde.g.fs"; "*.djinn.g.fs"; "*.json.g.fs"] do
                     for existingFile in Directory.GetFiles(outputDir, ext) do
                         if not (generatedFiles.Contains existingFile) then
                             File.Delete existingFile

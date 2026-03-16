@@ -19,6 +19,12 @@ let useAsDefault (registerGenerated: CodecRegistry -> CodecRegistry) =
     // 2. Install JSON as the runtime backend
     Serde.DefaultBackend <- Some (JsonBackend() :> ISerdeBackend)
 
+/// Sets JSON as the default Serde backend without re-registering codecs.
+/// Use this when codecs have already been auto-registered via the generated
+/// `do SerdeJson.registerCodecs register` side-effect.
+let setAsDefaultBackend () =
+    Serde.DefaultBackend <- Some (JsonBackend() :> ISerdeBackend)
+
 /// The global JSON backend options instance.
 let options = SerdeJsonDefaults.options
 

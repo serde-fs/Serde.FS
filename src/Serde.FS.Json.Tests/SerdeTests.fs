@@ -18,7 +18,7 @@ let OneTimeSetup () =
 
 [<SetUp>]
 let Setup () =
-    Serde.FS.Json.SerdeJson.useAsDefault()
+    Serde.FS.Json.SerdeJson.setAsDefaultBackend()
 
 [<Test>]
 let ``Throws on serialize for type without generated metadata`` () =

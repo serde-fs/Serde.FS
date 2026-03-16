@@ -126,6 +126,6 @@ let ``EmitResolver includes constructed generic types`` () =
     let result = resolverEmitter.EmitResolver(types)
     Assert.That(result.IsSome, Is.True)
     let code = result.Value
-    Assert.That(code, Does.Contain("open Serde.Generated.Wrapper_Person"))
     Assert.That(code, Does.Contain("typeof<MyApp.Wrapper<MyApp.Person>>"))
     Assert.That(code, Does.Contain("wrapper_PersonJsonCodec"))
+    Assert.That(code, Does.Contain("let private register"))
