@@ -14,7 +14,7 @@ Serde.FS is a strict, deterministic, compile‑time–validated serialization fr
 
 Every serialized type must explicitly opt in using `[<Serde>]`. Metadata is generated at design time, and backends use fast, predictable code at runtime.
 
-Serde.FS.Json is the first backend, built on System.Text.Json — but without reflection or runtime inference.
+Serde.FS.Json is the first backend. As of alpha.5 build, it now relies on its own _codec_ with _no dependency_ on System.Text.Json!
 
 Serde.FS.Json is powered by [FSharp.SourceDjinn](https://github.com/fs-djinn/FSharp.SourceDjinn), a lightweight source generator engine.
 
@@ -45,10 +45,8 @@ type Person = {
 ```fsharp
 open Serde.FS.Json
 
-SerdeJson.useAsDefault()
-
-let json = Serde.Serialize { Name = "Jordan"; Age = 30 }
-let person : Person = Serde.Deserialize json
+let json = SerdeJson.serialize { Name = "Jordan"; Age = 30 }
+let person : Person = SerdeJson.deserialize json
 ```
 
 That’s the entire workflow: **opt in → generate → serialize**.
@@ -89,34 +87,38 @@ Serde.FS supports attribute‑level converters that override serialization for s
 ### 1. Implement a converter
 
 ```fsharp
-open System.Text.Json.Nodes
 open Serde.FS
+open Serde.FS.Json.Codec
 
-type UppercaseNameConverter() =
-    interface ISerdeConverter<FancyName> with
-        member _.Serialize(n) =
+// Custom codec that uppercases on encode and lowercases on decode
+type FancyNameCodec() =
+    interface IJsonCodec<FancyName> with
+        member _.Encode(n: FancyName) =
             JsonValue.String(n.Value.ToUpperInvariant())
 
-        member _.Deserialize(node) =
-            let s = node.AsString()
-            { Value = s.ToLowerInvariant() }
+        member _.Decode(json: JsonValue) =
+            match json with
+            | JsonValue.String s -> { Value = s.ToLowerInvariant() }
+            | _ -> failwith "Expected JSON string for FancyName"
+
 ```
 
 ### 2. Attach it to a type
 
 ```fsharp
-[<Serde(Converter = typeof<UppercaseNameConverter>)>]
-type FancyName = { Value : string }
+and 
+    [<Serde(Codec = typeof<FancyNameCodec>)>]
+    FancyName = { Value : string }
 ```
 
 ### 3. Use it normally
 
 ```fsharp
 let fancy = { Value = "Jordan" }
-let json = Serde.Serialize fancy
+let json = SerdeJson.serialize fancy
 // => "JORDAN"
 
-let back : FancyName = Serde.Deserialize json
+let back : FancyName = SerdeJson.deserialize json
 // => { Value = "jordan" }
 ```
 
