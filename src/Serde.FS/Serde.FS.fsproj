@@ -25,7 +25,6 @@
 		<Compile Include="SerdeJsonException.fs" />
 		<Compile Include="SerdeJsonParseException.fs" />
 		<Compile Include="SerdeMetadata.fs" />
-		<Compile Include="ResolverBootstrap.fs" />
 		<Compile Include="Serde.fs" />
 	</ItemGroup>
 
