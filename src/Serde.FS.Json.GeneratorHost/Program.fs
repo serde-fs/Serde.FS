@@ -13,7 +13,7 @@ let main argv =
         let projectDir = argv[0]
         let outputDir =
             if argv.Length > 1 then argv[1]
-            else Path.Combine(projectDir, "obj", "serde-json-generated")
+            else Path.Combine(projectDir, "obj", "serde-generated")
 
         if not (Directory.Exists outputDir) then
             Directory.CreateDirectory outputDir |> ignore

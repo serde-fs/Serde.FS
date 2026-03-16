@@ -13,7 +13,7 @@ let main argv =
         let projectDir = argv[0]
         let outputDir =
             if argv.Length > 1 then argv[1]
-            else Path.Combine(projectDir, "obj", "serde-stj-generated")
+            else Path.Combine(projectDir, "obj", "serde-generated")
 
         if not (Directory.Exists outputDir) then
             Directory.CreateDirectory outputDir |> ignore
@@ -55,7 +55,7 @@ let main argv =
 
             // Remove stale generated files
             if Directory.Exists outputDir then
-                for ext in ["*.serde.g.fs"; "*.stj.g.fs"; "*.g.fs"] do
+                for ext in ["*.stj.g.fs"; "*.djinn.g.fs"] do
                     for existingFile in Directory.GetFiles(outputDir, ext) do
                         if not (generatedFiles.Contains existingFile) then
                             File.Delete existingFile

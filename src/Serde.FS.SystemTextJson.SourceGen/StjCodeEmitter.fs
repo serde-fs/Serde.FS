@@ -598,5 +598,4 @@ type StjCodeEmitter() =
                 ("~SerdeStjResolverModule.g.fs", resolverModuleCode)
                 ("~SerdeStjBootstrap.g.fs", bootstrapCode)
             ]
-        member _.EmitEntryPoint = true
         member _.EmitPerTypeFiles = true

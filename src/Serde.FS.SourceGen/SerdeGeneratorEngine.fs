@@ -506,7 +506,6 @@ module SerdeGeneratorEngine =
                 allTypes.Add(tupSerdeInfo)
 
             // Emit resolver file if the emitter supports it
-            let mutable emitEntryPoint = true
             match emitter with
             | :? ISerdeResolverEmitter as resolverEmitter ->
                 match resolverEmitter.EmitResolver(Seq.toList allTypes) with
@@ -515,10 +514,16 @@ module SerdeGeneratorEngine =
                     for (hintName, code) in resolverEmitter.EmitRegistrationFiles() do
                         generatedSources.Add({ HintName = hintName; Code = code })
                 | None -> ()
-                emitEntryPoint <- resolverEmitter.EmitEntryPoint
             | _ -> ()
 
             // Emit entry point wrapper if any source file has [<EntryPoint>]
+            let emitEntryPoint =
+                sourceFiles
+                |> Seq.exists (fun (path, text) ->
+                    path.EndsWith(".fs") &&
+                    EntryPointDetector.detect path text |> Option.isSome
+                )
+
             if emitEntryPoint then
                 for (filePath, sourceText) in sourceFiles do
                     if filePath.EndsWith(".fs") then

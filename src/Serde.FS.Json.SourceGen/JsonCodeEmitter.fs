@@ -649,5 +649,4 @@ type JsonCodeEmitter() =
         member _.EmitResolver(types) = JsonCodeEmitterImpl.emitConsolidatedFile types
         member _.ResolverHintName = "~SerdeJsonCodecs.json.g.fs"
         member _.EmitRegistrationFiles() = []
-        member _.EmitEntryPoint = false
         member _.EmitPerTypeFiles = false

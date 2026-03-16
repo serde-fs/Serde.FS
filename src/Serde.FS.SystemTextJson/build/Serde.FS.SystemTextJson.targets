@@ -1,10 +1,10 @@
 <Project>
 	<Target Name="SerdeStjGenerate" BeforeTargets="CoreCompile">
-		<Exec Command="dotnet &quot;$(MSBuildThisFileDirectory)../tools/net9.0/Serde.FS.SystemTextJson.GeneratorHost.dll&quot; &quot;$(ProjectDir).&quot; &quot;$(IntermediateOutputPath)serde-stj-generated&quot;" />
+		<Exec Command="dotnet &quot;$(MSBuildThisFileDirectory)../tools/net9.0/Serde.FS.SystemTextJson.GeneratorHost.dll&quot; &quot;$(ProjectDir).&quot; &quot;$(IntermediateOutputPath)serde-generated&quot;" />
 
 		<ItemGroup>
-			<Compile Include="$(IntermediateOutputPath)serde-stj-generated/**/*.fs"
-					 Condition="Exists('$(IntermediateOutputPath)serde-stj-generated/')" />
+			<Compile Include="$(IntermediateOutputPath)serde-generated/**/*.fs"
+					 Condition="Exists('$(IntermediateOutputPath)serde-generated/')" />
 		</ItemGroup>
 	</Target>
 </Project>

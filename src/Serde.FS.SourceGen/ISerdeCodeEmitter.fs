@@ -9,8 +9,6 @@ type ISerdeResolverEmitter =
     abstract member ResolverHintName : string
     /// Additional files to emit after the resolver (e.g. registration + bootstrap). Returns (hintName, code) pairs.
     abstract member EmitRegistrationFiles : unit -> (string * string) list
-    /// Whether this backend should emit the Djinn entry point wrapper.
-    abstract member EmitEntryPoint : bool
     /// Whether this backend emits per-type files (true) or consolidates all codecs into the resolver (false).
     abstract member EmitPerTypeFiles : bool
 
