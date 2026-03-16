@@ -3,29 +3,21 @@ module Serde.FS.Json.SerdeJson
 open Serde.FS
 open Serde.FS.Json.Codec
 
-/// Sets JSON as the default backend for Serde.FS.
-/// Call once at application startup.
-let private triggerBootstrap () =
-    match global.Serde.ResolverBootstrap.registerAll with
-    | Some _ -> ()
-    | None ->
-        let asm = System.Reflection.Assembly.GetEntryAssembly()
-        if not (isNull asm) then
-            match asm.GetType("Djinn.Generated.Bootstrap") with
-            | null -> ()
-            | ty ->
-                match ty.GetMethod("init", System.Reflection.BindingFlags.Public ||| System.Reflection.BindingFlags.Static) with
-                | null -> ()
-                | m -> m.Invoke(null, [||]) |> ignore
+/// Builds a JSON codec registry and installs it globally.
+/// The `registerGenerated` function is supplied by generated code.
+let registerCodecs (registerGenerated: CodecRegistry -> CodecRegistry) =
+    GlobalCodecRegistry.Current <-
+        JsonCodecRegistry.create ()
+        |> registerGenerated
 
-let useAsDefault () =
-    triggerBootstrap ()
-    match global.Serde.ResolverBootstrap.registerAll with
-    | Some f -> f()
-    | None -> ()
-    match Serde.DefaultBackend with
-    | Some (:? JsonBackend) -> ()
-    | _ -> Serde.DefaultBackend <- Some (JsonBackend() :> ISerdeBackend)
+/// Installs JSON as the runtime backend (optional).
+/// Only needed if the user wants Serde.Serialize/Deserialize to use JSON.
+let useAsDefault (registerGenerated: CodecRegistry -> CodecRegistry) =
+    // 1. Install JSON codec registry
+    registerCodecs registerGenerated
+
+    // 2. Install JSON as the runtime backend
+    Serde.DefaultBackend <- Some (JsonBackend() :> ISerdeBackend)
 
 /// The global JSON backend options instance.
 let options = SerdeJsonDefaults.options

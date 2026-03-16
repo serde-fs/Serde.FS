@@ -29,6 +29,7 @@
 		<Compile Include="Codec\JsonCodec.fs" />
 		<Compile Include="Codec\PrimitiveCodecs.fs" />
 		<Compile Include="Codec\CodecRegistry.fs" />
+		<Compile Include="codec\JsonCodecRegistry.fs" />
 		<Compile Include="Codec\CodecResolver.fs" />
 		<Compile Include="Codec\CollectionCodecs.fs" />
 		<Compile Include="Codec\GlobalCodecRegistry.fs" />
@@ -63,10 +64,7 @@
 
 	<!-- Console host: publish output goes to tools/net9.0/ -->
 	<ItemGroup>
-		<Content Include="..\Serde.FS.Json.GeneratorHost\bin\$(Configuration)\net9.0\publish\**\*"
-				 PackagePath="tools/net9.0/"
-				 CopyToOutputDirectory="Never"
-				 Visible="false" />
+		<Content Include="..\Serde.FS.Json.GeneratorHost\bin\$(Configuration)\net9.0\publish\**\*" PackagePath="tools/net9.0/" CopyToOutputDirectory="Never" Visible="false" />
 	</ItemGroup>
 
 	<!-- build ensures consumers automatically get the analyzer declarations -->
