@@ -39,6 +39,9 @@ module CodecResolver =
                     raise (SerdeCodecException($"Failed to instantiate codec type '{codecType.FullName}' from [<Serde(Codec = ...)>] attribute.", ex))
         | _ -> None
 
+    let private codecNotFound (ty: Type) =
+        raise (SerdeCodecNotFoundException($"No codec found for type '{ty.FullName}'. Register a codec or factory.", ty))
+
     /// Resolves an untyped IJsonCodec for the given type.
     ///
     /// Resolution order:
@@ -46,39 +49,27 @@ module CodecResolver =
     /// 2. Registry lookup (includes manually registered and primitive codecs)
     /// 3. Throws SerdeCodecNotFoundException
     let resolve (ty: Type) (registry: CodecRegistry) : IJsonCodec =
-        // Step 1 — Type-level attributes
-        match tryGetSerdeCodecAttribute ty with
+        let directCodec =
+            tryGetSerdeCodecAttribute ty
+            |> Option.orElseWith (fun () -> tryGetJsonCodecAttribute ty)        // Step 1
+            |> Option.orElseWith (fun () -> CodecRegistry.tryFind ty registry)  // Step 2
+
+        match directCodec with
         | Some codec -> codec
         | None ->
-            match tryGetJsonCodecAttribute ty with
-            | Some codec -> codec
-            | None ->
-                // Step 2 — Registry (exact match)
-                match CodecRegistry.tryFind ty registry with
-                | Some codec -> codec
-                | None ->
-                    // Step 3a — Array factory (T[] is not generic, needs special handling)
-                    if ty.IsArray && ty.GetArrayRank() = 1 then
-                        match CodecRegistry.tryFindFactory typeof<System.Array> registry with
-                        | Some factory ->
-                            factory [| ty.GetElementType() |] registry
-                        | None ->
-                            raise (SerdeCodecNotFoundException(
-                                $"No codec found for type '{ty.FullName}'. Register a codec in the CodecRegistry, add a [<Serde(Codec = typeof<...>)>] attribute, or add a [<JsonCodec(typeof<...>)>] attribute.",
-                                ty))
-                    // Step 3b — Generic factory (e.g. Set<_>, List<_>, Map<_,_>)
-                    elif ty.IsGenericType then
-                        let genericDef = ty.GetGenericTypeDefinition()
-                        match CodecRegistry.tryFindFactory genericDef registry with
-                        | Some factory ->
-                            let codec = factory (ty.GetGenericArguments()) registry
-                            codec
-                        | None ->
-                            raise (SerdeCodecNotFoundException(
-                                $"No codec found for type '{ty.FullName}'. Register a codec in the CodecRegistry, add a [<Serde(Codec = typeof<...>)>] attribute, or add a [<JsonCodec(typeof<...>)>] attribute.",
-                                ty))
-                    else
-                        // Step 4 — Error
-                        raise (SerdeCodecNotFoundException(
-                            $"No codec found for type '{ty.FullName}'. Register a codec in the CodecRegistry, add a [<Serde(Codec = typeof<...>)>] attribute, or add a [<JsonCodec(typeof<...>)>] attribute.",
-                            ty))
+            // Step 3a — Array factory
+            if ty.IsArray && ty.GetArrayRank() = 1 then
+                match CodecRegistry.tryFindFactory typeof<System.Array> registry with
+                | Some factory -> factory [| ty.GetElementType() |] registry
+                | None -> codecNotFound ty
+
+            // Step 3b — Generic factory
+            elif ty.IsGenericType then
+                let genericDef = ty.GetGenericTypeDefinition()
+                match CodecRegistry.tryFindFactory genericDef registry with
+                | Some factory -> factory (ty.GetGenericArguments()) registry
+                | None -> codecNotFound ty
+
+            else
+                codecNotFound ty
+
