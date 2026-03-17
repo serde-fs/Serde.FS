@@ -15,7 +15,7 @@ module Resolver =
     let get () =
         let builtIn = DefaultJsonTypeInfoResolver() :> IJsonTypeInfoResolver
         let generated = JsonTypeInfoResolver.Combine(resolvers.ToArray())
-        JsonTypeInfoResolver.Combine(builtIn, generated)
+        JsonTypeInfoResolver.Combine(generated, builtIn)
 
     /// Creates a JsonSerializerOptions instance using the given defaults, 
     /// attaches the full resolver chain, and returns the configured options.
