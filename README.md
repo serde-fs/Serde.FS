@@ -82,9 +82,9 @@ This mirrors Rust Serde:
 
 ## 🧩 Custom Converters
 
-Serde.FS supports attribute‑level converters that override serialization for specific types.
+Serde.FS supports attribute‑level codecs that override serialization for specific types.
 
-### 1. Implement a converter
+### 1. Implement a custom codec
 
 ```fsharp
 open Serde.FS
