@@ -82,9 +82,9 @@ This mirrors Rust Serde:
 
 ## 🧩 Custom Converters
 
-Serde.FS supports attribute‑level converters that override serialization for specific types.
+Serde.FS supports attribute‑level codecs that override serialization for specific types.
 
-### 1. Implement a converter
+### 1. Implement a custom codec
 
 ```fsharp
 open Serde.FS
@@ -250,11 +250,11 @@ It’s a different tool for a different philosophy.
 | **Compile‑time validated serialization** | ⭐ **Best choice** | ❌ No | ❌ No |
 | **Deterministic, reflection‑free encoding** | ⭐ **Yes** | ❌ Reflection‑based | ❌ Manual decoders |
 | **High performance, ahead‑of‑time generation** | ⭐ **Yes** | ⚠️ Mixed | ❌ No |
-| **Custom DU encoding** | ❌ Not supported | ⭐ **Yes** | ⭐ **Yes** |
+| **Custom DU encoding** | ❌ Fixed (not customizable) | ⭐ **Yes** | ⭐ **Yes** |
 | **Dynamic / untyped JSON** | ❌ No | ⭐ **Yes** | ⭐ **Yes** |
 | **Interop with legacy JSON formats** | ❌ No | ⭐ **Yes** | ⭐ **Yes** |
 | **Hand‑crafted decoders / domain‑driven parsing** | ❌ No | ⚠️ Possible | ⭐ **Best choice** |
-| **Strict schema stability** | ⭐ **Yes** | ❌ No | ❌ No |
+| **Strict schema stability (generated at build-time)** | ⭐ **Yes** | ❌ No | ❌ No |
 | **Zero reflection (AOT‑friendly)** | ⭐ **Yes** | ❌ No | ⭐ **Yes** |
 | **Best for SQL‑shaped JSON** | ❌ No | ⭐ **Yes** | ⭐ **Yes** |
 | **Best for F# domain models** | ⭐ **Yes** | ⚠️ Good | ⭐ **Good** |
