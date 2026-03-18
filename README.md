@@ -16,7 +16,7 @@ Every serialized type must explicitly opt in using `[<Serde>]`. Metadata is gene
 
 Serde.FS.Json is the first backend. As of alpha.5 build, it now relies on its own _codec_ with _no dependency_ on System.Text.Json!
 
-Serde.FS.Json is powered by [FSharp.SourceDjinn](https://github.com/fs-djinn/FSharp.SourceDjinn), a lightweight source generator engine.
+Serde.FS.Json is powered by [FSharp.SourceDjinn](https://github.com/serde-fs/FSharp.SourceDjinn), a lightweight source generator engine.
 
 ---
 
