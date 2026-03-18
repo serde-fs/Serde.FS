@@ -84,7 +84,7 @@ type Person = {
 // Entry Point
 // -----------------------------
 
-[<FSharp.SourceDjinn.TypeModel.EntryPoint>]
+[<EntryPoint>]
 let run argv =
     // -----------------------------------------
     // 1. Generic Wrapper Example

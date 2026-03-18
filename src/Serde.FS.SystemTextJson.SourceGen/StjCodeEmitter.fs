@@ -561,14 +561,13 @@ module internal StjCodeEmitterImpl =
             append "            else null"
             append ""
 
-            // Emit IBootstrap implementation to register the resolver at startup
+            // Emit IEntryPointBootstrap implementation to register the resolver at startup
             append "namespace Serde.Generated"
             append ""
-            append "open FSharp.SourceDjinn.TypeModel"
             append "open Serde.FS.SystemTextJson"
             append ""
             append "type SerdeStjBootstrap() ="
-            append "    interface IBootstrap with"
+            append "    interface Serde.FS.IEntryPointBootstrap with"
             append "        member _.Init() ="
             append "            Resolver.register(Serde.Generated.Stj.SerdeStjResolver())"
 

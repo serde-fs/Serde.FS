@@ -3,7 +3,7 @@ namespace Serde.FS.SystemTextJson
 open System.Text.Json
 open System.Text.Json.Serialization.Metadata
 
-/// Collects IJsonTypeInfoResolver instances registered by IBootstrap implementations at startup.
+/// Collects IJsonTypeInfoResolver instances registered by IEntryPointBootstrap implementations at startup.
 [<RequireQualifiedAccess>]
 module Resolver =
 

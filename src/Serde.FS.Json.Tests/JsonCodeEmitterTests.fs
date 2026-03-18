@@ -198,7 +198,7 @@ let ``EmitResolver produces valid consolidated file for multiple types`` () =
     Assert.That(code, Does.Contain("addressJsonCodec"))
     Assert.That(code, Does.Contain("CodecRegistry.add"))
     Assert.That(code, Does.Contain("let internal register"))
-    Assert.That(code, Does.Contain("IBootstrap"))
+    Assert.That(code, Does.Contain("IEntryPointBootstrap"))
     Assert.That(code, Does.Contain("Bootstrap"))
     Assert.That(code, Does.Contain("SerdeJson.registerCodecs"))
 
@@ -260,7 +260,7 @@ let ``EmitResolver with mixed record and option types`` () =
     Assert.That(code, Does.Contain("personJsonCodec"))
     Assert.That(code, Does.Contain("stringOptionJsonCodec"))
     Assert.That(code, Does.Contain("let internal register"))
-    Assert.That(code, Does.Contain("IBootstrap"))
+    Assert.That(code, Does.Contain("IEntryPointBootstrap"))
     Assert.That(code, Does.Contain("Bootstrap"))
     Assert.That(code, Does.Contain("SerdeJson.registerCodecs"))
 
@@ -384,7 +384,7 @@ let ``EmitResolver with mixed record option and tuple types`` () =
     Assert.That(code, Does.Contain("stringOptionJsonCodec"))
     Assert.That(code, Does.Contain("intStringTupleJsonCodec"))
     Assert.That(code, Does.Contain("let internal register"))
-    Assert.That(code, Does.Contain("IBootstrap"))
+    Assert.That(code, Does.Contain("IEntryPointBootstrap"))
     Assert.That(code, Does.Contain("Bootstrap"))
     Assert.That(code, Does.Contain("SerdeJson.registerCodecs"))
 

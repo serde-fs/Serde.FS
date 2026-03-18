@@ -39,3 +39,11 @@ type SerdeSkipDeserializeAttribute() = inherit Attribute()
 type SerdeFieldAttribute() =
     inherit Attribute()
     member val Codec : Type = null with get, set
+
+/// Marks a function as the application entry point for source-generated bootstrapping.
+[<AttributeUsage(AttributeTargets.Method, AllowMultiple = false)>]
+type EntryPointAttribute() = inherit Attribute()
+
+/// Defines a discoverable bootstrap that will be automatically run during the entry point startup sequence.
+type IEntryPointBootstrap =
+    abstract member Init : unit -> unit

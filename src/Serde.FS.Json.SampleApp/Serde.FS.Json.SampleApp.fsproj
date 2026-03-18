@@ -18,9 +18,6 @@
 
 	<ItemGroup>
 	  <PackageReference Update="FSharp.Core" Version="10.0.103" />
-
-	  <!-- Runtime type model used by the backend -->
-	  <PackageReference Include="FSharp.SourceDjinn.TypeModel" Version="0.3.0" />
 	</ItemGroup>
 
 </Project>

@@ -637,12 +637,12 @@ module internal JsonCodeEmitterImpl =
                     append $"        |> CodecRegistry.add (typeof<%s{fqn}>, JsonCodec.boxCodec %s{fnName})"
             append ""
 
-            // Emit the IBootstrap implementation so that SourceDjinn's entry point
+            // Emit the IEntryPointBootstrap implementation so that the entry point
             // can discover and call Init() before the user's entry point runs.
             append "namespace Serde.Generated"
             append ""
             append "type JsonBootstrap() ="
-            append "    interface FSharp.SourceDjinn.TypeModel.IBootstrap with"
+            append "    interface Serde.FS.IEntryPointBootstrap with"
             append "        member _.Init () ="
             append "            Serde.Generated.SerdeJsonCodecs.register"
             append "            |> Serde.FS.Json.SerdeJson.registerCodecs"
