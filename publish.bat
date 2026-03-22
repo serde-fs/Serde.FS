@@ -1,3 +1,3 @@
 @echo off
-dotnet fsi build.fsx -- -p push
+dotnet fsi build.fsx -- -p build -p push
 pause
