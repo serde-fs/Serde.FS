@@ -21,7 +21,7 @@ type IOrderApi =
 
 ### Server.fsproj
 ```fsharp
-app.MapRpc<IOrderApi>(OrderApi())
+app.MapRpcApi<IOrderApi>(OrderApi())
 ```
 
 ### Client.fsproj
@@ -68,7 +68,14 @@ let! product = client.GetProduct(ProductId 42)
 ## 🚀 Getting Started
 
 This is the smallest possible Serde.FS RPC setup.  
-It uses three projects — **Shared**, **Server**, and **Client** — following the familiar SAFE‑style structure.
+It uses three projects — following the classic SAFE Stack structure.
+
+```
+SampleRpc/  
+  Shared/  
+  Server/  
+  Client/
+```
 
 ---
 
@@ -99,7 +106,7 @@ This is the only place where the interface lives.
 Both the server and client reference this project.
 
 See the full shared example here:
-[src/Serde.FS.Json.SampleRpc.Shared/Shared.fs](src/Serde.FS.Json.SampleRpc.Shared/Domain.fs)
+[SampleRpc.Shared/Domain.fs](src/Serde.FS.Json.SampleRpc.Shared/Domain.fs)
 
 ---
 
@@ -132,7 +139,7 @@ That’s it — no authentication, no policies, no extra endpoints.
 Just a clean RPC server.
 
 See the full server example here:
-[src/Serde.FS.Json.SampleRpc.Server/Program.fs](src/Serde.FS.Json.SampleRpc.Server/Program.fs)
+[SampleRpc.Server/Program.fs](src/Serde.FS.Json.SampleRpc.Server/Program.fs)
 
 ---
 
@@ -162,7 +169,7 @@ The client is fully generated at compile time —
 no reflection, no runtime inference, no DTO drift.
 
 See the full client example here:
-[src/Serde.FS.Json.SampleRpc.Client/Program.fs](src/Serde.FS.Json.SampleRpc.Client/Program.fs)
+[SampleRpc.Client/Program.fs](src/Serde.FS.Json.SampleRpc.Client/Program.fs)
 
 
 ---
@@ -175,7 +182,7 @@ All routing, serialization, and client code is generated at compile time by the 
 
 ---
 
-## 🚀 Quick Start (the whole system in 20 seconds)
+## 🚀 Serialization (Standalone Use)
 
 ### 1. Install the JSON backend
 
@@ -314,7 +321,6 @@ Serde.FS will generate the actual `[<EntryPoint>]` wrapper in a separate file so
 
 ---
 
-
 ## 🧠 Mental Model
 
 Serde.FS is not a general‑purpose .NET serializer. It is a **compile‑time, explicit, deterministic system** inspired by Rust Serde.
@@ -330,104 +336,18 @@ Not designed for dynamic JSON, schema‑drifting storage, partial deserializatio
 
 ---
 
-## 🎯 When Serde.FS is the right tool
+## 🎯 When to Use Serde.FS.Json
 
-Serde.FS is designed for developers who want:
+Serde.FS.Json is a deterministic, reflection‑free JSON backend designed for:
 
-### **Compile‑time validated serialization**
-Serde.FS generates metadata and serializers at build time.  
-If your types are invalid or incomplete, you find out *before* your program runs.
+- compile‑time validated serialization  
+- stable, schema‑aware encoding  
+- AOT/WASM‑friendly performance  
+- powering the Serde.FS RPC platform  
 
-### **Deterministic, reflection‑free JSON**
-No runtime shape inference.  
-No reflection.  
-No surprises.
-
-The JSON encoding is stable, predictable, and part of the contract.
-
-### **High performance**
-All serializers and deserializers are generated ahead of time.  
-No runtime metadata discovery.
-
-### **Schema‑aware systems**
-If you care about correctness, versioning, or long‑term stability, Serde.FS gives you a rock‑solid foundation.
-
-### **Interop with Serde‑style ecosystems**
-The design mirrors Rust Serde: metadata‑driven, explicit, principled.
-
-If your goal is:
-
-> “Make my JSON encoding correct, stable, and compile‑time validated — and don’t let me shoot myself in the foot.”
-
-Serde.FS is the right tool.
+If you need highly flexible or dynamic JSON formats, a runtime‑configured library may be a better fit.
 
 ---
 
-## 🛑 When Serde.FS is *not* the right tool
-
-Serde.FS intentionally does **not** support:
-
-### **Custom DU encodings**
-If you need to shape JSON for SQL Server, legacy systems, or custom wire formats, Serde.FS is not designed for that.
-
-### **Runtime configuration**
-Serde.FS does not allow per‑type or per‑case overrides of encoding rules.  
-The encoding is fixed and deterministic.
-
-### **Dynamic or untyped JSON**
-If you need to deserialize into `obj`, dictionaries, or unknown shapes, a reflection‑based library is a better fit.
-
-### **Highly flexible or ad‑hoc JSON**
-If your JSON shape is not under your control, or you need to adapt to many different formats, use a dynamic library.
-
-### **Recommended alternative**
-If you need flexible, customizable, runtime‑driven JSON encoding, consider:
-
-- **Thoth.Json** — excellent for hand‑crafted decoders/encoders and custom DU shapes.
-
-Serde.FS is not trying to replace Thoth.  
-It’s a different tool for a different philosophy.
-
----
-
-## 🧭 Choosing the Right JSON Library for Your F# Project
-
-| Scenario / Requirement | **Serde.FS.Json** | **FSharp.SystemTextJson** | **Thoth.Json** |
-|------------------------|-------------------|----------------------------|-----------------|
-| **Compile‑time validated serialization** | ⭐ **Best choice** | ❌ No | ❌ No |
-| **Deterministic, reflection‑free encoding** | ⭐ **Yes** | ❌ Reflection‑based | ❌ Manual decoders |
-| **High performance, ahead‑of‑time generation** | ⭐ **Yes** | ⚠️ Mixed | ❌ No |
-| **Custom DU encoding** | ❌ Fixed (not customizable) | ⭐ **Yes** | ⭐ **Yes** |
-| **Dynamic / untyped JSON** | ❌ No | ⭐ **Yes** | ⭐ **Yes** |
-| **Interop with legacy JSON formats** | ❌ No | ⭐ **Yes** | ⭐ **Yes** |
-| **Hand‑crafted decoders / domain‑driven parsing** | ❌ No | ⚠️ Possible | ⭐ **Best choice** |
-| **Strict schema stability (generated at build-time)** | ⭐ **Yes** | ❌ No | ❌ No |
-| **Zero reflection (AOT‑friendly)** | ⭐ **Yes** | ❌ No | ⭐ **Yes** |
-| **Best for SQL‑shaped JSON** | ❌ No | ⭐ **Yes** | ⭐ **Yes** |
-| **Best for F# domain models** | ⭐ **Yes** | ⚠️ Good | ⭐ **Good** |
-| **Best for dynamic JSON APIs** | ❌ No | ⭐ **Best choice** | ⭐ **Best choice** |
-
-### Summary
-
-- **Choose Serde.FS.Json** if you want correctness, determinism, and compile‑time guarantees.  
-- **Choose FSharp.SystemTextJson** if you need flexibility, custom DU encodings, or interop with existing JSON.  
-- **Choose Thoth.Json** if you want explicit, hand‑crafted decoders and total control over parsing.
-
----
-
-## 📚 Roadmap
-
-- Additional backends (TOML, YAML)  
-- Field‑level overrides (`rename`, `skip`, `flatten`)  
-- Improved diagnostics  
-- Optional compile‑time schema generation  
-
----
-
-## ❤️ Acknowledgements
-
-Serde.FS is inspired by the elegance and rigor of Rust Serde, adapted to the F# ecosystem with a focus on clarity, determinism, and developer experience.
-
----
-
+## 🔮 Powered by FSharp.SourceDjinn
 Serde.FS.Json is powered by [FSharp.SourceDjinn](https://github.com/serde-fs/FSharp.SourceDjinn), a lightweight source generator engine.
