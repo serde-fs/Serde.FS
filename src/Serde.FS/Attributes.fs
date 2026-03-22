@@ -44,6 +44,13 @@ type SerdeFieldAttribute() =
 [<AttributeUsage(AttributeTargets.Method, AllowMultiple = false)>]
 type EntryPointAttribute() = inherit Attribute()
 
+/// Controls how RPC method names are transformed into URL segments.
+type UrlCase =
+    /// Use method name exactly as declared (no transformation).
+    | Default = 0
+    /// Convert to kebab-case (e.g., GetProducts -> get-products).
+    | Kebab = 1
+
 /// Marks an interface as an RPC API contract. The source generator will walk
 /// all abstract member signatures and generate codecs for every type in the
 /// transitive closure, without requiring [<Serde>] on those types.
@@ -55,6 +62,8 @@ type RpcApiAttribute() =
     member val Root : string = null with get, set
     /// Version segment (e.g., "v2"). Omitted if null.
     member val Version : string = null with get, set
+    /// Controls how method names are transformed into URL segments.
+    member val UrlCase : UrlCase = UrlCase.Default with get, set
 
 /// Defines a discoverable bootstrap that will be automatically run during the entry point startup sequence.
 type IEntryPointBootstrap =

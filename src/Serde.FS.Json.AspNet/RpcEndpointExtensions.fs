@@ -6,6 +6,22 @@ open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Routing
 
 module private Helpers =
+    /// Transforms a method name according to the UrlCase setting.
+    let applyUrlCase (urlCase: Serde.FS.UrlCase) (methodName: string) =
+        match urlCase with
+        | Serde.FS.UrlCase.Kebab ->
+            let chars =
+                methodName
+                |> Seq.collect (fun c ->
+                    if System.Char.IsUpper c then
+                        seq { '-'; System.Char.ToLowerInvariant c }
+                    else
+                        seq { c })
+                |> Seq.toArray
+            let s = System.String(chars)
+            if s.StartsWith("-") then s.Substring(1) else s
+        | _ -> methodName
+
     let readBodyAsString (ctx: HttpContext) =
         task {
             use sr = new System.IO.StreamReader(ctx.Request.Body)
@@ -56,13 +72,19 @@ module RpcEndpointExtensions =
                 | Some v when v.Length > 0 -> $"/%s{v}"
                 | _ -> ""
 
+            let urlCase =
+                rpcAttr
+                |> Option.map (fun a -> a.UrlCase)
+                |> Option.defaultValue Serde.FS.UrlCase.Default
+
             let routePrefix = $"/rpc/%s{root}%s{versionSegment}"
             let group = this.MapGroup(routePrefix)
             let endpoints = Dictionary<string, IEndpointConventionBuilder>()
 
             for methodName in RpcReflection.getMethods rpcModule do
+                let methodSegment = Helpers.applyUrlCase urlCase methodName
                 let builder =
-                    group.MapPost(methodName, RequestDelegate(fun ctx ->
+                    group.MapPost(methodSegment, RequestDelegate(fun ctx ->
                         task {
                             let! body = Helpers.readBodyAsString ctx
                             let input = RpcReflection.deserializeDynamic rpcModule methodName body
