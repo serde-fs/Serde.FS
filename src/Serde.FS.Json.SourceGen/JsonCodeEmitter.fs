@@ -791,7 +791,7 @@ module internal RpcDispatchEmitter =
 
         // ── Client factory + registration ───────────────────────────
         append $"module internal %s{iface.ShortName}_ClientFactory ="
-        append "    let create (baseUrl: string) (http: HttpClient) : obj ="
+        append "    let create (http: HttpClient) (baseUrl: string) : obj ="
         append $"        %s{iface.ShortName}Client(baseUrl, http) :> obj"
         append ""
 

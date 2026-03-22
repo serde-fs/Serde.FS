@@ -6,8 +6,8 @@ open SampleRpc.Shared
 
 [<Serde.FS.EntryPoint>]
 let main _argv =
-    let http = new HttpClient()
-    let orders = RpcClient.Create<IOrderApi> "http://localhost:5050" http
+    use http = new HttpClient()
+    let orders = RpcClient.create<IOrderApi> http "http://localhost:5050"
 
     try
         async {

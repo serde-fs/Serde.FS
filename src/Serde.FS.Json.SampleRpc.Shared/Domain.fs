@@ -4,6 +4,7 @@ open Serde.FS
 
 // DTOs — no [<Serde>] needed, discovered via [<RpcApi>] interface
 
+[<Struct>]
 type ProductId = { Value: int }
 
 type Product = {
