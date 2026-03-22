@@ -753,30 +753,40 @@ module internal RpcDispatchEmitter =
         append ""
 
         // ── Client proxy ────────────────────────────────────────────
-        append $"type private %s{iface.ShortName}Client(baseUrl: string, http: HttpClient) ="
+        // Implements the interface (Async<T>) and also exposes Task<T> members for .NET consumers.
+        append $"type %s{iface.ShortName}Client(baseUrl: string, http: HttpClient) ="
+        // Task-returning members (primary API for .NET consumers)
+        for m in iface.Methods do
+            if m.InputType = "unit" then
+                append $"    member _.%s{m.MethodName}() : Task<%s{m.OutputType}> ="
+                append $"        let url = %s{iface.ShortName}_Routing.getFullUrl baseUrl \"%s{m.MethodName}\""
+                append "        task {"
+                append "            use content = new StringContent(\"null\", Encoding.UTF8, \"application/json\")"
+                append "            let! resp = http.PostAsync(url, content)"
+                append "            resp.EnsureSuccessStatusCode() |> ignore"
+                append "            let! respJson = resp.Content.ReadAsStringAsync()"
+                append $"            return SerdeJson.deserialize<%s{m.OutputType}>(respJson)"
+                append "        }"
+            else
+                append $"    member _.%s{m.MethodName}(arg: %s{m.InputType}) : Task<%s{m.OutputType}> ="
+                append $"        let url = %s{iface.ShortName}_Routing.getFullUrl baseUrl \"%s{m.MethodName}\""
+                append $"        let bodyJson = SerdeJson.serialize<%s{m.InputType}>(arg)"
+                append "        task {"
+                append "            use content = new StringContent(bodyJson, Encoding.UTF8, \"application/json\")"
+                append "            let! resp = http.PostAsync(url, content)"
+                append "            resp.EnsureSuccessStatusCode() |> ignore"
+                append "            let! respJson = resp.Content.ReadAsStringAsync()"
+                append $"            return SerdeJson.deserialize<%s{m.OutputType}>(respJson)"
+                append "        }"
+        // Interface implementation (wraps Task methods as Async)
         append $"    interface %s{iface.FullName} with"
         for m in iface.Methods do
             if m.InputType = "unit" then
-                append $"        member _.%s{m.MethodName}() ="
-                append "            async {"
-                append $"                let url = %s{iface.ShortName}_Routing.getFullUrl baseUrl \"%s{m.MethodName}\""
-                append "                use content = new StringContent(\"null\", Encoding.UTF8, \"application/json\")"
-                append "                let! resp = http.PostAsync(url, content) |> Async.AwaitTask"
-                append "                resp.EnsureSuccessStatusCode() |> ignore"
-                append "                let! respJson = resp.Content.ReadAsStringAsync() |> Async.AwaitTask"
-                append $"                return SerdeJson.deserialize<%s{m.OutputType}>(respJson)"
-                append "            }"
+                append $"        member this.%s{m.MethodName}() ="
+                append $"            this.%s{m.MethodName}() |> Async.AwaitTask"
             else
-                append $"        member _.%s{m.MethodName}(arg) ="
-                append "            async {"
-                append $"                let url = %s{iface.ShortName}_Routing.getFullUrl baseUrl \"%s{m.MethodName}\""
-                append $"                let bodyJson = SerdeJson.serialize<%s{m.InputType}>(arg)"
-                append "                use content = new StringContent(bodyJson, Encoding.UTF8, \"application/json\")"
-                append "                let! resp = http.PostAsync(url, content) |> Async.AwaitTask"
-                append "                resp.EnsureSuccessStatusCode() |> ignore"
-                append "                let! respJson = resp.Content.ReadAsStringAsync() |> Async.AwaitTask"
-                append $"                return SerdeJson.deserialize<%s{m.OutputType}>(respJson)"
-                append "            }"
+                append $"        member this.%s{m.MethodName}(arg) ="
+                append $"            this.%s{m.MethodName}(arg) |> Async.AwaitTask"
         append ""
 
         // ── Client factory + registration ───────────────────────────
