@@ -42,6 +42,7 @@
 		<Compile Include="JsonBackendOptions.fs" />
 		<Compile Include="JsonBackend.fs" />
 		<Compile Include="SerdeJson.fs" />
+		<Compile Include="RpcClient.fs" />
 		<Compile Include="JsonExtensions.fs" />
 	</ItemGroup>
 

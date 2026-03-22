@@ -31,6 +31,12 @@ type RpcInterfaceInfo = {
     ShortName: string
     /// Methods in declaration order
     Methods: RpcMethodInfo list
+    /// Custom root from [<RpcApi(Root = "...")>]. None means use interface name.
+    Root: string option
+    /// Version segment from [<RpcApi(Version = "...")>]. None means no version.
+    Version: string option
+    /// UrlCase value from [<RpcApi(UrlCase = ...)>]. 0=Default, 1=Kebab.
+    UrlCaseValue: int
 }
 
 /// Result of RPC API discovery.

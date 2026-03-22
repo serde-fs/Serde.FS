@@ -165,17 +165,90 @@ module internal RpcApiDiscovery =
         let (SynValSig(synType = synType)) = valSig
         collectTypeNames synType
 
-    /// Check if a SynComponentInfo has the [<RpcApi>] attribute.
-    let private hasRpcApiAttr (synComponentInfo: SynComponentInfo) : bool =
+    /// Parsed [<RpcApi>] attribute properties.
+    type private RpcApiAttrProps = {
+        Root: string option
+        Version: string option
+        UrlCaseValue: int
+    }
+
+    /// Try to extract a string constant from a SynExpr.
+    let private tryGetStringConst (expr: SynExpr) =
+        match expr with
+        | SynExpr.Const(SynConst.String(s, _, _), _) -> Some s
+        | _ -> None
+
+    /// Try to extract an int constant from a SynExpr (for enum values).
+    let private tryGetIntConst (expr: SynExpr) =
+        match expr with
+        | SynExpr.Const(SynConst.Int32 i, _) -> Some i
+        | _ -> None
+
+    /// Try to extract a named arg value from a SynExpr like `Name = value` or `Name = Enum.Case`.
+    let private tryExtractNamedArg (expr: SynExpr) : (string * SynExpr) option =
+        match expr with
+        | SynExpr.App(_, _,
+            SynExpr.App(_, true, _, SynExpr.Ident(nameIdent), _),
+            valueExpr, _) ->
+                Some (nameIdent.idText, valueExpr)
+        | _ -> None
+
+    /// Resolve a UrlCase enum reference like `UrlCase.Kebab` to its int value.
+    let private resolveUrlCaseValue (expr: SynExpr) : int =
+        match expr with
+        | SynExpr.LongIdent(_, SynLongIdent(id = idents), _, _) ->
+            let name = idents |> List.last |> fun i -> i.idText
+            match name with
+            | "Kebab" -> 1
+            | _ -> 0  // Default
+        | SynExpr.Ident(ident) ->
+            match ident.idText with
+            | "Kebab" -> 1
+            | _ -> 0
+        | _ ->
+            match tryGetIntConst expr with
+            | Some i -> i
+            | None -> 0
+
+    /// Try to find and parse the [<RpcApi>] attribute from a SynComponentInfo.
+    /// Returns None if the attribute is not present.
+    let private tryGetRpcApiAttr (synComponentInfo: SynComponentInfo) : RpcApiAttrProps option =
         let (SynComponentInfo(attributes = attrs)) = synComponentInfo
-        attrs
-        |> List.exists (fun attrList ->
-            attrList.Attributes
-            |> List.exists (fun attr ->
-                match attr.TypeName with
-                | SynLongIdent(id = idents) ->
-                    let name = identToString idents
-                    rpcApiAttrNames.Contains name))
+        let rpcApiAttr =
+            attrs
+            |> List.tryPick (fun attrList ->
+                attrList.Attributes
+                |> List.tryFind (fun attr ->
+                    match attr.TypeName with
+                    | SynLongIdent(id = idents) ->
+                        let name = identToString idents
+                        rpcApiAttrNames.Contains name))
+        match rpcApiAttr with
+        | None -> None
+        | Some attr ->
+            let mutable root = None
+            let mutable version = None
+            let mutable urlCaseValue = 0
+
+            // Parse named args from the attribute constructor
+            let parseArgs (argExpr: SynExpr) =
+                let processArg expr =
+                    match tryExtractNamedArg expr with
+                    | Some ("Root", valExpr) -> root <- tryGetStringConst valExpr
+                    | Some ("Version", valExpr) -> version <- tryGetStringConst valExpr
+                    | Some ("UrlCase", valExpr) -> urlCaseValue <- resolveUrlCaseValue valExpr
+                    | _ -> ()
+
+                match argExpr with
+                | SynExpr.Const(SynConst.Unit, _) -> ()
+                | SynExpr.Paren(SynExpr.Const(SynConst.Unit, _), _, _, _) -> ()
+                | SynExpr.Paren(SynExpr.Tuple(_, exprs, _, _), _, _, _) ->
+                    for expr in exprs do processArg expr
+                | SynExpr.Paren(inner, _, _, _) -> processArg inner
+                | other -> processArg other
+
+            parseArgs attr.ArgExpr
+            Some { Root = root; Version = version; UrlCaseValue = urlCaseValue }
 
     /// Get the fully qualified name from a SynComponentInfo in the context of a namespace/modules.
     let private getTypeName (ns: string option) (modules: string list) (synComponentInfo: SynComponentInfo) : string * string =
@@ -204,7 +277,8 @@ module internal RpcApiDiscovery =
 
         let walkTypeDefn (ns: string option) (modules: string list) (typeDefn: SynTypeDefn) =
             let (SynTypeDefn(typeInfo = synComponentInfo; typeRepr = typeRepr; members = members)) = typeDefn
-            if hasRpcApiAttr synComponentInfo then
+            match tryGetRpcApiAttr synComponentInfo with
+            | Some attrProps ->
                 let fullName, shortName = getTypeName ns modules synComponentInfo
                 let methods = ResizeArray<RpcMethodInfo>()
 
@@ -234,7 +308,11 @@ module internal RpcApiDiscovery =
                     FullName = fullName
                     ShortName = shortName
                     Methods = Seq.toList methods
+                    Root = attrProps.Root
+                    Version = attrProps.Version
+                    UrlCaseValue = attrProps.UrlCaseValue
                 })
+            | None -> ()
 
         let rec walkDecls (ns: string option) (modules: string list) (decls: SynModuleDecl list) =
             for decl in decls do
