@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Compile Include="RpcReflection.fs" />
+		<Compile Include="RpcEndpointExtensions.fs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Serde.FS.Json\Serde.FS.Json.fsproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <PackageReference Update="FSharp.Core" Version="10.0.103" />
+	</ItemGroup>
+
+</Project>

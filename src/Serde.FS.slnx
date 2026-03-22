@@ -4,6 +4,7 @@
     <Project Path="Serde.FS/Serde.FS.fsproj" />
   </Folder>
   <Folder Name="/Json/">
+    <Project Path="Serde.FS.Json.AspNet/Serde.FS.Json.AspNet.fsproj" />
     <Project Path="Serde.FS.Json.GeneratorHost/Serde.FS.Json.GeneratorHost.fsproj" />
     <Project Path="Serde.FS.Json.SourceGen/Serde.FS.Json.SourceGen.fsproj" Id="9d6cb6ea-7c3b-4931-b762-c53bd4553bdb" />
     <Project Path="Serde.FS.Json/Serde.FS.Json.fsproj">
