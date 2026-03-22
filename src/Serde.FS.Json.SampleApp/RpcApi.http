@@ -1,0 +1,29 @@
+
+### 
+### [<RpcApi>]
+### type IOrderApi =
+###    abstract GetProduct : int -> Async<Product>
+###    abstract PlaceOrder : Order -> Async<OrderSummary>
+###    abstract ListProducts : unit -> Async<Product list>
+
+### Get Product
+POST http://localhost:5050/rpc/GetProduct
+Content-Type: application/json
+Accept: application/json
+
+42
+
+### Place Order
+POST http://localhost:5050/rpc/PlaceOrder
+Content-Type: application/json
+Accept: application/json
+
+{"Id":1,"Lines":[{"Product":{"Id":{"Value":42},"Name":"Widget","Price":9.99,"Tags":[]},"Quantity":3}],"Notes":null}
+
+
+### List Products
+POST http://localhost:5050/rpc/ListProducts
+Content-Type: application/json
+Accept: application/json
+
+null

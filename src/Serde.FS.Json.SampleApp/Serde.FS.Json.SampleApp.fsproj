@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
@@ -12,13 +12,15 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\Serde.FS.Json.SampleRpc\Serde.FS.Json.SampleRpc.fsproj" />
+		<ProjectReference Include="..\Serde.FS.Json.AspNet\Serde.FS.Json.AspNet.fsproj" />
 	</ItemGroup>
 
 	<ItemGroup>
+		<None Include="RpcApi.http" />
 		<Compile Include="Program.fs" />
 	</ItemGroup>
 
-	
+	<ItemGroup />
 
 	<ItemGroup>
 	  <PackageReference Update="FSharp.Core" Version="10.0.103" />

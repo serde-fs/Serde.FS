@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "console": {
+      "commandName": "Project",
+      "commandLineArgs": ""
+    },
+    "web": {
+      "commandName": "Project",
+      "commandLineArgs": "--web",
+      "applicationUrl": "http://localhost:5050"
+    }
+  }
+}
