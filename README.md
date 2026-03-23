@@ -26,7 +26,9 @@ app.MapRpcApi<IOrderApi>(OrderApi())
 
 ### Client.fsproj
 ```fsharp
-let! product = client.GetProduct(ProductId 42)
+use http = new HttpClient()
+let api = RpcClient.create<IOrderApi> http "http://localhost:5050"
+let! product = api.GetProduct(ProductId 42)
 ```
 
 That’s the entire workflow:  
