@@ -123,7 +123,7 @@ See the full shared example here:
 A minimal ASP.NET RPC server:
 
 ```bash
-dotnet new classlib -lang F# -n Server
+dotnet new web -lang F# -n Server
 dotnet add package Serde.FS.Json.AspNet
 ```
 
@@ -161,7 +161,7 @@ See the full server example here:
 Consume the RPC API with a generated client:
 
 ```bash
-dotnet new classlib -lang F# -n Client
+dotnet new console -lang F# -n Client
 dotnet add package Serde.FS.Json
 ```
 
