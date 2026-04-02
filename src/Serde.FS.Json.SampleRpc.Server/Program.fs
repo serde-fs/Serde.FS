@@ -28,6 +28,9 @@ module Handlers =
             }
 
 
+let (|StartsWith|_|) (prefix: string) (s: string) =
+    if s.StartsWith(prefix) then Some () else None
+
 [<Serde.FS.EntryPoint>]
 let main (argv: string array) =
     let builder = WebApplication.CreateBuilder(argv)
@@ -48,6 +51,20 @@ let main (argv: string array) =
     app.UseAuthorization() |> ignore
 
     let rpc = app.MapRpcApi<IOrderApi>(OrderApi())
+
+    rpc.ApplyRouteConventions(fun route ->
+        match route.MethodName with
+        | StartsWith "Get" | StartsWith "List" ->
+            route.AllowGet() |> ignore
+        | StartsWith "Delete" ->
+            route.UseDelete() |> ignore
+        | StartsWith "Update" ->
+            route.UsePut() |> ignore
+        | "PlaceOrder" ->
+            route.RequireAuthorization("ApiKeyPolicy") |> ignore
+        | _ ->
+            printfn $"No convention for method '%s{route.MethodName}', using default routing and no authorization"
+    )
 
     rpc.GetRoute(nameof Unchecked.defaultof<IOrderApi>.PlaceOrder)
         .RequireAuthorization("ApiKeyPolicy") |> ignore

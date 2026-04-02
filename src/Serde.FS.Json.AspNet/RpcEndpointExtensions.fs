@@ -32,6 +32,33 @@ module private Helpers =
         ctx.Response.ContentType <- "application/json"
         ctx.Response.WriteAsync(json)
 
+type RpcRoute =
+    { 
+        MethodName : string
+        Builder : IEndpointConventionBuilder 
+    }
+
+    /// Adds GET as an additional allowed verb (POST is always included for RPC).
+    member this.AllowGet() =
+        this.Builder.WithMetadata(HttpMethodMetadata([| "POST"; "GET" |])) |> ignore
+        this
+
+    /// Adds PUT as an additional allowed verb (POST is always included for RPC).
+    member this.UsePut() =
+        this.Builder.WithMetadata(HttpMethodMetadata([| "POST"; "PUT" |])) |> ignore
+        this
+
+    /// Adds DELETE as an additional allowed verb (POST is always included for RPC).
+    member this.UseDelete() =
+        this.Builder.WithMetadata(HttpMethodMetadata([| "POST"; "DELETE" |])) |> ignore
+        this
+
+    /// Applies an authorization policy to this RPC route.
+    member this.RequireAuthorization(policy: string) =
+        this.Builder.RequireAuthorization(policy) |> ignore
+        this
+
+
 /// Wraps the route group and per-method endpoint builders returned by MapRpcApi.
 type RpcApiBuilder =
     {
@@ -46,6 +73,12 @@ type RpcApiBuilder =
         | false, _ ->
             let available = System.String.Join(", ", this.Endpoints.Keys)
             failwith $"RPC method '%s{methodName}' not found. Available methods: %s{available}"
+
+    member this.ApplyRouteConventions(apply: RpcRoute -> unit) =
+        for KeyValue(methodName, builder) in this.Endpoints do
+            let route = { MethodName = methodName; Builder = builder }
+            apply route
+
 
 [<AutoOpen>]
 module RpcEndpointExtensions =
