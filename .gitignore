@@ -54,7 +54,8 @@ TestResult.xml
 nunit-*.xml
 
 # Claude Code
-.claude/
+.claude/*
+!.claude/skills/
 
 # Visual Studio
 .vs/

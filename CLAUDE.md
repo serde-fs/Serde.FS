@@ -11,3 +11,7 @@
 * The `.nuget-local/` feed is pruned at the start of each debug run.
 * A summary block is printed at the end of the pipeline.
 * Use `-- -p <name>` to select a pipeline (e.g., `-- -p clean`).
+
+## Skills
+
+* **Add a codec factory** (`.claude/skills/add-codec-factory.md`): Follow this when adding runtime codec support for a new built-in type (e.g., `Dictionary`, `HashSet`). Covers the factory implementation, registry registration, tests, and SampleRpc integration.
