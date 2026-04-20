@@ -67,7 +67,13 @@ let main argv =
             let generatedFiles = System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase)
 
             for source in result.Sources do
-                let outputFile = Path.Combine(outputDir, source.HintName)
+                let outputFile =
+                    match source.AbsolutePath with
+                    | Some p -> p
+                    | None -> Path.Combine(outputDir, source.HintName)
+                let parentDir = Path.GetDirectoryName(outputFile)
+                if not (System.String.IsNullOrEmpty parentDir) && not (Directory.Exists parentDir) then
+                    Directory.CreateDirectory parentDir |> ignore
                 let existingContent =
                     if File.Exists outputFile then Some (File.ReadAllText outputFile)
                     else None

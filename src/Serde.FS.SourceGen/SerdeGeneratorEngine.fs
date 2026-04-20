@@ -268,6 +268,10 @@ module SerdeGeneratorEngine =
     type GeneratedSource = {
         HintName: string
         Code: string
+        /// When Some, the source is written to this absolute file path instead of
+        /// the generator's default output directory. Used for cross-project emissions
+        /// (e.g., the Fable client is written into the Shared project, not the Server's obj).
+        AbsolutePath: string option
     }
 
     type GeneratorResult = {
@@ -493,7 +497,7 @@ module SerdeGeneratorEngine =
                             sprintf "%s_%s" typeInfo.Raw.TypeName (String.concat "" argNames)
                         | None -> typeInfo.Raw.TypeName
                     let code = SerdeCodeEmitter.emit emitter typeInfo
-                    generatedSources.Add({ HintName = sprintf "%s.%s.g.fs" fileName emitter.HintNameSuffix; Code = code })
+                    generatedSources.Add({ HintName = sprintf "%s.%s.g.fs" fileName emitter.HintNameSuffix; Code = code; AbsolutePath = None })
                 allTypes.Add(typeInfo)
 
             // Discover and emit option types from record fields
@@ -503,7 +507,7 @@ module SerdeGeneratorEngine =
                 if emitPerTypeFiles then
                     let code = SerdeCodeEmitter.emit emitter optSerdeInfo
                     let pascalName = typeInfoToPascalName optTi
-                    generatedSources.Add({ HintName = sprintf "%s.%s.g.fs" pascalName emitter.HintNameSuffix; Code = code })
+                    generatedSources.Add({ HintName = sprintf "%s.%s.g.fs" pascalName emitter.HintNameSuffix; Code = code; AbsolutePath = None })
                 allTypes.Add(optSerdeInfo)
 
             // Discover and emit tuple types from record fields
@@ -513,7 +517,7 @@ module SerdeGeneratorEngine =
                 if emitPerTypeFiles then
                     let code = SerdeCodeEmitter.emit emitter tupSerdeInfo
                     let pascalName = typeInfoToPascalName tupTi
-                    generatedSources.Add({ HintName = sprintf "%s.%s.g.fs" pascalName emitter.HintNameSuffix; Code = code })
+                    generatedSources.Add({ HintName = sprintf "%s.%s.g.fs" pascalName emitter.HintNameSuffix; Code = code; AbsolutePath = None })
                 allTypes.Add(tupSerdeInfo)
 
             // Emit resolver file if the emitter supports it
@@ -521,9 +525,9 @@ module SerdeGeneratorEngine =
             | :? ISerdeResolverEmitter as resolverEmitter ->
                 match resolverEmitter.EmitResolver(Seq.toList allTypes) with
                 | Some code ->
-                    generatedSources.Add({ HintName = resolverEmitter.ResolverHintName; Code = code })
+                    generatedSources.Add({ HintName = resolverEmitter.ResolverHintName; Code = code; AbsolutePath = None })
                     for (hintName, code) in resolverEmitter.EmitRegistrationFiles() do
-                        generatedSources.Add({ HintName = hintName; Code = code })
+                        generatedSources.Add({ HintName = hintName; Code = code; AbsolutePath = None })
                 | None -> ()
             | _ -> ()
 
@@ -532,7 +536,10 @@ module SerdeGeneratorEngine =
                 match emitter with
                 | :? ISerdeRpcEmitter as rpcEmitter ->
                     for (hintName, code) in rpcEmitter.EmitRpcModules(rpcDiscoveryResult.Interfaces) do
-                        generatedSources.Add({ HintName = hintName; Code = code })
+                        generatedSources.Add({ HintName = hintName; Code = code; AbsolutePath = None })
+                    for (absPath, code) in rpcEmitter.EmitCrossProjectFiles(rpcDiscoveryResult.Interfaces, Seq.toList allTypes) do
+                        let hint = System.IO.Path.GetFileName(absPath)
+                        generatedSources.Add({ HintName = hint; Code = code; AbsolutePath = Some absPath })
                 | _ -> ()
 
             // Emit entry point wrapper if any source file has [<EntryPoint>]
@@ -550,7 +557,7 @@ module SerdeGeneratorEngine =
                         | Some info ->
                             let info = { info with BootstrapInterface = "Serde.FS.IEntryPointBootstrap" }
                             let code = EntryPointEmitter.emit info
-                            generatedSources.Add({ HintName = "~~EntryPoint.djinn.g.fs"; Code = code })
+                            generatedSources.Add({ HintName = "~~EntryPoint.djinn.g.fs"; Code = code; AbsolutePath = None })
                         | None -> ()
 
         { Sources = Seq.toList generatedSources; Errors = Seq.toList errors; Warnings = Seq.toList warnings }

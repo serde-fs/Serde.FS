@@ -1,5 +1,14 @@
 <Project>
   <Target Name="SerdeSourceGenClean" AfterTargets="Clean">
     <RemoveDir Directories="$(IntermediateOutputPath)serde-generated" />
+    <RemoveDir Directories="$(MSBuildProjectDirectory)/obj/serde-generated/fable" />
   </Target>
+
+  <!-- Auto-include generated Fable client files written by a sibling project's
+       generator (e.g., the ASP.NET server writes into the Shared project's obj
+       directory). These files are guarded with #if FABLE_COMPILER so they are
+       inert under .NET compilation and become active when processed by Fable. -->
+  <ItemGroup Condition="Exists('$(MSBuildProjectDirectory)/obj/serde-generated/fable/')">
+    <Compile Include="$(MSBuildProjectDirectory)/obj/serde-generated/fable/*.fs" />
+  </ItemGroup>
 </Project>

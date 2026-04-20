@@ -819,3 +819,12 @@ type JsonCodeEmitter() =
                 let hintName = $"~Rpc.%s{iface.ShortName}.json.g.fs"
                 let code = RpcDispatchEmitter.emit iface
                 (hintName, code))
+        member _.EmitCrossProjectFiles(interfaces, types) =
+            interfaces
+            |> List.filter (fun iface -> iface.GenerateFableClient)
+            |> List.choose (fun iface ->
+                match FableClientEmitter.resolveOutputPath iface with
+                | Some path ->
+                    let code = FableClientEmitter.emit iface types
+                    Some (path, code)
+                | None -> None)

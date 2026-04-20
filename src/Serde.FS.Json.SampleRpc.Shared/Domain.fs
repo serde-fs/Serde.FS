@@ -34,6 +34,7 @@ type OrderSummary = {
 // RPC API contract — this is the single entry point for codec generation
 
 [<RpcApi>]
+[<GenerateFableClient>]
 type IOrderApi =
     abstract GetProduct : int -> Async<Product>
     abstract TryGetProduct : int -> Async<Result<Product, string>>
