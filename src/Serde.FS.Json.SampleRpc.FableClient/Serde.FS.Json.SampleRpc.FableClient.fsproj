@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <!-- This project is consumed by Fable (compiled to JavaScript), not by .NET.
+             We keep a valid TargetFramework so that MSBuild project-cracking works. -->
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="App.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Fable.Core" Version="4.5.0" />
+        <PackageReference Include="Fable.Lit" Version="1.4.2" />
+        <PackageReference Include="Fable.Lit.Dsl" Version="1.0.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Serde.FS.Json.SampleRpc.Shared\Serde.FS.Json.SampleRpc.Shared.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Update="FSharp.Core" Version="10.0.103" />
+    </ItemGroup>
+
+</Project>

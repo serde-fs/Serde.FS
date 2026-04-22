@@ -6,10 +6,18 @@
 
 	<ItemGroup>
 		<PackageReference Include="Serde.FS" Version="$(SerdeFSVersion)" />
+		<!-- Fable.Core is only needed when this project is consumed by Fable
+		     (e.g., by the FableClient sample). Under .NET compilation, the
+		     generated Fable client is elided via #if FABLE_COMPILER. -->
+		<PackageReference Include="Fable.Core" Version="4.5.0" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<Compile Include="Domain.fs" />
+		<!-- Generated Fable client (emitted by the Server build when the interface
+		     is annotated with [<GenerateFableClient>]). Guarded with #if
+		     FABLE_COMPILER so it is inert under .NET compilation. -->
+		<Compile Include="generated-fable\*.fs" Condition="Exists('generated-fable')" />
 	</ItemGroup>
 
 	<ItemGroup>

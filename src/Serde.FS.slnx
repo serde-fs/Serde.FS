@@ -25,6 +25,9 @@
     <Project Path="Serde.FS.Json.SampleRpc.Client/Serde.FS.Json.SampleRpc.Client.fsproj">
       <Build Solution="Debug|*" Project="false" />
     </Project>
+    <Project Path="Serde.FS.Json.SampleRpc.FableClient/Serde.FS.Json.SampleRpc.FableClient.fsproj">
+      <Build Solution="Debug|*" Project="false" />
+    </Project>
     <Project Path="Serde.FS.Json.SampleRpc.Server/Serde.FS.Json.SampleRpc.Server.fsproj">
       <Build Solution="Debug|*" Project="false" />
     </Project>
