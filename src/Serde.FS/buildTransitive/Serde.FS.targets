@@ -2,6 +2,7 @@
   <Target Name="SerdeSourceGenClean" AfterTargets="Clean">
     <!-- Fable compiler excludes obj/ dir, so we generate types here instead. -->
     <RemoveDir Directories="$(IntermediateOutputPath)serde-generated" />
+    <RemoveDir Directories="$(MSBuildProjectDirectory)\generated-fable" />
   </Target>
 
   <!-- Auto-include generated Fable client files written by a sibling project's
