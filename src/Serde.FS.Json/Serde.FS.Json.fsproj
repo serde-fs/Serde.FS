@@ -68,10 +68,10 @@
 		<Content Include="..\Serde.FS.Json.GeneratorHost\bin\$(Configuration)\net9.0\publish\**\*" PackagePath="tools/net9.0/" CopyToOutputDirectory="Never" Visible="false" />
 	</ItemGroup>
 
-	<!-- build ensures consumers automatically get the analyzer declarations -->
+	<!-- buildTransitive ensures the generator targets fire even when consumers
+	     reference Serde.FS.Json transitively (e.g., via Serde.FS.Json.AspNet). -->
 	<ItemGroup>
-		<!-- This .targets file contains only <Analyzer> entries. -->
-		<None Include="build\Serde.FS.Json.targets" Pack="true" PackagePath="build" Link="build\Serde.FS.Json.targets" />
+		<None Include="buildTransitive\Serde.FS.Json.targets" Pack="true" PackagePath="buildTransitive" Link="buildTransitive\Serde.FS.Json.targets" />
 	</ItemGroup>
 	<ItemGroup>
 	  <PackageReference Update="FSharp.Core" Version="10.0.103" />
