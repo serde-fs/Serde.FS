@@ -17,8 +17,16 @@ type ISerdeResolverEmitter =
 /// Metadata for a single RPC method discovered from an [<RpcApi>] interface.
 type RpcMethodInfo = {
     MethodName: string
-    /// F# type expression for the input parameter (e.g., "int", "SampleRpc.Order")
+    /// F# type expression for the input parameter (e.g., "int", "SampleRpc.Order").
+    /// For multi-arg methods declared as `A * B -> C`, this is the composite tuple type "A * B".
     InputType: string
+    /// True when the abstract member was declared with a top-level tuple input
+    /// (e.g., `abstract Foo: A * B -> C`), which F# treats as a multi-arg method.
+    /// False when declared with a single (possibly paren-wrapped) input.
+    InputIsTupled: bool
+    /// When InputIsTupled is true, the per-parameter F# type expressions
+    /// (e.g., ["A"; "B"]). Empty otherwise.
+    InputParams: string list
     /// F# type expression for the return type, unwrapped from Async/Task (e.g., "SampleRpc.Product")
     OutputType: string
 }

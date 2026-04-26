@@ -570,6 +570,28 @@ module internal FableClientEmitter =
                 bappend          "                let json = Interop.parse respText"
                 bappend (sprintf "                return %s" (decodeExpr "json" outputTy))
                 bappend          "            }"
+            elif m.InputIsTupled then
+                // Multi-arg interface methods: F# treats `abstract Foo: A * B -> C` as a
+                // 2-arg method, so the override must use multi-arg syntax. We encode each
+                // parameter individually and combine into the JSON tuple-array wire format.
+                let paramSig =
+                    m.InputParams
+                    |> List.mapi (fun i ty -> sprintf "p%d: %s" i ty)
+                    |> String.concat ", "
+                let encodedArgs =
+                    m.InputParams
+                    |> List.mapi (fun i ty ->
+                        let pTy = parseTypeString lookup ty
+                        encodeExpr (sprintf "p%d" i) pTy)
+                    |> String.concat "; "
+                bappend (sprintf "        member _.%s(%s) =" m.MethodName paramSig)
+                bappend          "            async {"
+                bappend (sprintf "                let url = fullUrl \"%s\"" m.MethodName)
+                bappend (sprintf "                let body = Interop.stringify (box [| %s |])" encodedArgs)
+                bappend          "                let! respText = Interop.postJson url body |> Async.AwaitPromise"
+                bappend          "                let json = Interop.parse respText"
+                bappend (sprintf "                return %s" (decodeExpr "json" outputTy))
+                bappend          "            }"
             else
                 let inputTy = parseTypeString lookup m.InputType
                 bappend (sprintf "        member _.%s(arg: %s) =" m.MethodName m.InputType)

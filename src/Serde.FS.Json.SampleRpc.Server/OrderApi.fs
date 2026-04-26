@@ -41,3 +41,13 @@ type OrderApi() =
                     { Id = { Value = 2 }; Name = "Gadget"; Price = 24.50m; Tags = [] }
                 ]
             }
+
+        member _.ListProductsPage(pageSize, pageNumber) =
+            async {
+                let allProducts = [
+                    for i in 1 .. 50 ->
+                        { Id = { Value = i }; Name = $"Product #{i}"; Price = decimal i * 1.99m; Tags = [] }
+                ]
+                let skip = (pageNumber - 1) * pageSize
+                return allProducts |> List.skip (max 0 skip) |> List.truncate pageSize
+            }

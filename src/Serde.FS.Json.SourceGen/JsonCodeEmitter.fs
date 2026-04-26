@@ -742,6 +742,18 @@ module internal RpcDispatchEmitter =
                 append $"                let! result = api.%s{m.MethodName}() |> Async.StartAsTask"
                 append "                return result :> obj"
                 append "            }"
+            elif m.InputIsTupled then
+                // Multi-arg abstract members must be invoked with positional args.
+                let pattern =
+                    m.InputParams
+                    |> List.mapi (fun i _ -> sprintf "p%d" i)
+                    |> String.concat ", "
+                append $"        | \"%s{m.MethodName}\" ->"
+                append $"            let (%s{pattern}) = input :?> %s{m.InputType}"
+                append "            task {"
+                append $"                let! result = api.%s{m.MethodName}(%s{pattern}) |> Async.StartAsTask"
+                append "                return result :> obj"
+                append "            }"
             else
                 append $"        | \"%s{m.MethodName}\" ->"
                 append $"            let arg = input :?> %s{m.InputType}"
@@ -767,6 +779,27 @@ module internal RpcDispatchEmitter =
                 append "            let! respJson = resp.Content.ReadAsStringAsync()"
                 append $"            return SerdeJson.deserialize<%s{m.OutputType}>(respJson)"
                 append "        }"
+            elif m.InputIsTupled then
+                // Multi-arg client method matches the abstract member's signature so the
+                // interface implementation below can forward positionally.
+                let paramSig =
+                    m.InputParams
+                    |> List.mapi (fun i ty -> sprintf "p%d: %s" i ty)
+                    |> String.concat ", "
+                let tupleExpr =
+                    m.InputParams
+                    |> List.mapi (fun i _ -> sprintf "p%d" i)
+                    |> String.concat ", "
+                append $"    member _.%s{m.MethodName}(%s{paramSig}) : Task<%s{m.OutputType}> ="
+                append $"        let url = %s{iface.ShortName}_Routing.getFullUrl baseUrl \"%s{m.MethodName}\""
+                append $"        let bodyJson = SerdeJson.serialize<%s{m.InputType}>((%s{tupleExpr}))"
+                append "        task {"
+                append "            use content = new StringContent(bodyJson, Encoding.UTF8, \"application/json\")"
+                append "            let! resp = http.PostAsync(url, content)"
+                append "            resp.EnsureSuccessStatusCode() |> ignore"
+                append "            let! respJson = resp.Content.ReadAsStringAsync()"
+                append $"            return SerdeJson.deserialize<%s{m.OutputType}>(respJson)"
+                append "        }"
             else
                 append $"    member _.%s{m.MethodName}(arg: %s{m.InputType}) : Task<%s{m.OutputType}> ="
                 append $"        let url = %s{iface.ShortName}_Routing.getFullUrl baseUrl \"%s{m.MethodName}\""
@@ -784,6 +817,13 @@ module internal RpcDispatchEmitter =
             if m.InputType = "unit" then
                 append $"        member this.%s{m.MethodName}() ="
                 append $"            this.%s{m.MethodName}() |> Async.AwaitTask"
+            elif m.InputIsTupled then
+                let pattern =
+                    m.InputParams
+                    |> List.mapi (fun i _ -> sprintf "p%d" i)
+                    |> String.concat ", "
+                append $"        member this.%s{m.MethodName}(%s{pattern}) ="
+                append $"            this.%s{m.MethodName}(%s{pattern}) |> Async.AwaitTask"
             else
                 append $"        member this.%s{m.MethodName}(arg) ="
                 append $"            this.%s{m.MethodName}(arg) |> Async.AwaitTask"

@@ -43,6 +43,47 @@ module internal RpcApiDiscovery =
     /// Async/Task wrapper names to unwrap for return types.
     let private asyncWrapperNames = set [ "Async"; "Task" ]
 
+    /// Recursively expand type abbreviations in a SynType. For each LongIdent
+    /// whose name matches an alias key, replace it with the (recursively expanded)
+    /// target SynType. This lets `type PageSize = int` resolve correctly when used
+    /// in interface signatures.
+    let rec private expandAliases (aliases: Map<string, SynType>) (synType: SynType) : SynType =
+        match synType with
+        | SynType.LongIdent(SynLongIdent(id = idents)) ->
+            let name = identToString idents
+            let shortName = idents |> List.last |> fun i -> i.idText
+            let target =
+                match Map.tryFind name aliases with
+                | Some t -> Some t
+                | None -> Map.tryFind shortName aliases
+            match target with
+            | Some t -> expandAliases aliases t
+            | None -> synType
+        | SynType.App(typeName, lt, args, commas, gt, isPostfix, range) ->
+            SynType.App(
+                expandAliases aliases typeName,
+                lt,
+                args |> List.map (expandAliases aliases),
+                commas,
+                gt,
+                isPostfix,
+                range)
+        | SynType.Fun(arg, ret, range, trivia) ->
+            SynType.Fun(expandAliases aliases arg, expandAliases aliases ret, range, trivia)
+        | SynType.Tuple(isStruct, segments, range) ->
+            let segments' =
+                segments
+                |> List.map (fun seg ->
+                    match seg with
+                    | SynTupleTypeSegment.Type t -> SynTupleTypeSegment.Type (expandAliases aliases t)
+                    | other -> other)
+            SynType.Tuple(isStruct, segments', range)
+        | SynType.Paren(inner, range) ->
+            SynType.Paren(expandAliases aliases inner, range)
+        | SynType.Array(rank, elem, range) ->
+            SynType.Array(rank, expandAliases aliases elem, range)
+        | other -> other
+
     /// Recursively extract all type names referenced in a SynType.
     /// Unwraps Async<T>, Task<T>, and function types (A -> B).
     let rec private collectTypeNames (synType: SynType) : string list =
@@ -140,31 +181,53 @@ module internal RpcApiDiscovery =
         | _ ->
             synTypeToString resolve synType
 
-    /// Extract the input type and return type from a method signature SynType.
-    /// For `A -> Async<B>`, returns (inputType="A", outputType="B").
-    let private extractMethodTypes (resolve: string -> string) (synType: SynType) : string * string =
+    /// Extract the input type, multi-arg flag, per-param types, and return type from a method signature SynType.
+    /// For `A -> Async<B>`, returns (inputType="A", isTupled=false, inputParams=[], outputType="B").
+    /// For `A * B -> Async<C>` (multi-arg), returns (inputType="A * B", isTupled=true, inputParams=["A"; "B"], outputType="C").
+    /// For `(A * B) -> Async<C>` (single tuple arg), returns (inputType="A * B", isTupled=false, inputParams=[], outputType="C").
+    let private extractMethodTypes (resolve: string -> string) (synType: SynType) : string * bool * string list * string =
         match synType with
         | SynType.Fun(argType, returnType, _, _) ->
-            let inputStr = synTypeToString resolve argType
             let outputStr = unwrapAsyncType resolve returnType
-            (inputStr, outputStr)
+            // Detect multi-arg: a top-level tuple (NOT wrapped in parens). F# treats
+            // `abstract Foo: A * B -> C` as a 2-arg method, but `(A * B) -> C` as a 1-arg
+            // method taking a tuple.
+            match argType with
+            | SynType.Tuple(_, segments, _) ->
+                let paramTypes =
+                    segments
+                    |> List.choose (fun seg ->
+                        match seg with
+                        | SynTupleTypeSegment.Type t -> Some (synTypeToString resolve t)
+                        | _ -> None)
+                let inputStr = paramTypes |> String.concat " * "
+                (inputStr, true, paramTypes, outputStr)
+            | _ ->
+                let inputStr = synTypeToString resolve argType
+                (inputStr, false, [], outputStr)
         | _ ->
-            ("unit", synTypeToString resolve synType)
+            ("unit", false, [], synTypeToString resolve synType)
 
     /// Extract method name and types from an abstract member's SynValSig.
-    let private extractMethodInfo (resolve: string -> string) (valSig: SynValSig) : RpcMethodInfo option =
+    /// Aliases are expanded before extracting type strings so `type PageSize = int`
+    /// resolves to `int` in method signatures.
+    let private extractMethodInfo (resolve: string -> string) (aliases: Map<string, SynType>) (valSig: SynValSig) : RpcMethodInfo option =
         let (SynValSig(ident = SynIdent(ident, _); synType = synType)) = valSig
-        let inputType, outputType = extractMethodTypes resolve synType
+        let expanded = expandAliases aliases synType
+        let inputType, isTupled, inputParams, outputType = extractMethodTypes resolve expanded
         Some {
             MethodName = ident.idText
             InputType = inputType
+            InputIsTupled = isTupled
+            InputParams = inputParams
             OutputType = outputType
         }
 
-    /// Extract type names from an abstract member's SynValSig.
-    let private extractFromValSig (valSig: SynValSig) : string list =
+    /// Extract type names from an abstract member's SynValSig (after alias expansion).
+    let private extractFromValSig (aliases: Map<string, SynType>) (valSig: SynValSig) : string list =
         let (SynValSig(synType = synType)) = valSig
-        collectTypeNames synType
+        let expanded = expandAliases aliases synType
+        collectTypeNames expanded
 
     /// Parsed [<RpcApi>] attribute properties.
     type private RpcApiAttrProps = {
@@ -305,16 +368,57 @@ module internal RpcApiDiscovery =
         Interfaces: ResizeArray<RpcInterfaceInfo>
     }
 
-    /// Walk a parsed AST to find [<RpcApi>] interfaces and extract type names + method info.
-    let private findRpcApis (resolve: string -> string) (filePath: string) (sourceText: string) : RpcApiCollected =
-        let source = SourceText.ofString sourceText
-        let parsingOptions = { FSharpParsingOptions.Default with SourceFiles = [| filePath |] }
-        let parseResults = checker.ParseFile(filePath, source, parsingOptions) |> Async.RunSynchronously
+    /// Parse a single source file into an AST.
+    let private parseFile (filePath: string) (sourceText: string) : ParsedInput option =
+        try
+            let source = SourceText.ofString sourceText
+            let parsingOptions = { FSharpParsingOptions.Default with SourceFiles = [| filePath |] }
+            let parseResults = checker.ParseFile(filePath, source, parsingOptions) |> Async.RunSynchronously
+            Some parseResults.ParseTree
+        with _ -> None
 
+    /// Walk a ParsedInput and collect type abbreviations as a name → SynType map.
+    let private collectAliasesFromAst (parseTree: ParsedInput) : Map<string, SynType> =
+        let mutable acc : Map<string, SynType> = Map.empty
+
+        let walkTypeDefn (typeDefn: SynTypeDefn) =
+            let (SynTypeDefn(typeInfo = synComponentInfo; typeRepr = typeRepr)) = typeDefn
+            let (SynComponentInfo(longId = idents)) = synComponentInfo
+            let shortName = idents |> List.last |> fun i -> i.idText
+            match typeRepr with
+            | SynTypeDefnRepr.Simple(SynTypeDefnSimpleRepr.TypeAbbrev(_, target, _), _) ->
+                acc <- Map.add shortName target acc
+            | _ -> ()
+
+        let rec walkDecls (decls: SynModuleDecl list) =
+            for decl in decls do
+                match decl with
+                | SynModuleDecl.Types(typeDefns, _) ->
+                    for td in typeDefns do walkTypeDefn td
+                | SynModuleDecl.NestedModule(decls = nestedDecls) ->
+                    walkDecls nestedDecls
+                | _ -> ()
+
+        match parseTree with
+        | ParsedInput.ImplFile(ParsedImplFileInput(contents = modules)) ->
+            for SynModuleOrNamespace(decls = decls) in modules do
+                walkDecls decls
+        | _ -> ()
+
+        acc
+
+    /// Walk a parsed AST to find [<RpcApi>] interfaces and extract type names + method info.
+    let private findRpcApis (resolve: string -> string) (aliases: Map<string, SynType>) (filePath: string) (parseTree: ParsedInput) : RpcApiCollected =
         let collected = {
             TypeNames = ResizeArray<string>()
             Interfaces = ResizeArray<RpcInterfaceInfo>()
         }
+
+        let processAbstractSlot (methods: ResizeArray<RpcMethodInfo>) (slotSig: SynValSig) =
+            collected.TypeNames.AddRange(extractFromValSig aliases slotSig)
+            match extractMethodInfo resolve aliases slotSig with
+            | Some mi -> methods.Add(mi)
+            | None -> ()
 
         let walkTypeDefn (ns: string option) (modules: string list) (typeDefn: SynTypeDefn) =
             let (SynTypeDefn(typeInfo = synComponentInfo; typeRepr = typeRepr; members = members)) = typeDefn
@@ -329,20 +433,14 @@ module internal RpcApiDiscovery =
                     for memberDefn in memberDefns do
                         match memberDefn with
                         | SynMemberDefn.AbstractSlot(slotSig, _, _, _) ->
-                            collected.TypeNames.AddRange(extractFromValSig slotSig)
-                            match extractMethodInfo resolve slotSig with
-                            | Some mi -> methods.Add(mi)
-                            | None -> ()
+                            processAbstractSlot methods slotSig
                         | _ -> ()
                 | _ -> ()
                 // Also check augmentation members
                 for memberDefn in members do
                     match memberDefn with
                     | SynMemberDefn.AbstractSlot(slotSig, _, _, _) ->
-                        collected.TypeNames.AddRange(extractFromValSig slotSig)
-                        match extractMethodInfo resolve slotSig with
-                        | Some mi -> methods.Add(mi)
-                        | None -> ()
+                        processAbstractSlot methods slotSig
                     | _ -> ()
 
                 let fableProps = tryGetFableClientAttr synComponentInfo
@@ -369,7 +467,7 @@ module internal RpcApiDiscovery =
                     walkDecls ns (modules @ [moduleName]) nestedDecls
                 | _ -> ()
 
-        match parseResults.ParseTree with
+        match parseTree with
         | ParsedInput.ImplFile(ParsedImplFileInput(contents = modules)) ->
             for SynModuleOrNamespace(longId = nsId; kind = kind; decls = decls) in modules do
                 match kind with
@@ -447,14 +545,28 @@ module internal RpcApiDiscovery =
         let lookup = buildLookup allTypeInfos
         let resolve = resolveTypeName lookup
 
+        // Step 0: Parse each .fs file once and collect type abbreviations globally
+        // so they can be expanded inside RpcApi signatures (e.g., `type PageSize = int`).
+        let parsedFiles =
+            sourceFiles
+            |> List.choose (fun (filePath, sourceText) ->
+                if filePath.EndsWith(".fs") then
+                    parseFile filePath sourceText
+                    |> Option.map (fun ast -> filePath, ast)
+                else None)
+
+        let aliases =
+            parsedFiles
+            |> List.fold (fun acc (_, ast) ->
+                let fileAliases = collectAliasesFromAst ast
+                Map.fold (fun m k v -> Map.add k v m) acc fileAliases) Map.empty
+
         // Step 1: Find all [<RpcApi>] interfaces and collect type names + method info
         let allCollected =
-            sourceFiles
-            |> List.collect (fun (filePath, sourceText) ->
-                if filePath.EndsWith(".fs") then
-                    try [ findRpcApis resolve filePath sourceText ]
-                    with _ -> []
-                else [])
+            parsedFiles
+            |> List.map (fun (filePath, ast) ->
+                try findRpcApis resolve aliases filePath ast
+                with _ -> { TypeNames = ResizeArray<string>(); Interfaces = ResizeArray<RpcInterfaceInfo>() })
 
         let rootTypeNames =
             allCollected
