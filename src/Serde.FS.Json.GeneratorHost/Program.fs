@@ -65,6 +65,7 @@ let main argv =
             1
         else
             let generatedFiles = System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase)
+            let crossProjectDirs = System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase)
 
             for source in result.Sources do
                 let outputFile =
@@ -81,6 +82,18 @@ let main argv =
                 | Some existing when existing = source.Code -> ()
                 | _ -> File.WriteAllText(outputFile, source.Code)
                 generatedFiles.Add outputFile |> ignore
+                if source.AbsolutePath.IsSome && not (System.String.IsNullOrEmpty parentDir) then
+                    crossProjectDirs.Add parentDir |> ignore
+
+            // Drop a self-ignoring .gitignore into each cross-project output directory
+            // (e.g. Shared/generated-fable/). The file contains just "*", which makes
+            // git ignore everything in the folder including the .gitignore itself, so
+            // users never see the generated files or the marker file in `git status`.
+            // Cannot live in obj/ because Fable's project cracker strips obj/ paths.
+            for dir in crossProjectDirs do
+                let gitignorePath = Path.Combine(dir, ".gitignore")
+                if not (File.Exists gitignorePath) then
+                    File.WriteAllText(gitignorePath, "*\n")
 
             // Remove stale generated files (only JSON-owned suffixes)
             if Directory.Exists outputDir then
