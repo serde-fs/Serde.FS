@@ -542,17 +542,32 @@ module SerdeGeneratorEngine =
                         generatedSources.Add({ HintName = hint; Code = code; AbsolutePath = Some absPath })
                 | _ -> ()
 
-            // Emit entry point wrapper if any source file has [<EntryPoint>]
+            // Emit entry point wrapper only when (a) something else was generated for
+            // this project (codecs, dispatch, resolver) — otherwise the wrapper has
+            // nothing to bootstrap and would just force the user to add a module
+            // declaration to Program.fs for no benefit — and (b) the local project's
+            // own sources contain [<EntryPoint>]. Ref-source [<EntryPoint>] is for the
+            // referenced project's executable, not ours.
+            let isLocalSourceFile (path: string) =
+                try
+                    let abs = System.IO.Path.GetFullPath(path)
+                    abs.StartsWith(projectDir, System.StringComparison.OrdinalIgnoreCase)
+                with _ -> false
+
+            let hasGeneratedOutput = generatedSources.Count > 0
+
             let emitEntryPoint =
-                sourceFiles
-                |> Seq.exists (fun (path, text) ->
-                    path.EndsWith(".fs") &&
-                    EntryPointDetector.detect path text |> Option.isSome
-                )
+                hasGeneratedOutput
+                && sourceFiles
+                   |> Seq.exists (fun (path, text) ->
+                       path.EndsWith(".fs") &&
+                       isLocalSourceFile path &&
+                       EntryPointDetector.detect path text |> Option.isSome
+                   )
 
             if emitEntryPoint then
                 for (filePath, sourceText) in sourceFiles do
-                    if filePath.EndsWith(".fs") then
+                    if filePath.EndsWith(".fs") && isLocalSourceFile filePath then
                         match EntryPointDetector.detect filePath sourceText with
                         | Some info ->
                             let info = { info with BootstrapInterface = "Serde.FS.IEntryPointBootstrap" }

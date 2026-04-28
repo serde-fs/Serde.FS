@@ -1,9 +1,19 @@
 <Project>
-	<!-- Collect .fs source files from referenced projects for [<RpcApi>] discovery -->
+	<!-- Capture DIRECT @(ProjectReference) entries at evaluation time, before the
+	     .NET SDK flattens transitive project references into the same item list
+	     during target execution. We only want to scan sources from projects this
+	     project explicitly references (typically a Shared project containing
+	     [<RpcApi>] interfaces), not from projects that are reachable transitively
+	     (e.g., Tests project that references an api project that references Shared). -->
+	<ItemGroup>
+		<_SerdeJsonDirectProjectRef Include="@(ProjectReference)" />
+	</ItemGroup>
+
+	<!-- Collect .fs source files from directly-referenced projects for [<RpcApi>] discovery -->
 	<Target Name="SerdeCollectRefSources" BeforeTargets="SerdeGenerate"
-			Condition="'@(ProjectReference)' != ''">
+			Condition="'@(_SerdeJsonDirectProjectRef)' != ''">
 		<ItemGroup>
-			<_SerdeRefProjectDir Include="@(ProjectReference->'%(RootDir)%(Directory)')" />
+			<_SerdeRefProjectDir Include="@(_SerdeJsonDirectProjectRef->'%(RootDir)%(Directory)')" />
 		</ItemGroup>
 		<CreateItem Include="%(_SerdeRefProjectDir.Identity)**\*.fs"
 					Exclude="%(_SerdeRefProjectDir.Identity)obj\**;%(_SerdeRefProjectDir.Identity)bin\**"
@@ -31,9 +41,9 @@
 	     "Rebuild" of the client (which Cleans Shared transitively) would leave the
 	     Shared project missing files until the backend project rebuilds. -->
 	<Target Name="SerdeJsonCleanFableClients" AfterTargets="Clean"
-			Condition="'@(ProjectReference)' != ''">
+			Condition="'@(_SerdeJsonDirectProjectRef)' != ''">
 		<ItemGroup>
-			<_SerdeJsonRefFableDir Include="@(ProjectReference->'%(RootDir)%(Directory)generated-fable')" />
+			<_SerdeJsonRefFableDir Include="@(_SerdeJsonDirectProjectRef->'%(RootDir)%(Directory)generated-fable')" />
 		</ItemGroup>
 		<RemoveDir Directories="@(_SerdeJsonRefFableDir)" />
 	</Target>
