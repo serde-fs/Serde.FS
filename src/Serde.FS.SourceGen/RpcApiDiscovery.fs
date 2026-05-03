@@ -399,17 +399,14 @@ module internal RpcApiDiscovery =
     /// Convert a SynType to a TypeInfo where possible. Used to surface tuple types
     /// that appear in RPC method signatures so the generator can emit codecs for them.
     /// Returns None for unrecognised shapes.
-    let rec private synTypeToTypeInfo (lookup: Map<string, TypeInfo>) (synType: SynType) : TypeInfo option =
+    let rec private synTypeToTypeInfo (resolveTI: string -> TypeInfo option) (synType: SynType) : TypeInfo option =
         match synType with
         | SynType.LongIdent(SynLongIdent(id = idents)) ->
             let name = identToString idents
             let shortName = idents |> List.last |> fun i -> i.idText
             match primitiveKindOf shortName with
             | Some pk -> Some (mkPrimitiveTypeInfo shortName pk)
-            | None ->
-                match Map.tryFind name lookup with
-                | Some ti -> Some ti
-                | None -> Map.tryFind shortName lookup
+            | None -> resolveTI name
         | SynType.Tuple(_, segments, _) ->
             // Tuple segments interleave Type entries with Star separators; only Type
             // entries carry a SynType. We need every Type entry to resolve.
@@ -419,7 +416,7 @@ module internal RpcApiDiscovery =
                     match seg with
                     | SynTupleTypeSegment.Type t -> Some t
                     | _ -> None)
-            let elemTis = typeSegments |> List.choose (synTypeToTypeInfo lookup)
+            let elemTis = typeSegments |> List.choose (synTypeToTypeInfo resolveTI)
             if elemTis.Length = typeSegments.Length && elemTis.Length >= 2 then
                 let fields =
                     elemTis
@@ -434,9 +431,9 @@ module internal RpcApiDiscovery =
                        GenericArguments = [] }
             else None
         | SynType.Paren(inner, _) ->
-            synTypeToTypeInfo lookup inner
+            synTypeToTypeInfo resolveTI inner
         | SynType.Array(rank, elementType, _) ->
-            synTypeToTypeInfo lookup elementType
+            synTypeToTypeInfo resolveTI elementType
             |> Option.map (fun inner ->
                 { Namespace = None
                   EnclosingModules = []
@@ -509,7 +506,7 @@ module internal RpcApiDiscovery =
         acc
 
     /// Walk a parsed AST to find [<RpcApi>] interfaces and extract type names + method info.
-    let private findRpcApis (resolve: string -> string) (aliases: Map<string, SynType>) (lookup: Map<string, TypeInfo>) (filePath: string) (parseTree: ParsedInput) : RpcApiCollected =
+    let private findRpcApis (resolve: string -> string) (aliases: Map<string, SynType>) (resolveTI: string -> TypeInfo option) (filePath: string) (parseTree: ParsedInput) : RpcApiCollected =
         let collected = {
             TypeNames = ResizeArray<string>()
             Interfaces = ResizeArray<RpcInterfaceInfo>()
@@ -534,7 +531,7 @@ module internal RpcApiDiscovery =
                     walkSig arg
                     walkSig ret
                 | _ ->
-                    match synTypeToTypeInfo lookup st with
+                    match synTypeToTypeInfo resolveTI st with
                     | Some ti -> walkType ti
                     | None -> ()
             walkSig expanded
@@ -649,34 +646,75 @@ module internal RpcApiDiscovery =
                 else [ ti.TypeName ]
             baseName @ (ti.GenericArguments |> List.collect extractTypeNamesFromTypeInfo)
 
-    /// Resolve a (possibly partially-qualified) type name to its fully qualified name
-    /// using the lookup map. The lookup is keyed by short type name, so a reference
-    /// like `Auth.User` (User defined in nested module Auth) is resolved by falling back
-    /// to the last segment.
-    let private resolveTypeName (lookup: Map<string, TypeInfo>) (name: string) : string =
-        let buildFqn (ti: TypeInfo) =
-            let parts =
-                [ yield! ti.Namespace |> Option.toList
-                  yield! ti.EnclosingModules
-                  yield ti.TypeName ]
-            String.concat "." parts
-        match Map.tryFind name lookup with
-        | Some ti -> buildFqn ti
-        | None ->
+    /// Compute the segment list of a TypeInfo's fully qualified name.
+    /// e.g. `Namespace = Some "MyApp.Domain"; EnclosingModules = ["Forge"]; TypeName = "Project"`
+    /// → `["MyApp"; "Domain"; "Forge"; "Project"]`.
+    let private typeInfoFqnSegments (ti: TypeInfo) : string list =
+        let nsSegments =
+            match ti.Namespace with
+            | Some ns when not (System.String.IsNullOrWhiteSpace ns) ->
+                ns.Split('.') |> Array.toList
+            | _ -> []
+        nsSegments @ ti.EnclosingModules @ [ ti.TypeName ]
+
+    let private buildFqn (ti: TypeInfo) =
+        typeInfoFqnSegments ti |> String.concat "."
+
+    /// Build a map from any FQN suffix (joined by `.`) to the list of TypeInfos
+    /// whose FQN ends with that suffix. This lets a partially-qualified reference
+    /// like `Forge.Project` resolve unambiguously even when another module defines
+    /// a same-simple-named type.
+    let private buildSuffixLookup (allTypeInfos: TypeInfo list) : Map<string, TypeInfo list> =
+        let mutable acc : Map<string, TypeInfo list> = Map.empty
+        for ti in allTypeInfos do
+            let segs = typeInfoFqnSegments ti
+            let len = List.length segs
+            for n in 1 .. len do
+                let suffix = segs |> List.skip (len - n) |> String.concat "."
+                let existing = Map.tryFind suffix acc |> Option.defaultValue []
+                acc <- Map.add suffix (ti :: existing) acc
+        acc
+
+    /// Resolve a (possibly partially-qualified) type reference to a single TypeInfo.
+    /// Prefers a unique suffix match: `Forge.Project` will pick the TypeInfo whose
+    /// FQN segments end with `["Forge"; "Project"]` even when another module defines
+    /// a type named `Project`. Falls back to short-name lookup if no suffix matches
+    /// or the suffix is ambiguous.
+    let private resolveToTypeInfo
+            (shortLookup: Map<string, TypeInfo>)
+            (suffixLookup: Map<string, TypeInfo list>)
+            (name: string) : TypeInfo option =
+        match Map.tryFind name suffixLookup with
+        | Some [ ti ] -> Some ti
+        | Some (_ :: _) ->
             let dotIx = name.LastIndexOf '.'
-            if dotIx < 0 then name
-            else
-                let shortName = name.Substring(dotIx + 1)
-                match Map.tryFind shortName lookup with
-                | Some ti -> buildFqn ti
-                | None -> name
+            let shortName = if dotIx < 0 then name else name.Substring(dotIx + 1)
+            Map.tryFind shortName shortLookup
+        | _ ->
+            match Map.tryFind name shortLookup with
+            | Some ti -> Some ti
+            | None ->
+                let dotIx = name.LastIndexOf '.'
+                if dotIx < 0 then None
+                else Map.tryFind (name.Substring(dotIx + 1)) shortLookup
+
+    /// Resolve a (possibly partially-qualified) type name to its fully qualified name.
+    let private resolveTypeName (resolve: string -> TypeInfo option) (name: string) : string =
+        match resolve name with
+        | Some ti -> buildFqn ti
+        | None -> name
 
     /// Discover all types transitively referenced from [<RpcApi>] interfaces.
     /// Returns both discovered types (for codec generation) and interface metadata (for RPC dispatch modules).
     let discover (allTypeInfos: TypeInfo list) (sourceFiles: (string * string) list) : RpcDiscoveryResult =
-        // Build lookup early so we can resolve type names in method signatures
+        // Build lookups early so we can resolve type names in method signatures.
+        // The short-name lookup is used for transitive closure (which walks already-
+        // resolved TypeInfo fields by short name); the suffix lookup is used to
+        // disambiguate partially-qualified user references like `Forge.Project`.
         let lookup = buildLookup allTypeInfos
-        let resolve = resolveTypeName lookup
+        let suffixLookup = buildSuffixLookup allTypeInfos
+        let resolveTI = resolveToTypeInfo lookup suffixLookup
+        let resolve = resolveTypeName resolveTI
 
         // Step 0: Parse each .fs file once and collect type abbreviations globally
         // so they can be expanded inside RpcApi signatures (e.g., `type PageSize = int`).
@@ -698,7 +736,7 @@ module internal RpcApiDiscovery =
         let allCollected =
             parsedFiles
             |> List.map (fun (filePath, ast) ->
-                try findRpcApis resolve aliases lookup filePath ast
+                try findRpcApis resolve aliases resolveTI filePath ast
                 with _ ->
                     { TypeNames = ResizeArray<string>()
                       Interfaces = ResizeArray<RpcInterfaceInfo>()
