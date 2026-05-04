@@ -221,6 +221,11 @@ module internal RpcApiDiscovery =
             InputIsTupled = isTupled
             InputParams = inputParams
             OutputType = outputType
+            // TypeInfo fields populated in a later step; defaulted to None/[] for now
+            // so existing string-driven emitters continue to work unchanged.
+            InputTypeInfo = None
+            OutputTypeInfo = None
+            InputParamTypeInfos = []
         }
 
     /// Extract type names from an abstract member's SynValSig (after alias expansion).
@@ -396,9 +401,43 @@ module internal RpcApiDiscovery =
           GenericParameters = []
           GenericArguments = [] }
 
-    /// Convert a SynType to a TypeInfo where possible. Used to surface tuple types
-    /// that appear in RPC method signatures so the generator can emit codecs for them.
-    /// Returns None for unrecognised shapes.
+    /// Build a synthetic TypeInfo for a built-in / structural kind (Option,
+    /// List, Tuple, Result, ...). These don't exist as user-declared types.
+    let private mkSyntheticTypeInfo (typeName: string) (kind: TypeKind) : TypeInfo =
+        { Namespace = None
+          EnclosingModules = []
+          TypeName = typeName
+          Kind = kind
+          Attributes = []
+          GenericParameters = []
+          GenericArguments = [] }
+
+    /// Build a TypeInfo for a constructed generic. Used for Result<T,E> and
+    /// any user-defined generic seen with type arguments.
+    let private mkConstructedGeneric
+        (baseTi: TypeInfo option)
+        (typeName: string)
+        (args: TypeInfo list)
+        : TypeInfo
+        =
+        match baseTi with
+        | Some baseTi ->
+            { baseTi with
+                Kind = TypeKind.ConstructedGenericType
+                GenericArguments = args }
+        | None ->
+            { Namespace = None
+              EnclosingModules = []
+              TypeName = typeName
+              Kind = TypeKind.ConstructedGenericType
+              Attributes = []
+              GenericParameters = []
+              GenericArguments = args }
+
+    /// Convert a SynType to a TypeInfo where possible. Walks the type tree
+    /// structurally so the Fable emitter can drive codec naming + emission
+    /// from a single source of truth (no string parsing).
+    /// Returns None when a user type can't be resolved against `resolveTI`.
     let rec private synTypeToTypeInfo (resolveTI: string -> TypeInfo option) (synType: SynType) : TypeInfo option =
         match synType with
         | SynType.LongIdent(SynLongIdent(id = idents)) ->
@@ -406,7 +445,43 @@ module internal RpcApiDiscovery =
             let shortName = idents |> List.last |> fun i -> i.idText
             match primitiveKindOf shortName with
             | Some pk -> Some (mkPrimitiveTypeInfo shortName pk)
-            | None -> resolveTI name
+            | None ->
+                // Try qualified name first (e.g. "System.Guid"), then short.
+                match resolveTI name with
+                | Some _ as r -> r
+                | None -> resolveTI shortName
+
+        | SynType.App(typeName, _, typeArgs, _, _, _, _) ->
+            let baseName =
+                match typeName with
+                | SynType.LongIdent(SynLongIdent(id = idents)) -> identToString idents
+                | _ -> ""
+            let argInfos = typeArgs |> List.map (synTypeToTypeInfo resolveTI)
+            // Built-in collection / option / result wrappers emit structural Kinds.
+            match baseName, argInfos with
+            | ("option" | "Option"), [ Some inner ] ->
+                Some (mkSyntheticTypeInfo "option" (Option inner))
+            | ("list" | "List"), [ Some inner ] ->
+                Some (mkSyntheticTypeInfo "list" (List inner))
+            | ("array" | "Array"), [ Some inner ] ->
+                Some (mkSyntheticTypeInfo "array" (Array inner))
+            | ("seq" | "Seq"), [ Some inner ] ->
+                // Seq is treated as List for serialization purposes.
+                Some (mkSyntheticTypeInfo "list" (List inner))
+            | "Set", [ Some inner ] ->
+                Some (mkSyntheticTypeInfo "Set" (Set inner))
+            | "Map", [ Some k; Some v ] ->
+                Some (mkSyntheticTypeInfo "Map" (Map (k, v)))
+            | "Result", [ Some _; Some _ ] when argInfos |> List.forall Option.isSome ->
+                let args = argInfos |> List.choose id
+                Some (mkConstructedGeneric None "Result" args)
+            | _ when argInfos |> List.forall Option.isSome ->
+                // User-defined generic — look up the base definition and
+                // reshape it as a constructed generic with the arg TypeInfos.
+                let args = argInfos |> List.choose id
+                Some (mkConstructedGeneric (resolveTI baseName) baseName args)
+            | _ -> None
+
         | SynType.Tuple(_, segments, _) ->
             // Tuple segments interleave Type entries with Star separators; only Type
             // entries carry a SynType. We need every Type entry to resolve.
@@ -422,26 +497,24 @@ module internal RpcApiDiscovery =
                     elemTis
                     |> List.mapi (fun i ti ->
                         { Name = sprintf "Item%d" (i + 1); Type = ti; Attributes = [] } : FieldInfo)
-                Some { Namespace = None
-                       EnclosingModules = []
-                       TypeName = "tuple"
-                       Kind = Tuple fields
-                       Attributes = []
-                       GenericParameters = []
-                       GenericArguments = [] }
+                Some (mkSyntheticTypeInfo "tuple" (Tuple fields))
             else None
+
         | SynType.Paren(inner, _) ->
             synTypeToTypeInfo resolveTI inner
-        | SynType.Array(rank, elementType, _) ->
+
+        | SynType.Array(_, elementType, _) ->
             synTypeToTypeInfo resolveTI elementType
-            |> Option.map (fun inner ->
-                { Namespace = None
-                  EnclosingModules = []
-                  TypeName = "array"
-                  Kind = Array inner
-                  Attributes = []
-                  GenericParameters = []
-                  GenericArguments = [] })
+            |> Option.map (fun inner -> mkSyntheticTypeInfo "array" (Array inner))
+
+        | SynType.Var _ ->
+            // Open generic parameter — not resolvable at discovery time.
+            None
+
+        | SynType.Fun _ ->
+            // Function-typed members aren't supported as RPC payloads.
+            None
+
         | _ -> None
 
     /// Recursively walk a TypeInfo and collect any Tuple TypeInfos it contains

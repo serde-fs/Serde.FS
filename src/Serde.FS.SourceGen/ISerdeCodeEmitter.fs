@@ -1,5 +1,7 @@
 namespace Serde.FS
 
+open FSharp.SourceDjinn.TypeModel.Types
+
 type ISerdeCodeEmitter =
     abstract member Emit : SerdeTypeInfo -> string
     /// File suffix for per-type generated files (e.g. "json", "stj"). Produces "{TypeName}.{suffix}.g.fs".
@@ -19,6 +21,8 @@ type RpcMethodInfo = {
     MethodName: string
     /// F# type expression for the input parameter (e.g., "int", "SampleRpc.Order").
     /// For multi-arg methods declared as `A * B -> C`, this is the composite tuple type "A * B".
+    /// Used by string-driven emitters (e.g., RpcDispatchEmitter splices it into
+    /// `SerdeJson.deserialize<%s>`); structural emitters should prefer InputTypeInfo.
     InputType: string
     /// True when the abstract member was declared with a top-level tuple input
     /// (e.g., `abstract Foo: A * B -> C`), which F# treats as a multi-arg method.
@@ -27,8 +31,18 @@ type RpcMethodInfo = {
     /// When InputIsTupled is true, the per-parameter F# type expressions
     /// (e.g., ["A"; "B"]). Empty otherwise.
     InputParams: string list
-    /// F# type expression for the return type, unwrapped from Async/Task (e.g., "SampleRpc.Product")
+    /// F# type expression for the return type, unwrapped from Async/Task (e.g., "SampleRpc.Product").
+    /// See note on InputType — structural emitters should prefer OutputTypeInfo.
     OutputType: string
+    /// Structural TypeInfo for the input parameter, populated by RpcApiDiscovery.
+    /// None when the type could not be resolved against the discovery lookup
+    /// (the Fable emitter surfaces this as a build error).
+    InputTypeInfo: TypeInfo option
+    /// Structural TypeInfo for the return type (unwrapped from Async/Task).
+    OutputTypeInfo: TypeInfo option
+    /// When InputIsTupled is true, the per-parameter TypeInfos in declaration order.
+    /// Empty otherwise. An entry can itself be None for an unresolved per-parameter type.
+    InputParamTypeInfos: TypeInfo option list
 }
 
 /// Metadata for an [<RpcApi>] interface.
