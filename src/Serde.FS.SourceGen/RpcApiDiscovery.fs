@@ -181,191 +181,11 @@ module internal RpcApiDiscovery =
         | _ ->
             synTypeToString resolve synType
 
-    /// Extract the input type, multi-arg flag, per-param types, and return type from a method signature SynType.
-    /// For `A -> Async<B>`, returns (inputType="A", isTupled=false, inputParams=[], outputType="B").
-    /// For `A * B -> Async<C>` (multi-arg), returns (inputType="A * B", isTupled=true, inputParams=["A"; "B"], outputType="C").
-    /// For `(A * B) -> Async<C>` (single tuple arg), returns (inputType="A * B", isTupled=false, inputParams=[], outputType="C").
-    let private extractMethodTypes (resolve: string -> string) (synType: SynType) : string * bool * string list * string =
-        match synType with
-        | SynType.Fun(argType, returnType, _, _) ->
-            let outputStr = unwrapAsyncType resolve returnType
-            // Detect multi-arg: a top-level tuple (NOT wrapped in parens). F# treats
-            // `abstract Foo: A * B -> C` as a 2-arg method, but `(A * B) -> C` as a 1-arg
-            // method taking a tuple.
-            match argType with
-            | SynType.Tuple(_, segments, _) ->
-                let paramTypes =
-                    segments
-                    |> List.choose (fun seg ->
-                        match seg with
-                        | SynTupleTypeSegment.Type t -> Some (synTypeToString resolve t)
-                        | _ -> None)
-                let inputStr = paramTypes |> String.concat " * "
-                (inputStr, true, paramTypes, outputStr)
-            | _ ->
-                let inputStr = synTypeToString resolve argType
-                (inputStr, false, [], outputStr)
-        | _ ->
-            ("unit", false, [], synTypeToString resolve synType)
-
-    /// Extract method name and types from an abstract member's SynValSig.
-    /// Aliases are expanded before extracting type strings so `type PageSize = int`
-    /// resolves to `int` in method signatures.
-    let private extractMethodInfo (resolve: string -> string) (aliases: Map<string, SynType>) (valSig: SynValSig) : RpcMethodInfo option =
-        let (SynValSig(ident = SynIdent(ident, _); synType = synType)) = valSig
-        let expanded = expandAliases aliases synType
-        let inputType, isTupled, inputParams, outputType = extractMethodTypes resolve expanded
-        Some {
-            MethodName = ident.idText
-            InputType = inputType
-            InputIsTupled = isTupled
-            InputParams = inputParams
-            OutputType = outputType
-            // TypeInfo fields populated in a later step; defaulted to None/[] for now
-            // so existing string-driven emitters continue to work unchanged.
-            InputTypeInfo = None
-            OutputTypeInfo = None
-            InputParamTypeInfos = []
-        }
-
-    /// Extract type names from an abstract member's SynValSig (after alias expansion).
-    let private extractFromValSig (aliases: Map<string, SynType>) (valSig: SynValSig) : string list =
-        let (SynValSig(synType = synType)) = valSig
-        let expanded = expandAliases aliases synType
-        collectTypeNames expanded
-
-    /// Parsed [<RpcApi>] attribute properties.
-    type private RpcApiAttrProps = {
-        Root: string option
-        Version: string option
-        UrlCaseValue: int
-    }
-
-    /// Parsed [<GenerateFableClient>] attribute properties.
-    type private FableClientAttrProps = {
-        OutputDir: string option
-    }
-
-    /// Try to extract a string constant from a SynExpr.
-    let private tryGetStringConst (expr: SynExpr) =
-        match expr with
-        | SynExpr.Const(SynConst.String(s, _, _), _) -> Some s
-        | _ -> None
-
-    /// Try to extract an int constant from a SynExpr (for enum values).
-    let private tryGetIntConst (expr: SynExpr) =
-        match expr with
-        | SynExpr.Const(SynConst.Int32 i, _) -> Some i
-        | _ -> None
-
-    /// Try to extract a named arg value from a SynExpr like `Name = value` or `Name = Enum.Case`.
-    let private tryExtractNamedArg (expr: SynExpr) : (string * SynExpr) option =
-        match expr with
-        | SynExpr.App(_, _,
-            SynExpr.App(_, true, _, SynExpr.Ident(nameIdent), _),
-            valueExpr, _) ->
-                Some (nameIdent.idText, valueExpr)
-        | _ -> None
-
-    /// Resolve a UrlCase enum reference like `UrlCase.Kebab` to its int value.
-    let private resolveUrlCaseValue (expr: SynExpr) : int =
-        match expr with
-        | SynExpr.LongIdent(_, SynLongIdent(id = idents), _, _) ->
-            let name = idents |> List.last |> fun i -> i.idText
-            match name with
-            | "Kebab" -> 1
-            | _ -> 0  // Default
-        | SynExpr.Ident(ident) ->
-            match ident.idText with
-            | "Kebab" -> 1
-            | _ -> 0
-        | _ ->
-            match tryGetIntConst expr with
-            | Some i -> i
-            | None -> 0
-
-    /// Try to find and parse the [<RpcApi>] attribute from a SynComponentInfo.
-    /// Returns None if the attribute is not present.
-    let private tryGetRpcApiAttr (synComponentInfo: SynComponentInfo) : RpcApiAttrProps option =
-        let (SynComponentInfo(attributes = attrs)) = synComponentInfo
-        let rpcApiAttr =
-            attrs
-            |> List.tryPick (fun attrList ->
-                attrList.Attributes
-                |> List.tryFind (fun attr ->
-                    match attr.TypeName with
-                    | SynLongIdent(id = idents) ->
-                        let name = identToString idents
-                        rpcApiAttrNames.Contains name))
-        match rpcApiAttr with
-        | None -> None
-        | Some attr ->
-            let mutable root = None
-            let mutable version = None
-            let mutable urlCaseValue = 0
-
-            // Parse named args from the attribute constructor
-            let parseArgs (argExpr: SynExpr) =
-                let processArg expr =
-                    match tryExtractNamedArg expr with
-                    | Some ("Root", valExpr) -> root <- tryGetStringConst valExpr
-                    | Some ("Version", valExpr) -> version <- tryGetStringConst valExpr
-                    | Some ("UrlCase", valExpr) -> urlCaseValue <- resolveUrlCaseValue valExpr
-                    | _ -> ()
-
-                match argExpr with
-                | SynExpr.Const(SynConst.Unit, _) -> ()
-                | SynExpr.Paren(SynExpr.Const(SynConst.Unit, _), _, _, _) -> ()
-                | SynExpr.Paren(SynExpr.Tuple(_, exprs, _, _), _, _, _) ->
-                    for expr in exprs do processArg expr
-                | SynExpr.Paren(inner, _, _, _) -> processArg inner
-                | other -> processArg other
-
-            parseArgs attr.ArgExpr
-            Some { Root = root; Version = version; UrlCaseValue = urlCaseValue }
-
-    /// Try to find and parse the [<GenerateFableClient>] attribute from a SynComponentInfo.
-    /// Returns None if the attribute is not present.
-    let private tryGetFableClientAttr (synComponentInfo: SynComponentInfo) : FableClientAttrProps option =
-        let (SynComponentInfo(attributes = attrs)) = synComponentInfo
-        let fableAttr =
-            attrs
-            |> List.tryPick (fun attrList ->
-                attrList.Attributes
-                |> List.tryFind (fun attr ->
-                    match attr.TypeName with
-                    | SynLongIdent(id = idents) ->
-                        let name = identToString idents
-                        generateFableClientAttrNames.Contains name))
-        match fableAttr with
-        | None -> None
-        | Some attr ->
-            let mutable outputDir = None
-
-            let parseArgs (argExpr: SynExpr) =
-                let processArg expr =
-                    match tryExtractNamedArg expr with
-                    | Some ("OutputDir", valExpr) -> outputDir <- tryGetStringConst valExpr
-                    | _ -> ()
-
-                match argExpr with
-                | SynExpr.Const(SynConst.Unit, _) -> ()
-                | SynExpr.Paren(SynExpr.Const(SynConst.Unit, _), _, _, _) -> ()
-                | SynExpr.Paren(SynExpr.Tuple(_, exprs, _, _), _, _, _) ->
-                    for expr in exprs do processArg expr
-                | SynExpr.Paren(inner, _, _, _) -> processArg inner
-                | other -> processArg other
-
-            parseArgs attr.ArgExpr
-            Some { OutputDir = outputDir }
-
-    /// Get the fully qualified name from a SynComponentInfo in the context of a namespace/modules.
-    let private getTypeName (ns: string option) (modules: string list) (synComponentInfo: SynComponentInfo) : string * string =
-        let (SynComponentInfo(longId = typeNameIdent)) = synComponentInfo
-        let shortName = typeNameIdent |> List.map (fun i -> i.idText) |> String.concat "."
-        let parts = [ yield! ns |> Option.toList; yield! modules; yield shortName ]
-        let fullName = String.concat "." parts
-        (fullName, shortName)
+    // ── Structural TypeInfo extraction ─────────────────────────────────────
+    // Sibling of synTypeToString. Walks SynType and produces a TypeInfo that
+    // emitters (like FableClientEmitter) can drive directly. This is the
+    // single source of truth for type structure — no string parsing needed
+    // downstream.
 
     /// Map a primitive name to its PrimitiveKind, or None if not a primitive.
     let private primitiveKindOf (name: string) : PrimitiveKind option =
@@ -517,6 +337,245 @@ module internal RpcApiDiscovery =
 
         | _ -> None
 
+    /// Unwrap Async<T> or Task<T> and return the inner TypeInfo.
+    let rec private unwrapAsyncTypeInfo (resolveTI: string -> TypeInfo option) (synType: SynType) : TypeInfo option =
+        match synType with
+        | SynType.App(typeName, _, [ innerType ], _, _, _, _) ->
+            let baseName =
+                match typeName with
+                | SynType.LongIdent(SynLongIdent(id = idents)) -> identToString idents
+                | _ -> ""
+            if asyncWrapperNames.Contains baseName then
+                synTypeToTypeInfo resolveTI innerType
+            else
+                synTypeToTypeInfo resolveTI synType
+        | SynType.Paren(innerType, _) ->
+            unwrapAsyncTypeInfo resolveTI innerType
+        | _ ->
+            synTypeToTypeInfo resolveTI synType
+
+    /// Extract the input type, multi-arg flag, per-param types, and return type from a method signature SynType.
+    /// For `A -> Async<B>`, returns (inputType="A", isTupled=false, inputParams=[], outputType="B").
+    /// For `A * B -> Async<C>` (multi-arg), returns (inputType="A * B", isTupled=true, inputParams=["A"; "B"], outputType="C").
+    /// For `(A * B) -> Async<C>` (single tuple arg), returns (inputType="A * B", isTupled=false, inputParams=[], outputType="C").
+    let private extractMethodTypes (resolve: string -> string) (synType: SynType) : string * bool * string list * string =
+        match synType with
+        | SynType.Fun(argType, returnType, _, _) ->
+            let outputStr = unwrapAsyncType resolve returnType
+            // Detect multi-arg: a top-level tuple (NOT wrapped in parens). F# treats
+            // `abstract Foo: A * B -> C` as a 2-arg method, but `(A * B) -> C` as a 1-arg
+            // method taking a tuple.
+            match argType with
+            | SynType.Tuple(_, segments, _) ->
+                let paramTypes =
+                    segments
+                    |> List.choose (fun seg ->
+                        match seg with
+                        | SynTupleTypeSegment.Type t -> Some (synTypeToString resolve t)
+                        | _ -> None)
+                let inputStr = paramTypes |> String.concat " * "
+                (inputStr, true, paramTypes, outputStr)
+            | _ ->
+                let inputStr = synTypeToString resolve argType
+                (inputStr, false, [], outputStr)
+        | _ ->
+            ("unit", false, [], synTypeToString resolve synType)
+
+    /// Extract method name and types from an abstract member's SynValSig.
+    /// Aliases are expanded before extracting type strings so `type PageSize = int`
+    /// resolves to `int` in method signatures.
+    let private extractMethodInfo
+        (resolve: string -> string)
+        (resolveTI: string -> TypeInfo option)
+        (aliases: Map<string, SynType>)
+        (valSig: SynValSig)
+        : RpcMethodInfo option
+        =
+        let (SynValSig(ident = SynIdent(ident, _); synType = synType)) = valSig
+        let expanded = expandAliases aliases synType
+        let inputType, isTupled, inputParams, outputType = extractMethodTypes resolve expanded
+
+        // Walk the same expanded SynType to produce structural TypeInfos.
+        let inputTypeInfo, inputParamTypeInfos, outputTypeInfo =
+            match expanded with
+            | SynType.Fun(argType, returnType, _, _) ->
+                let outputTI = unwrapAsyncTypeInfo resolveTI returnType
+                match argType with
+                | SynType.Tuple(_, segments, _) ->
+                    // Multi-arg method: `abstract Foo: A * B -> C`
+                    let perParam =
+                        segments
+                        |> List.choose (fun seg ->
+                            match seg with
+                            | SynTupleTypeSegment.Type t -> Some (synTypeToTypeInfo resolveTI t)
+                            | _ -> None)
+                    let composite = synTypeToTypeInfo resolveTI argType
+                    composite, perParam, outputTI
+                | _ ->
+                    let inputTI = synTypeToTypeInfo resolveTI argType
+                    inputTI, [], outputTI
+            | _ ->
+                // Property-style member with no arrow: input is unit, the entire
+                // type is the output.
+                let unitTI =
+                    primitiveKindOf "unit"
+                    |> Option.map (mkPrimitiveTypeInfo "unit")
+                unitTI, [], synTypeToTypeInfo resolveTI expanded
+
+        Some {
+            MethodName = ident.idText
+            InputType = inputType
+            InputIsTupled = isTupled
+            InputParams = inputParams
+            OutputType = outputType
+            InputTypeInfo = inputTypeInfo
+            OutputTypeInfo = outputTypeInfo
+            InputParamTypeInfos = inputParamTypeInfos
+        }
+
+    /// Extract type names from an abstract member's SynValSig (after alias expansion).
+    let private extractFromValSig (aliases: Map<string, SynType>) (valSig: SynValSig) : string list =
+        let (SynValSig(synType = synType)) = valSig
+        let expanded = expandAliases aliases synType
+        collectTypeNames expanded
+
+    /// Parsed [<RpcApi>] attribute properties.
+    type private RpcApiAttrProps = {
+        Root: string option
+        Version: string option
+        UrlCaseValue: int
+    }
+
+    /// Parsed [<GenerateFableClient>] attribute properties.
+    type private FableClientAttrProps = {
+        OutputDir: string option
+    }
+
+    /// Try to extract a string constant from a SynExpr.
+    let private tryGetStringConst (expr: SynExpr) =
+        match expr with
+        | SynExpr.Const(SynConst.String(s, _, _), _) -> Some s
+        | _ -> None
+
+    /// Try to extract an int constant from a SynExpr (for enum values).
+    let private tryGetIntConst (expr: SynExpr) =
+        match expr with
+        | SynExpr.Const(SynConst.Int32 i, _) -> Some i
+        | _ -> None
+
+    /// Try to extract a named arg value from a SynExpr like `Name = value` or `Name = Enum.Case`.
+    let private tryExtractNamedArg (expr: SynExpr) : (string * SynExpr) option =
+        match expr with
+        | SynExpr.App(_, _,
+            SynExpr.App(_, true, _, SynExpr.Ident(nameIdent), _),
+            valueExpr, _) ->
+                Some (nameIdent.idText, valueExpr)
+        | _ -> None
+
+    /// Resolve a UrlCase enum reference like `UrlCase.Kebab` to its int value.
+    let private resolveUrlCaseValue (expr: SynExpr) : int =
+        match expr with
+        | SynExpr.LongIdent(_, SynLongIdent(id = idents), _, _) ->
+            let name = idents |> List.last |> fun i -> i.idText
+            match name with
+            | "Kebab" -> 1
+            | _ -> 0  // Default
+        | SynExpr.Ident(ident) ->
+            match ident.idText with
+            | "Kebab" -> 1
+            | _ -> 0
+        | _ ->
+            match tryGetIntConst expr with
+            | Some i -> i
+            | None -> 0
+
+    /// Try to find and parse the [<RpcApi>] attribute from a SynComponentInfo.
+    /// Returns None if the attribute is not present.
+    let private tryGetRpcApiAttr (synComponentInfo: SynComponentInfo) : RpcApiAttrProps option =
+        let (SynComponentInfo(attributes = attrs)) = synComponentInfo
+        let rpcApiAttr =
+            attrs
+            |> List.tryPick (fun attrList ->
+                attrList.Attributes
+                |> List.tryFind (fun attr ->
+                    match attr.TypeName with
+                    | SynLongIdent(id = idents) ->
+                        let name = identToString idents
+                        rpcApiAttrNames.Contains name))
+        match rpcApiAttr with
+        | None -> None
+        | Some attr ->
+            let mutable root = None
+            let mutable version = None
+            let mutable urlCaseValue = 0
+
+            // Parse named args from the attribute constructor
+            let parseArgs (argExpr: SynExpr) =
+                let processArg expr =
+                    match tryExtractNamedArg expr with
+                    | Some ("Root", valExpr) -> root <- tryGetStringConst valExpr
+                    | Some ("Version", valExpr) -> version <- tryGetStringConst valExpr
+                    | Some ("UrlCase", valExpr) -> urlCaseValue <- resolveUrlCaseValue valExpr
+                    | _ -> ()
+
+                match argExpr with
+                | SynExpr.Const(SynConst.Unit, _) -> ()
+                | SynExpr.Paren(SynExpr.Const(SynConst.Unit, _), _, _, _) -> ()
+                | SynExpr.Paren(SynExpr.Tuple(_, exprs, _, _), _, _, _) ->
+                    for expr in exprs do processArg expr
+                | SynExpr.Paren(inner, _, _, _) -> processArg inner
+                | other -> processArg other
+
+            parseArgs attr.ArgExpr
+            Some { Root = root; Version = version; UrlCaseValue = urlCaseValue }
+
+    /// Try to find and parse the [<GenerateFableClient>] attribute from a SynComponentInfo.
+    /// Returns None if the attribute is not present.
+    let private tryGetFableClientAttr (synComponentInfo: SynComponentInfo) : FableClientAttrProps option =
+        let (SynComponentInfo(attributes = attrs)) = synComponentInfo
+        let fableAttr =
+            attrs
+            |> List.tryPick (fun attrList ->
+                attrList.Attributes
+                |> List.tryFind (fun attr ->
+                    match attr.TypeName with
+                    | SynLongIdent(id = idents) ->
+                        let name = identToString idents
+                        generateFableClientAttrNames.Contains name))
+        match fableAttr with
+        | None -> None
+        | Some attr ->
+            let mutable outputDir = None
+
+            let parseArgs (argExpr: SynExpr) =
+                let processArg expr =
+                    match tryExtractNamedArg expr with
+                    | Some ("OutputDir", valExpr) -> outputDir <- tryGetStringConst valExpr
+                    | _ -> ()
+
+                match argExpr with
+                | SynExpr.Const(SynConst.Unit, _) -> ()
+                | SynExpr.Paren(SynExpr.Const(SynConst.Unit, _), _, _, _) -> ()
+                | SynExpr.Paren(SynExpr.Tuple(_, exprs, _, _), _, _, _) ->
+                    for expr in exprs do processArg expr
+                | SynExpr.Paren(inner, _, _, _) -> processArg inner
+                | other -> processArg other
+
+            parseArgs attr.ArgExpr
+            Some { OutputDir = outputDir }
+
+    /// Get the fully qualified name from a SynComponentInfo in the context of a namespace/modules.
+    let private getTypeName (ns: string option) (modules: string list) (synComponentInfo: SynComponentInfo) : string * string =
+        let (SynComponentInfo(longId = typeNameIdent)) = synComponentInfo
+        let shortName = typeNameIdent |> List.map (fun i -> i.idText) |> String.concat "."
+        let parts = [ yield! ns |> Option.toList; yield! modules; yield shortName ]
+        let fullName = String.concat "." parts
+        (fullName, shortName)
+
+    // Note: primitiveKindOf, mkPrimitiveTypeInfo, mkSyntheticTypeInfo,
+    // mkConstructedGeneric, and synTypeToTypeInfo are defined earlier in the
+    // file (alongside synTypeToString) so extractMethodInfo can use them.
+
     /// Recursively walk a TypeInfo and collect any Tuple TypeInfos it contains
     /// (including nested ones inside Option/List/etc.).
     let rec private collectTuples (ti: TypeInfo) (acc: TypeInfo list) : TypeInfo list =
@@ -588,7 +647,7 @@ module internal RpcApiDiscovery =
 
         let processAbstractSlot (methods: ResizeArray<RpcMethodInfo>) (slotSig: SynValSig) =
             collected.TypeNames.AddRange(extractFromValSig aliases slotSig)
-            match extractMethodInfo resolve aliases slotSig with
+            match extractMethodInfo resolve resolveTI aliases slotSig with
             | Some mi -> methods.Add(mi)
             | None -> ()
             // Surface tuple types from input/output signatures so codecs get emitted.
