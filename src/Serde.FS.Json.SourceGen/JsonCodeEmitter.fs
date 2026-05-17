@@ -860,11 +860,47 @@ type JsonCodeEmitter() =
                 let code = RpcDispatchEmitter.emit iface
                 (hintName, code))
         member _.EmitCrossProjectFiles(interfaces, types) =
-            interfaces
-            |> List.filter (fun iface -> iface.GenerateFableClient)
-            |> List.choose (fun iface ->
-                match FableClientEmitter.resolveOutputPath iface with
-                | Some path ->
-                    let code = FableClientEmitter.emit iface types
-                    Some (path, code)
-                | None -> None)
+            let files = ResizeArray<string * string>()
+            let errs = ResizeArray<string>()
+
+            // For each interface annotated with [<GenerateFableClient>], verify
+            // discovery resolved a TypeInfo for every type referenced in every
+            // method (input/output/per-param). Missing TypeInfos mean the Fable
+            // emitter can't compute a codec reference safely — surface a
+            // clickable MSBuild diagnostic instead of emitting broken code.
+            for iface in interfaces do
+                if iface.GenerateFableClient then
+                    let unresolved =
+                        [ for m in iface.Methods do
+                              if m.InputType <> "unit" && not m.InputIsTupled
+                                 && m.InputTypeInfo.IsNone then
+                                  yield sprintf "%s input '%s'" m.MethodName m.InputType
+                              if m.InputIsTupled then
+                                  for i in 0 .. m.InputParams.Length - 1 do
+                                      let tiOpt =
+                                          if i < m.InputParamTypeInfos.Length
+                                          then m.InputParamTypeInfos.[i]
+                                          else None
+                                      if tiOpt.IsNone then
+                                          yield sprintf "%s param[%d] '%s'" m.MethodName i m.InputParams.[i]
+                              if m.OutputTypeInfo.IsNone then
+                                  yield sprintf "%s output '%s'" m.MethodName m.OutputType ]
+
+                    if List.isEmpty unresolved then
+                        match FableClientEmitter.resolveOutputPath iface with
+                        | Some path ->
+                            let code = FableClientEmitter.emit iface types
+                            files.Add (path, code)
+                        | None -> ()
+                    else
+                        let srcPath =
+                            iface.SourceFilePath
+                            |> Option.defaultValue "<unknown>"
+                        errs.Add (
+                            sprintf
+                                "%s(1,1): error SerdeFS102: [<GenerateFableClient>] on '%s' cannot resolve type(s) for %s. Ensure each referenced type is declared in a project source file walked by Serde."
+                                srcPath
+                                iface.FullName
+                                (String.concat "; " unresolved))
+
+            { Files = List.ofSeq files; Errors = List.ofSeq errs }

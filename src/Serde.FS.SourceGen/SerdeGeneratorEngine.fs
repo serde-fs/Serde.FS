@@ -537,9 +537,12 @@ module SerdeGeneratorEngine =
                 | :? ISerdeRpcEmitter as rpcEmitter ->
                     for (hintName, code) in rpcEmitter.EmitRpcModules(rpcDiscoveryResult.Interfaces) do
                         generatedSources.Add({ HintName = hintName; Code = code; AbsolutePath = None })
-                    for (absPath, code) in rpcEmitter.EmitCrossProjectFiles(rpcDiscoveryResult.Interfaces, Seq.toList allTypes) do
+                    let crossResult = rpcEmitter.EmitCrossProjectFiles(rpcDiscoveryResult.Interfaces, Seq.toList allTypes)
+                    for (absPath, code) in crossResult.Files do
                         let hint = System.IO.Path.GetFileName(absPath)
                         generatedSources.Add({ HintName = hint; Code = code; AbsolutePath = Some absPath })
+                    for err in crossResult.Errors do
+                        errors.Add err
                 | _ -> ()
 
             // Emit entry point wrapper only when (a) something else was generated for

@@ -55,11 +55,21 @@ let main argv =
         let emitter = JsonCodeEmitter() :> Serde.FS.ISerdeCodeEmitter
         let result = SerdeGeneratorEngine.generate sourceFiles emitter
 
-        // Report warnings and errors
+        // Report warnings and errors. Strings that already follow MSBuild's
+        //   "path(line,col): error CODE: message"
+        // shape are forwarded verbatim so MSBuild surfaces them as clickable
+        // compile errors in the user's IDE. Plain strings get the legacy
+        // "ERROR:" / "WARNING:" prefix.
+        let isMsBuildFormatted (s: string) =
+            s.Contains(": error ", System.StringComparison.Ordinal)
+            || s.Contains(": warning ", System.StringComparison.Ordinal)
+
         for warning in result.Warnings do
-            eprintfn "WARNING: %s" warning
+            if isMsBuildFormatted warning then eprintfn "%s" warning
+            else eprintfn "WARNING: %s" warning
         for error in result.Errors do
-            eprintfn "ERROR: %s" error
+            if isMsBuildFormatted error then eprintfn "%s" error
+            else eprintfn "ERROR: %s" error
 
         if not (List.isEmpty result.Errors) then
             1

@@ -9,6 +9,7 @@
 module Serde.FS.SourceGen.Tests.Fable.FableClientEmitterTests
 
 open NUnit.Framework
+open Serde.FS
 open Serde.FS.Json.SourceGen
 open Serde.FS.SourceGen.Tests.Fable
 open Serde.FS.SourceGen.Tests.Fable.SyntheticTypes
@@ -44,6 +45,36 @@ let ``record with primitive fields under a top-level module`` () =
     let types = [ toSerde productTi ]
     let actual = FableClientEmitter.emit iface types
     SnapshotHarness.assertSnapshot "record_primitives_module" actual
+
+[<Test>]
+let ``unresolved type yields SerdeFS102 and skips file emission`` () =
+    // Build an interface whose output TypeInfo is None — simulating discovery
+    // failing to resolve a type. JsonCodeEmitter.EmitCrossProjectFiles must
+    // produce an MSBuild-format diagnostic and emit no file.
+    let brokenMethod =
+        { MethodName = "GetMystery"
+          InputType = "int"
+          InputIsTupled = false
+          InputParams = []
+          OutputType = "Mystery.Type.That.Does.Not.Resolve"
+          InputTypeInfo = Some int32Ti
+          OutputTypeInfo = None
+          InputParamTypeInfos = [] }
+
+    let iface =
+        { (interfaceOf "Domain" "IBrokenApi" [ brokenMethod ] true) with
+            SourceFilePath = Some "/tmp/Domain/Api.fs" }
+
+    let emitter = JsonCodeEmitter() :> ISerdeRpcEmitter
+    let result = emitter.EmitCrossProjectFiles([ iface ], [])
+
+    Assert.That(result.Files, Is.Empty, "no file should be emitted when a method's TypeInfo is None")
+    Assert.That(result.Errors.Length, Is.EqualTo(1))
+    let err = result.Errors.[0]
+    Assert.That(err, Does.Contain("error SerdeFS102"))
+    Assert.That(err, Does.Contain("'Domain.IBrokenApi'"))
+    Assert.That(err, Does.Contain("GetMystery output"))
+    Assert.That(err, Does.StartWith("/tmp/Domain/Api.fs(1,1):"))
 
 [<Test>]
 let ``multi-case union with mixed cases`` () =

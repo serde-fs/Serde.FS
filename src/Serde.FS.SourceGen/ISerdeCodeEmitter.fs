@@ -82,13 +82,23 @@ type RpcDiscoveryResult = {
     Interfaces: RpcInterfaceInfo list
 }
 
+/// Result of cross-project emission for an RPC backend.
+///   Files  — (absolutePath, code) pairs to write to disk.
+///   Errors — MSBuild-format diagnostic strings of the form
+///            `"path(line,col): error CODE: message"`. The GeneratorHost
+///            forwards these verbatim so MSBuild surfaces them as clickable
+///            compile errors in the user's IDE.
+type CrossProjectEmitResult = {
+    Files: (string * string) list
+    Errors: string list
+}
+
 type ISerdeRpcEmitter =
     /// Emit RPC dispatch modules for [<RpcApi>] interfaces.
     /// Returns (hintName, code) pairs for each interface.
     abstract member EmitRpcModules : RpcInterfaceInfo list -> (string * string) list
     /// Emit cross-project files (e.g. Fable client) for [<RpcApi>] interfaces.
-    /// Returns (absolutePath, code) pairs.
-    abstract member EmitCrossProjectFiles : RpcInterfaceInfo list * SerdeTypeInfo list -> (string * string) list
+    abstract member EmitCrossProjectFiles : RpcInterfaceInfo list * SerdeTypeInfo list -> CrossProjectEmitResult
 
 module SerdeCodegenRegistry =
     let mutable private defaultEmitter : ISerdeCodeEmitter option = None
