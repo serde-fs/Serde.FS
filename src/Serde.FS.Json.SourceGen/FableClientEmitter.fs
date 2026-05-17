@@ -28,22 +28,6 @@ module internal FableClientEmitter =
         | FUser of codecName: string * fsharpType: string
         | FUnknown of string
 
-    let private primitiveNames =
-        set [
-            "int"; "int8"; "int16"; "int32"; "int64"
-            "uint8"; "uint16"; "uint32"; "uint64"
-            "byte"; "sbyte"
-            "string"; "bool"
-            "float"; "double"; "single"; "float32"; "decimal"
-            "unit"
-            "Guid"; "System.Guid"
-            "DateTime"; "System.DateTime"
-            "DateTimeOffset"; "System.DateTimeOffset"
-            "TimeSpan"; "System.TimeSpan"
-            "DateOnly"; "System.DateOnly"
-            "TimeOnly"; "System.TimeOnly"
-        ]
-
     /// Canonical short string for a PrimitiveKind case.
     let private primitiveKindToName (pk: Types.PrimitiveKind) : string =
         match pk with
@@ -80,23 +64,6 @@ module internal FableClientEmitter =
             .Replace("]", "_")
             .Replace(" ", "")
 
-    let private normalizePrimitive (name: string) =
-        match name with
-        | "System.Int32" | "int32" -> "int"
-        | "System.Int64" -> "int64"
-        | "System.String" -> "string"
-        | "System.Boolean" -> "bool"
-        | "System.Decimal" -> "decimal"
-        | "System.Double" | "double" -> "float"
-        | "System.Single" | "single" -> "float32"
-        | "System.Byte" -> "byte"
-        | "System.SByte" | "int8" -> "sbyte"
-        | "System.Int16" -> "int16"
-        | "System.UInt16" | "uint8" -> "byte"
-        | "System.UInt32" -> "uint32"
-        | "System.UInt64" -> "uint64"
-        | other -> other
-
     /// Codec-module name built from a TypeInfo.
     let rec private codecModuleNameFromTi (ti: Types.TypeInfo) : string =
         if not ti.GenericArguments.IsEmpty then
@@ -104,13 +71,6 @@ module internal FableClientEmitter =
             sanitize ti.TypeName + argPart + "Codec"
         else
             sanitize ti.TypeName + "Codec"
-
-    let private fqnOfTypeInfo (ti: Types.TypeInfo) =
-        let parts =
-            [ yield! ti.Namespace |> Option.toList
-              yield! ti.EnclosingModules
-              yield ti.TypeName ]
-        String.concat "." parts
 
     /// Convert a SourceDjinn TypeInfo into a FableTypeExpr.
     let rec private fromTypeInfo (ti: Types.TypeInfo) : FableTypeExpr =
@@ -131,142 +91,6 @@ module internal FableClientEmitter =
         | Types.Record _ | Types.AnonymousRecord _ | Types.Union _ | Types.Enum _ ->
             FUser (codecModuleNameFromTi ti, Types.typeInfoToFqFSharpType ti)
         | _ -> FUnknown (Types.typeInfoToFqFSharpType ti)
-
-    // ── Parser for F# type-expression strings emitted by RpcApiDiscovery ────
-
-    /// Split a generic argument list like "Product, string" at top-level commas,
-    /// respecting nested < > pairs.
-    let private splitTopLevelCommas (s: string) : string list =
-        let result = ResizeArray<string>()
-        let mutable depth = 0
-        let mutable start = 0
-        for i in 0 .. s.Length - 1 do
-            match s.[i] with
-            | '<' | '(' | '[' -> depth <- depth + 1
-            | '>' | ')' | ']' -> depth <- depth - 1
-            | ',' when depth = 0 ->
-                result.Add(s.Substring(start, i - start))
-                start <- i + 1
-            | _ -> ()
-        result.Add(s.Substring(start))
-        result |> List.ofSeq |> List.map (fun s -> s.Trim())
-
-    /// Split at top-level '*' (for tuple types) respecting nested delimiters.
-    let private splitTopLevelStars (s: string) : string list =
-        let result = ResizeArray<string>()
-        let mutable depth = 0
-        let mutable i = 0
-        let mutable start = 0
-        while i < s.Length do
-            let c = s.[i]
-            match c with
-            | '<' | '(' | '[' -> depth <- depth + 1
-            | '>' | ')' | ']' -> depth <- depth - 1
-            | '*' when depth = 0 ->
-                result.Add(s.Substring(start, i - start))
-                start <- i + 1
-            | _ -> ()
-            i <- i + 1
-        result.Add(s.Substring(start))
-        result |> List.ofSeq |> List.map (fun s -> s.Trim())
-
-    /// Resolve an atom identifier (possibly FQN) into a FableTypeExpr.
-    /// types : lookup from FQN → SerdeTypeInfo (for user types).
-    let private resolveAtom (lookup: Map<string, SerdeTypeInfo>) (name: string) : FableTypeExpr =
-        let name = name.Trim()
-        let lastSegment (s: string) =
-            let i = s.LastIndexOf('.')
-            if i >= 0 then s.Substring(i + 1) else s
-        if name = "unit" then FUnit
-        elif primitiveNames.Contains name then FPrim (normalizePrimitive name)
-        else
-            // Try the name as-is first (matches FQN entries in the lookup), then
-            // fall back to the last segment (matches short-name entries the
-            // emitter populates for unqualified references).
-            let lookupResult =
-                match Map.tryFind name lookup with
-                | Some _ as r -> r
-                | None -> Map.tryFind (lastSegment name) lookup
-            match lookupResult with
-            | Some sti ->
-                FUser (codecModuleNameFromTi sti.Raw, Types.typeInfoToFqFSharpType sti.Raw)
-            | None ->
-                // Fallback: synthesize a codec reference using the *last segment*
-                // (matching emitTypeCodec's `sanitize ti.TypeName + "Codec"` shape).
-                // If we instead sanitized the full FQN we would emit
-                // `Foo_Bar_UserCodec` here while the emitted codec module is just
-                // `UserCodec`, producing a "not defined" error in the generated file.
-                FUser (sanitize (lastSegment name) + "Codec", name)
-
-    /// Parse an F# type expression string into a FableTypeExpr.
-    let rec private parseTypeString (lookup: Map<string, SerdeTypeInfo>) (raw: string) : FableTypeExpr =
-        let s = raw.Trim()
-        if s.Length = 0 then FUnknown raw
-        // Strip enclosing parentheses
-        elif s.StartsWith("(") && s.EndsWith(")") then
-            parseTypeString lookup (s.Substring(1, s.Length - 2))
-        else
-            // Tuple: "A * B * C" at top level
-            let tupleParts = splitTopLevelStars s
-            if tupleParts.Length > 1 then
-                FTuple (tupleParts |> List.map (parseTypeString lookup))
-            // Array: "T[]"
-            elif s.EndsWith("[]") then
-                FArray (parseTypeString lookup (s.Substring(0, s.Length - 2)))
-            else
-                // Postfix suffix: "T option", "T list", "T array", "T seq"
-                let postfix = [ " option"; " list"; " array"; " seq" ]
-                let matched =
-                    postfix |> List.tryFind (fun p -> s.EndsWith(p))
-                match matched with
-                | Some " option" -> FOption (parseTypeString lookup (s.Substring(0, s.Length - 7)))
-                | Some " list" -> FList (parseTypeString lookup (s.Substring(0, s.Length - 5)))
-                | Some " array" -> FArray (parseTypeString lookup (s.Substring(0, s.Length - 6)))
-                | Some " seq" -> FList (parseTypeString lookup (s.Substring(0, s.Length - 4)))
-                | _ ->
-                    // Generic: Foo<A, B>  (only top-level < ... >)
-                    let ltIdx = s.IndexOf('<')
-                    if ltIdx > 0 && s.EndsWith(">") then
-                        let head = s.Substring(0, ltIdx).Trim()
-                        let inner = s.Substring(ltIdx + 1, s.Length - ltIdx - 2)
-                        let args = splitTopLevelCommas inner |> List.map (parseTypeString lookup)
-                        match head, args with
-                        | "Result", [ ok; err ] -> FResult (ok, err)
-                        | "option", [ inner ] | "Option", [ inner ] -> FOption inner
-                        | "list", [ inner ] | "List", [ inner ] -> FList inner
-                        | "array", [ inner ] | "Array", [ inner ] -> FArray inner
-                        | "seq", [ inner ] | "Seq", [ inner ] -> FList inner
-                        | "Set", [ inner ] -> FSet inner
-                        | "Map", [ k; v ] -> FMap (k, v)
-                        | _ ->
-                            // Synthesize a codec reference for an unrecognized generic.
-                            // Use the *last segment* of `head` so the name matches
-                            // emitTypeCodec's short-name shape (rather than
-                            // `Foo_Bar_HeadCodec` which never resolves).
-                            let lastSegment (s: string) =
-                                let i = s.LastIndexOf('.')
-                                if i >= 0 then s.Substring(i + 1) else s
-                            let argFsTypes =
-                                args
-                                |> List.map (fun a ->
-                                    match a with
-                                    | FPrim p -> p
-                                    | FUser (_, t) -> t
-                                    | _ -> "obj")
-                            let fqType = sprintf "%s<%s>" head (String.concat ", " argFsTypes)
-                            let codecName =
-                                let argCodecs =
-                                    args
-                                    |> List.map (fun a ->
-                                        match a with
-                                        | FPrim p -> sanitize p
-                                        | FUser (n, _) -> n.Replace("Codec", "")
-                                        | _ -> "obj")
-                                    |> String.concat ""
-                                sanitize (lastSegment head) + argCodecs + "Codec"
-                            FUser (codecName, fqType)
-                    else
-                        resolveAtom lookup s
 
     // ── Encoder / decoder expression generation ─────────────────────────────
 
@@ -495,20 +319,6 @@ module internal FableClientEmitter =
             | _ -> ""
         "/rpc/" + root + version
 
-    /// Build an FQN → SerdeTypeInfo map for string-based type lookup.
-    let private buildTypeLookup (types: SerdeTypeInfo list) : Map<string, SerdeTypeInfo> =
-        types
-        |> List.filter (fun t ->
-            match t.Raw.Kind with
-            | Types.Record _ | Types.AnonymousRecord _ | Types.Union _ | Types.Enum _ -> true
-            | _ -> false)
-        |> List.collect (fun t ->
-            let fqn = fqnOfTypeInfo t.Raw
-            let short = t.Raw.TypeName
-            [ fqn, t; short, t ])
-        |> List.distinctBy fst
-        |> Map.ofList
-
     /// Indent every non-empty line of `body` by `prefix`.
     let private indentBlock (prefix: string) (body: string) : string =
         let lines = body.Split([| '\n' |])
@@ -522,7 +332,6 @@ module internal FableClientEmitter =
     /// Emit the full Fable client file for one interface.
     let emit (iface: RpcInterfaceInfo) (types: SerdeTypeInfo list) : string =
         let basePath = computeBasePath iface
-        let lookup = buildTypeLookup types
 
         // Split interface FullName into (parent path, short name).
         let parentPath =
@@ -578,13 +387,20 @@ module internal FableClientEmitter =
         else
             bappend (sprintf "        trimmed + \"%s/\" + methodName" basePath)
         // Resolve a method-level type using the structural TypeInfo populated
-        // by discovery (single source of truth for codec naming). Falls back to
-        // the legacy string parser when discovery couldn't resolve the type —
-        // step 5 deletes that fallback and step 6 turns it into a build error.
+        // by discovery. This is the single source of truth for codec naming —
+        // emitter-side `codecModuleNameFromTi` and the encode/decode expression
+        // generator both operate on the same TypeInfo so naming cannot drift.
+        // Step 6 will replace the fallback `failwith` with a clickable MSBuild
+        // diagnostic surfaced via the host's stderr.
         let resolveTy (typeInfo: Types.TypeInfo option) (typeString: string) : FableTypeExpr =
             match typeInfo with
             | Some ti -> fromTypeInfo ti
-            | None -> parseTypeString lookup typeString
+            | None ->
+                failwithf
+                    "[Serde.FS] FableClientEmitter: missing TypeInfo for '%s' in interface '%s'. \
+                     Discovery did not resolve this type — likely because the type isn't declared \
+                     in a project source file walked by Serde."
+                    typeString iface.FullName
 
         bappend (sprintf "    { new %s with" iface.FullName)
         for m in iface.Methods do
