@@ -185,6 +185,25 @@ let ``method returning Result of T, string`` () =
     SnapshotHarness.assertSnapshot "result_return" actual
 
 [<Test>]
+let ``record with seq field decodes to seq, not list`` () =
+    // Regression: previously synTypeToTypeInfo mapped `seq<T>` to TypeKind.List
+    // with TypeName="list", so the Fable decoder produced `string list` even
+    // when the field type was `string seq`. F# rejected the assignment.
+    // Now TypeName="seq" reaches the emitter, which routes via FSeq and emits
+    // `Array.map ... :> seq<_>` so the decoded value is a seq.
+    let cacheTi =
+        record "Domain" "Cache" [
+            "Tags", seqTi stringTi
+        ]
+    let methods = [
+        nullaryMethod "GetCache" cacheTi
+    ]
+    let iface = interfaceOf "Domain" "ICacheApi" methods true
+    let types = [ toSerde cacheTi ]
+    let actual = FableClientEmitter.emit iface types
+    SnapshotHarness.assertSnapshot "record_seq_field" actual
+
+[<Test>]
 let ``method with tupled input (A * B -> C)`` () =
     // F# treats `abstract Foo : A * B -> C` as a multi-arg method. The
     // generated proxy member must declare each param individually

@@ -15,6 +15,10 @@ module internal FableClientEmitter =
         | FPrim of string
         | FOption of FableTypeExpr
         | FList of FableTypeExpr
+        /// `seq<T>` — wire format identical to FList but the decoded value
+        /// must be a seq (not a list) so F# doesn't reject the assignment in
+        /// strict contexts like record-field annotations and member overrides.
+        | FSeq of FableTypeExpr
         | FArray of FableTypeExpr
         | FSet of FableTypeExpr
         | FMap of FableTypeExpr * FableTypeExpr
@@ -79,7 +83,12 @@ module internal FableClientEmitter =
             let n = primitiveKindToName pk
             if n = "unit" then FUnit else FPrim n
         | Types.Option inner -> FOption (fromTypeInfo inner)
-        | Types.List inner -> FList (fromTypeInfo inner)
+        | Types.List inner ->
+            // synTypeToTypeInfo collapses `seq<T>` onto TypeKind.List for wire
+            // compatibility but preserves TypeName="seq" so we can distinguish
+            // here. List → FList, seq → FSeq (decodes to seq, not list).
+            if ti.TypeName = "seq" then FSeq (fromTypeInfo inner)
+            else FList (fromTypeInfo inner)
         | Types.Array inner -> FArray (fromTypeInfo inner)
         | Types.Set inner -> FSet (fromTypeInfo inner)
         | Types.Map (k, v) -> FMap (fromTypeInfo k, fromTypeInfo v)
@@ -116,7 +125,7 @@ module internal FableClientEmitter =
             | _ -> sprintf "box (%s)" varExpr
         | FOption inner ->
             sprintf "(match %s with | Some x -> %s | None -> null)" varExpr (encodeExpr "x" inner)
-        | FList inner | FArray inner | FSet inner ->
+        | FList inner | FArray inner | FSet inner | FSeq inner ->
             sprintf "(%s |> Seq.map (fun x -> %s) |> Array.ofSeq |> box)" varExpr (encodeExpr "x" inner)
         | FMap _ ->
             "(failwith \"Map encoding not supported by Fable client generator\")"
@@ -163,6 +172,11 @@ module internal FableClientEmitter =
             sprintf "(let v = %s in if Interop.isNullish v then None else Some (%s))" jsonExpr (decodeExpr "v" inner)
         | FList inner ->
             sprintf "(unbox<obj[]> %s |> Array.map (fun x -> %s) |> Array.toList)" jsonExpr (decodeExpr "x" inner)
+        | FSeq inner ->
+            // Wire shape is identical to FList, but the consuming F# context
+            // expects a seq<T>, not a list<T>. F# doesn't auto-coerce list to
+            // seq in record-field init / interface member overrides.
+            sprintf "(unbox<obj[]> %s |> Array.map (fun x -> %s) :> seq<_>)" jsonExpr (decodeExpr "x" inner)
         | FArray inner ->
             sprintf "(unbox<obj[]> %s |> Array.map (fun x -> %s))" jsonExpr (decodeExpr "x" inner)
         | FSet inner ->

@@ -404,10 +404,22 @@ module SerdeGeneratorEngine =
         let constructedSerdeTypes = System.Collections.Generic.List<SerdeTypeInfo>()
         let mutable genericErrors = []
 
+        // Built-in generic wrappers handled at runtime by codec factories
+        // (Result, Map, Set, etc. via Serde.FS.Json.Codec). They're Serde-enabled
+        // as long as their type arguments are — the user doesn't need a
+        // [<Serde>] definition for the wrapper itself.
+        let isBuiltInGeneric (name: string) =
+            match name with
+            | "Result" | "option" | "Option" | "list" | "List"
+            | "array" | "Array" | "seq" | "Seq" | "Set" | "Map" -> true
+            | _ -> false
+
         let rec isSerdeEnabled (ti: TypeInfo) =
             match ti.Kind with
             | Primitive _ | GenericParameter _ | GenericTypeDefinition _ -> true
             | Option _ | List _ | Array _ | Set _ | Map _ | Tuple _ -> true
+            | ConstructedGenericType when isBuiltInGeneric ti.TypeName ->
+                ti.GenericArguments |> List.forall isSerdeEnabled
             | ConstructedGenericType ->
                 GenericDiscovery.tryFindDefinition genericDefinitions ti |> Option.isSome
                 && ti.GenericArguments |> List.forall isSerdeEnabled
@@ -427,24 +439,51 @@ module SerdeGeneratorEngine =
                | Some [case] when case.Fields.Length = 1 -> true
                | _ -> false
 
+        // Built-in generic types handled by runtime codec factories (registered
+        // by Serde.FS.Json itself, not the user). When a Domain record has a
+        // field like `Result<X, string>` or `Map<int, string>`, we don't need a
+        // user-defined definition for the wrapper — only the type arguments
+        // need to be Serde-enabled. Skipping them here avoids "X is not marked
+        // with [<Serde>]" errors for built-ins the user never declared.
+        let builtInGenerics =
+            Set.ofList [
+                "Result"
+                "option"; "Option"
+                "list"; "List"
+                "array"; "Array"
+                "seq"; "Seq"
+                "Set"; "Map"
+            ]
+
         for constructed in constructedGenerics do
-            match GenericDiscovery.tryFindDefinition genericDefinitions constructed with
-            | Some defInfo ->
-                // Skip concrete instantiations of generic single-case wrapper DUs (factory handles them)
-                if isGenericSingleCaseWrapperDef defInfo then () else
-                let mutable argValid = true
+            if builtInGenerics.Contains constructed.TypeName then
+                // Built-in generic: validate args only, codec emitted by the
+                // backend's runtime factory.
                 for arg in constructed.GenericArguments do
                     if not (isSerdeEnabled arg) then
-                        argValid <- false
                         let fqn = typeInfoToFqFSharpType constructed
                         let argName = typeInfoToFqFSharpType arg
-                        genericErrors <- (sprintf "Serde.FS error: The generic type '%s' cannot be used with Serde because its type argument '%s' is not Serde-enabled." fqn argName) :: genericErrors
-                if argValid then
-                    let serdeInfo = GenericDiscovery.buildConstructedSerdeTypeInfo defInfo constructed
-                    constructedSerdeTypes.Add(serdeInfo)
-            | None ->
-                let fqn = typeInfoToFqFSharpType constructed
-                genericErrors <- (sprintf "Serde error: Type '%s' is used in serialization, but '%s' is not marked with [<Serde>]." fqn constructed.TypeName) :: genericErrors
+                        genericErrors <-
+                            (sprintf "Serde.FS error: The generic type '%s' cannot be used with Serde because its type argument '%s' is not Serde-enabled."
+                                fqn argName) :: genericErrors
+            else
+                match GenericDiscovery.tryFindDefinition genericDefinitions constructed with
+                | Some defInfo ->
+                    // Skip concrete instantiations of generic single-case wrapper DUs (factory handles them)
+                    if isGenericSingleCaseWrapperDef defInfo then () else
+                    let mutable argValid = true
+                    for arg in constructed.GenericArguments do
+                        if not (isSerdeEnabled arg) then
+                            argValid <- false
+                            let fqn = typeInfoToFqFSharpType constructed
+                            let argName = typeInfoToFqFSharpType arg
+                            genericErrors <- (sprintf "Serde.FS error: The generic type '%s' cannot be used with Serde because its type argument '%s' is not Serde-enabled." fqn argName) :: genericErrors
+                    if argValid then
+                        let serdeInfo = GenericDiscovery.buildConstructedSerdeTypeInfo defInfo constructed
+                        constructedSerdeTypes.Add(serdeInfo)
+                | None ->
+                    let fqn = typeInfoToFqFSharpType constructed
+                    genericErrors <- (sprintf "Serde error: Type '%s' is used in serialization, but '%s' is not marked with [<Serde>]." fqn constructed.TypeName) :: genericErrors
 
         for msg in genericErrors do
             errors.Add(msg)

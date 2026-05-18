@@ -149,3 +149,127 @@ type IServerApi =
     // …and so must its transitively-referenced field type.
     Assert.That(discovered, Does.Contain "User",
         sprintf "User (transitive from AuthUserResponse) missing from DiscoveredTypes. Got: %A" discovered)
+
+/// Regression test for the CEI.BimHub case where a Domain record references a
+/// type in a sibling module via partial qualifier (`Forge.Hub`), and another
+/// module also defines a same-named type (`Hub`). The transitive walk must
+/// resolve `Forge.Hub` via suffix lookup — not collapse it onto whichever
+/// `Hub` happens to win the short-name lookup.
+[<Test>]
+let ``Transitive field reference via partial qualifier resolves the right type`` () =
+    let forgeSource = """
+namespace MyApp.Domain
+
+module Forge =
+    type Hub = { Id: string; Name: string }
+"""
+    // Another `Hub` with the same short name — would shadow Forge.Hub in any
+    // short-name-keyed lookup.
+    let elsewhereSource = """
+namespace MyApp.Other
+
+type Hub = { Code: int }
+"""
+    let domainSource = """
+namespace MyApp.Domain
+
+type ProjectWithHub = { Project: string; Hub: Forge.Hub }
+"""
+    let apiSource = """
+module MyApp.Domain.Api
+
+open Serde.FS
+
+[<RpcApi>]
+type IServerApi =
+    abstract GetProjects : unit -> Async<ProjectWithHub list>
+"""
+
+    let allTypeInfos =
+        [ "/Forge.fs", forgeSource
+          "/Elsewhere.fs", elsewhereSource
+          "/Domain.fs", domainSource
+          "/Api.fs", apiSource ]
+        |> List.collect (fun (path, src) -> SerdeAstParser.parseSourceAllTypes path src)
+
+    let result =
+        RpcApiDiscovery.discover allTypeInfos [
+            "/Forge.fs", forgeSource
+            "/Elsewhere.fs", elsewhereSource
+            "/Domain.fs", domainSource
+            "/Api.fs", apiSource
+        ]
+
+    let discoveredFqns =
+        result.DiscoveredTypes
+        |> List.map (fun t ->
+            let parts =
+                [ yield! t.Raw.Namespace |> Option.toList
+                  yield! t.Raw.EnclosingModules
+                  yield t.Raw.TypeName ]
+            String.concat "." parts)
+        |> Set.ofList
+
+    // ProjectWithHub is the root referenced by the interface
+    Assert.That(discoveredFqns, Does.Contain "MyApp.Domain.ProjectWithHub",
+        sprintf "Got: %A" discoveredFqns)
+    // Forge.Hub is the field reference — must be discovered via partial qualifier,
+    // not collapsed onto MyApp.Other.Hub
+    Assert.That(discoveredFqns, Does.Contain "MyApp.Domain.Forge.Hub",
+        sprintf "Got: %A" discoveredFqns)
+    // MyApp.Other.Hub is unrelated to the API; should NOT be discovered.
+    Assert.That(discoveredFqns, Does.Not.Contain "MyApp.Other.Hub",
+        sprintf "Unrelated Hub leaked into DiscoveredTypes. Got: %A" discoveredFqns)
+
+/// Regression: a record with a `Result<T, E>` field used to make the engine
+/// emit "Serde error: Type 'Result<...>' ... 'Result' is not marked with
+/// [<Serde>]" because Result's definition isn't in user code. Built-in
+/// generics (Result, list, option, Map, Set) are now skipped in that
+/// validation — they're handled by runtime codec factories.
+[<Test>]
+let ``Record with Result field doesn't error "Result not marked with Serde"`` () =
+    let domainSource = """
+namespace MyApp.Domain
+
+type Ok = { Value: int }
+type Err = { Message: string }
+type Payload = { Result: Result<Ok, Err> }
+"""
+    let apiSource = """
+module MyApp.Domain.Api
+
+open Serde.FS
+
+[<RpcApi>]
+type IServerApi =
+    abstract GetPayload : unit -> Async<Payload>
+"""
+
+    let allTypeInfos =
+        [ "/Domain.fs", domainSource
+          "/Api.fs", apiSource ]
+        |> List.collect (fun (path, src) -> SerdeAstParser.parseSourceAllTypes path src)
+
+    // Just running discover with these sources shouldn't throw or surface
+    // generic-discovery errors. The Result type must be tolerated.
+    let result =
+        RpcApiDiscovery.discover allTypeInfos [
+            "/Domain.fs", domainSource
+            "/Api.fs", apiSource
+        ]
+
+    Assert.That(result.Interfaces.Length, Is.EqualTo(1))
+    let discoveredFqns =
+        result.DiscoveredTypes
+        |> List.map (fun t ->
+            let parts =
+                [ yield! t.Raw.Namespace |> Option.toList
+                  yield! t.Raw.EnclosingModules
+                  yield t.Raw.TypeName ]
+            String.concat "." parts)
+        |> Set.ofList
+    // Payload and its Ok/Err args must be discovered (Result is a transparent
+    // wrapper).
+    Assert.That(discoveredFqns, Does.Contain "MyApp.Domain.Payload")
+    Assert.That(discoveredFqns, Does.Contain "MyApp.Domain.Ok")
+    Assert.That(discoveredFqns, Does.Contain "MyApp.Domain.Err")

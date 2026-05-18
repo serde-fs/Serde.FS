@@ -286,8 +286,13 @@ module internal RpcApiDiscovery =
             | ("array" | "Array"), [ Some inner ] ->
                 Some (mkSyntheticTypeInfo "array" (Array inner))
             | ("seq" | "Seq"), [ Some inner ] ->
-                // Seq is treated as List for serialization purposes.
-                Some (mkSyntheticTypeInfo "list" (List inner))
+                // Seq has the same wire shape as list (JSON array), but we
+                // keep TypeName="seq" so downstream emitters (e.g.
+                // FableClientEmitter.fromTypeInfo) can distinguish and
+                // generate seq-typed decode output, not list. Otherwise
+                // record fields / member returns typed `seq<T>` reject the
+                // emitted `list<T>` value with a type-mismatch.
+                Some (mkSyntheticTypeInfo "seq" (List inner))
             | "Set", [ Some inner ] ->
                 Some (mkSyntheticTypeInfo "Set" (Set inner))
             | "Map", [ Some k; Some v ] ->
@@ -740,59 +745,6 @@ module internal RpcApiDiscovery =
         |> List.map (fun ti -> ti.TypeName, ti)
         |> Map.ofList
 
-    /// Recursively collect all type names from a TypeInfo's fields and union cases.
-    /// The `lookup` is keyed by short type name. `typeName` arrives from
-    /// `collectTypeNames` which returns identifiers as-written in source — so
-    /// when an [<RpcApi>] interface uses a partial qualifier (e.g.
-    /// `Async<Auth.User>`), `typeName` is "Auth.User" and a direct Map.tryFind
-    /// misses. Fall back to the last segment so partial qualifiers resolve.
-    /// `visited` is keyed by the resolved short name so the final
-    /// `List.choose lookup` in `discover` can find every entry.
-    let rec private collectTransitiveTypeNames (lookup: Map<string, TypeInfo>) (visited: Set<string>) (typeName: string) : Set<string> =
-        let tiOpt =
-            match Map.tryFind typeName lookup with
-            | Some _ as r -> r
-            | None ->
-                let lastDot = typeName.LastIndexOf('.')
-                if lastDot >= 0 then
-                    Map.tryFind (typeName.Substring(lastDot + 1)) lookup
-                else None
-        match tiOpt with
-        | None -> visited
-        | Some ti ->
-            if visited.Contains ti.TypeName then visited
-            else
-                let visited = visited.Add ti.TypeName
-                let fieldTypes =
-                    match ti.Kind with
-                    | Record fields | AnonymousRecord fields ->
-                        fields |> List.collect (fun f -> extractTypeNamesFromTypeInfo f.Type)
-                    | Union cases ->
-                        cases |> List.collect (fun c -> c.Fields |> List.collect (fun f -> extractTypeNamesFromTypeInfo f.Type))
-                    | _ -> []
-                fieldTypes
-                |> List.filter (fun n -> not (skipTypeNames.Contains n))
-                |> List.fold (fun acc n -> collectTransitiveTypeNames lookup acc n) visited
-
-    /// Extract type names from a SourceDjinn TypeInfo, unwrapping collections/options.
-    and private extractTypeNamesFromTypeInfo (ti: TypeInfo) : string list =
-        match ti.Kind with
-        | Primitive _ | GenericParameter _ | GenericTypeDefinition _ -> []
-        | Record _ | Union _ | Enum _ | AnonymousRecord _ ->
-            if skipTypeNames.Contains ti.TypeName then []
-            else [ ti.TypeName ]
-        | Option inner | List inner | Array inner | Set inner ->
-            extractTypeNamesFromTypeInfo inner
-        | Map (k, v) ->
-            extractTypeNamesFromTypeInfo k @ extractTypeNamesFromTypeInfo v
-        | Tuple fields ->
-            fields |> List.collect (fun f -> extractTypeNamesFromTypeInfo f.Type)
-        | ConstructedGenericType ->
-            let baseName =
-                if skipTypeNames.Contains ti.TypeName then []
-                else [ ti.TypeName ]
-            baseName @ (ti.GenericArguments |> List.collect extractTypeNamesFromTypeInfo)
-
     /// Compute the segment list of a TypeInfo's fully qualified name.
     /// e.g. `Namespace = Some "MyApp.Domain"; EnclosingModules = ["Forge"]; TypeName = "Project"`
     /// → `["MyApp"; "Domain"; "Forge"; "Project"]`.
@@ -806,6 +758,54 @@ module internal RpcApiDiscovery =
 
     let private buildFqn (ti: TypeInfo) =
         typeInfoFqnSegments ti |> String.concat "."
+
+    /// Recursively collect all type names from a TypeInfo's fields and union cases.
+    /// `resolveTI` is the disambiguating resolver (suffix-lookup based): it picks
+    /// the right TypeInfo when a partial qualifier like `Forge.Hub` overlaps with
+    /// another `Hub` in a different namespace. `visited` is keyed by FQN so two
+    /// types with the same short name don't collapse onto each other.
+    let rec private collectTransitiveTypeNames
+            (resolveTI: string -> TypeInfo option)
+            (visited: Set<string>)
+            (typeName: string) : Set<string> =
+        match resolveTI typeName with
+        | None -> visited
+        | Some ti ->
+            let identifier = buildFqn ti
+            if visited.Contains identifier then visited
+            else
+                let visited = visited.Add identifier
+                let fieldTypes =
+                    match ti.Kind with
+                    | Record fields | AnonymousRecord fields ->
+                        fields |> List.collect (fun f -> extractTypeNamesFromTypeInfo f.Type)
+                    | Union cases ->
+                        cases |> List.collect (fun c -> c.Fields |> List.collect (fun f -> extractTypeNamesFromTypeInfo f.Type))
+                    | _ -> []
+                fieldTypes
+                |> List.filter (fun n -> not (skipTypeNames.Contains n))
+                |> List.fold (fun acc n -> collectTransitiveTypeNames resolveTI acc n) visited
+
+    /// Extract type names from a SourceDjinn TypeInfo, unwrapping collections/options.
+    /// Returns the FQN (built via buildFqn) so the resolver's suffix lookup can
+    /// disambiguate when two types share a short name (e.g. `Forge.Hub`).
+    and private extractTypeNamesFromTypeInfo (ti: TypeInfo) : string list =
+        match ti.Kind with
+        | Primitive _ | GenericParameter _ | GenericTypeDefinition _ -> []
+        | Record _ | Union _ | Enum _ | AnonymousRecord _ ->
+            if skipTypeNames.Contains ti.TypeName then []
+            else [ buildFqn ti ]
+        | Option inner | List inner | Array inner | Set inner ->
+            extractTypeNamesFromTypeInfo inner
+        | Map (k, v) ->
+            extractTypeNamesFromTypeInfo k @ extractTypeNamesFromTypeInfo v
+        | Tuple fields ->
+            fields |> List.collect (fun f -> extractTypeNamesFromTypeInfo f.Type)
+        | ConstructedGenericType ->
+            let baseName =
+                if skipTypeNames.Contains ti.TypeName then []
+                else [ buildFqn ti ]
+            baseName @ (ti.GenericArguments |> List.collect extractTypeNamesFromTypeInfo)
 
     /// Build a map from any FQN suffix (joined by `.`) to the list of TypeInfos
     /// whose FQN ends with that suffix. This lets a partially-qualified reference
@@ -918,17 +918,21 @@ module internal RpcApiDiscovery =
         if rootTypeNames.IsEmpty then
             { DiscoveredTypes = methodTupleSerdeTypes; Interfaces = interfaces }
         else
-            // Step 2: Compute transitive closure
+            // Step 2: Compute transitive closure. `visited` accumulates FQN
+            // strings of discovered types (so two different types with the same
+            // short name don't collapse).
             let allDiscoveredNames =
                 rootTypeNames
                 |> List.filter (fun n -> not (skipTypeNames.Contains n))
-                |> List.fold (fun acc name -> collectTransitiveTypeNames lookup acc name) Set.empty
+                |> List.fold (fun acc name -> collectTransitiveTypeNames resolveTI acc name) Set.empty
 
-            // Step 3: Build SerdeTypeInfo for each discovered type
+            // Step 3: Build SerdeTypeInfo for each discovered type. Use
+            // resolveTI (suffix lookup) so the FQN strings stored in `visited`
+            // map back to the correct TypeInfo even when they share short names.
             let discoveredTypes =
                 allDiscoveredNames
                 |> Set.toList
-                |> List.choose (fun name -> Map.tryFind name lookup)
+                |> List.choose resolveTI
                 |> List.filter (fun ti ->
                     match ti.Kind with
                     | Record _ | Union _ | Enum _ | AnonymousRecord _ -> true

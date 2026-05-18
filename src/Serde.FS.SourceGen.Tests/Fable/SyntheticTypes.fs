@@ -40,6 +40,9 @@ let private synthetic (typeName: string) (kind: TypeKind) : TypeInfo =
 
 let opt (inner: TypeInfo) : TypeInfo = synthetic "option" (Option inner)
 let listTi (inner: TypeInfo) : TypeInfo = synthetic "list" (List inner)
+/// `seq<T>` — wire shape identical to list, but FableClientEmitter decodes
+/// to a seq (so consuming F# code expecting `seq<T>` accepts it).
+let seqTi (inner: TypeInfo) : TypeInfo = synthetic "seq" (List inner)
 let arrTi (inner: TypeInfo) : TypeInfo = synthetic "array" (Array inner)
 let setTi (inner: TypeInfo) : TypeInfo = synthetic "Set" (Set inner)
 let mapTi (k: TypeInfo) (v: TypeInfo) : TypeInfo = synthetic "Map" (Map (k, v))
