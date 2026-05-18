@@ -72,11 +72,67 @@ Add tests covering:
 **File:** `src/Serde.FS.Json.SampleRpc.Client/Program.fs`
 - Add a call to exercise the new method
 
-### 6. Build and test
+### 6. Add Fable-side support
 
-```bash
-dotnet test src/Serde.FS.Json.Tests/
-dotnet fsi debug-build.fsx
+The runtime factory (steps 2-4) handles the .NET client + server. To make the new type also work in a generated **Fable** client (`[<GenerateFableClient>]`), three more pieces must be wired:
+
+**6a. Map the SynType to a structural TypeInfo.**
+
+**File:** `src/Serde.FS.SourceGen/RpcApiDiscovery.fs`, function `synTypeToTypeInfo`
+
+If the new type can serialise to an existing `TypeKind` (e.g., `Dictionary` → `TypeKind.Map`, `HashSet` → `TypeKind.Set`), add a match arm in the `SynType.App(...)` case that funnels it into that kind. Example:
+
+```fsharp
+| "Dictionary", [ Some k; Some v ] ->
+    Some (mkSyntheticTypeInfo "Map" (Map (k, v)))
 ```
 
-The debug build pipeline packs all projects and restores the SampleRpc apps against the local feed, which validates the full end-to-end.
+If the type has no existing structural equivalent, a new `TypeKind` case is required in `FSharp.SourceDjinn.TypeModel.Types` — that's a SourceDjinn change, scope it separately.
+
+**6b. Route the TypeKind to a FableTypeExpr (only if a new variant is needed).**
+
+**File:** `src/Serde.FS.Json.SourceGen/FableClientEmitter.fs`, function `fromTypeInfo`
+
+If step 6a reused an existing `TypeKind`, `fromTypeInfo` already handles it — no change. Otherwise add a new branch and a corresponding case in the `FableTypeExpr` discriminated union at the top of the file.
+
+**6c. Implement encode/decode expressions.**
+
+**File:** `src/Serde.FS.Json.SourceGen/FableClientEmitter.fs`, functions `encodeExpr` and `decodeExpr`
+
+Each `FableTypeExpr` variant must produce JS-side encode and decode F# expressions. **Match the wire format of the runtime factory from step 2 exactly** — the server emits one shape and the Fable client must produce/consume the same shape, otherwise round-trips fail silently.
+
+Example skeleton:
+
+```fsharp
+| FMap (k, v) ->
+    sprintf "(%s |> ...JS-encode each pair as [k, v]... |> Array.ofSeq |> box)" varExpr
+```
+
+If a variant truly cannot be supported (e.g., open generic), return `(failwith "...")` so the user gets a clear compile-time error rather than broken JS.
+
+**6d. Add a snapshot test.**
+
+**File:** `src/Serde.FS.SourceGen.Tests/Fable/FableClientEmitterTests.fs`
+
+Add a `[<Test>]` that builds a synthetic `RpcInterfaceInfo` using the new type and asserts the emitter output against a new snapshot:
+
+```fsharp
+[<Test>]
+let ``record with Dictionary<string, int> field`` () =
+    let ti = record "Domain" "Cache" [ "Hits", mapTi stringTi int32Ti ]
+    let iface = interfaceOf "Domain" "ICacheApi" [ nullaryMethod "Get" ti ] true
+    let actual = FableClientEmitter.emit iface [ toSerde ti ]
+    SnapshotHarness.assertSnapshot "record_dictionary_field" actual
+```
+
+Run `dotnet test --filter "FableClientEmitterTests"` — the first run fails with a `.actual.fs` written to `Fable/Snapshots/`. Inspect it carefully; if the output is right, rename it to `.expected.fs` and commit both the test and the snapshot. May need to add a new builder in `Fable/SyntheticTypes.fs` (e.g. `mapTi`) if the new type isn't covered there.
+
+### 7. Build and test
+
+```bash
+dotnet test src/Serde.FS.SourceGen.Tests/     # Fable emitter tests
+dotnet test src/Serde.FS.Json.Tests/          # runtime factory tests
+dotnet fsi debug-build.fsx                    # full end-to-end including SampleRpc
+```
+
+If the new type is exercised in `SampleRpc.Shared/Domain.fs`, the debug-build run will regenerate `SampleRpc.Shared/generated-fable/IOrderApi.fs` against the new emitter logic. Inspect that file to confirm the codec module shape and `FableClient` calls look right.
