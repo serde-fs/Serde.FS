@@ -68,37 +68,58 @@ module internal FableClientEmitter =
             .Replace("]", "_")
             .Replace(" ", "")
 
-    /// Codec-module name built from a TypeInfo.
-    let rec private codecModuleNameFromTi (ti: Types.TypeInfo) : string =
+    /// Codec-module name built from a TypeInfo. `collidingShortNames` is the
+    /// set of short TypeNames that appear at more than one distinct FQN across
+    /// the types being emitted in a single file (e.g. `Forge.Project` and
+    /// `Project.Project` both have short name "Project"). For colliders, the
+    /// module name is built from `EnclosingModules ++ TypeName` joined by `_`
+    /// so each gets a unique identifier (`Forge_ProjectCodec`,
+    /// `Project_ProjectCodec`). Non-colliders use the plain `<TypeName>Codec`
+    /// form to keep existing snapshots stable.
+    let rec private codecModuleNameFromTi (collidingShortNames: Set<string>) (ti: Types.TypeInfo) : string =
+        let baseName =
+            if collidingShortNames.Contains ti.TypeName && not (List.isEmpty ti.EnclosingModules) then
+                ti.EnclosingModules @ [ ti.TypeName ]
+                |> List.map sanitize
+                |> String.concat "_"
+            else
+                sanitize ti.TypeName
         if not ti.GenericArguments.IsEmpty then
-            let argPart = ti.GenericArguments |> List.map codecModuleNameFromTi |> String.concat ""
-            sanitize ti.TypeName + argPart + "Codec"
+            let argPart =
+                ti.GenericArguments
+                |> List.map (codecModuleNameFromTi collidingShortNames)
+                |> String.concat ""
+            baseName + argPart + "Codec"
         else
-            sanitize ti.TypeName + "Codec"
+            baseName + "Codec"
 
-    /// Convert a SourceDjinn TypeInfo into a FableTypeExpr.
-    let rec private fromTypeInfo (ti: Types.TypeInfo) : FableTypeExpr =
+    /// Convert a SourceDjinn TypeInfo into a FableTypeExpr. `collidingShortNames`
+    /// is passed through so codec module names produced inside FUser match the
+    /// disambiguated module declarations emitted by the codec helpers.
+    let rec private fromTypeInfo (collidingShortNames: Set<string>) (ti: Types.TypeInfo) : FableTypeExpr =
+        let recur = fromTypeInfo collidingShortNames
+        let codecName = codecModuleNameFromTi collidingShortNames
         match ti.Kind with
         | Types.Primitive pk ->
             let n = primitiveKindToName pk
             if n = "unit" then FUnit else FPrim n
-        | Types.Option inner -> FOption (fromTypeInfo inner)
+        | Types.Option inner -> FOption (recur inner)
         | Types.List inner ->
             // synTypeToTypeInfo collapses `seq<T>` onto TypeKind.List for wire
             // compatibility but preserves TypeName="seq" so we can distinguish
             // here. List → FList, seq → FSeq (decodes to seq, not list).
-            if ti.TypeName = "seq" then FSeq (fromTypeInfo inner)
-            else FList (fromTypeInfo inner)
-        | Types.Array inner -> FArray (fromTypeInfo inner)
-        | Types.Set inner -> FSet (fromTypeInfo inner)
-        | Types.Map (k, v) -> FMap (fromTypeInfo k, fromTypeInfo v)
-        | Types.Tuple fields -> FTuple (fields |> List.map (fun f -> fromTypeInfo f.Type))
+            if ti.TypeName = "seq" then FSeq (recur inner)
+            else FList (recur inner)
+        | Types.Array inner -> FArray (recur inner)
+        | Types.Set inner -> FSet (recur inner)
+        | Types.Map (k, v) -> FMap (recur k, recur v)
+        | Types.Tuple fields -> FTuple (fields |> List.map (fun f -> recur f.Type))
         | Types.ConstructedGenericType when ti.TypeName = "Result" && ti.GenericArguments.Length = 2 ->
-            FResult (fromTypeInfo ti.GenericArguments.[0], fromTypeInfo ti.GenericArguments.[1])
+            FResult (recur ti.GenericArguments.[0], recur ti.GenericArguments.[1])
         | Types.ConstructedGenericType ->
-            FUser (codecModuleNameFromTi ti, Types.typeInfoToFqFSharpType ti)
+            FUser (codecName ti, Types.typeInfoToFqFSharpType ti)
         | Types.Record _ | Types.AnonymousRecord _ | Types.Union _ | Types.Enum _ ->
-            FUser (codecModuleNameFromTi ti, Types.typeInfoToFqFSharpType ti)
+            FUser (codecName ti, Types.typeInfoToFqFSharpType ti)
         | _ -> FUnknown (Types.typeInfoToFqFSharpType ti)
 
     // ── Encoder / decoder expression generation ─────────────────────────────
@@ -200,53 +221,56 @@ module internal FableClientEmitter =
 
     // ── Codec module emission per Serde type ────────────────────────────────
 
-    let private emitRecordCodec (sb: StringBuilder) (info: SerdeTypeInfo) =
+    let private emitRecordCodec (collidingShortNames: Set<string>) (sb: StringBuilder) (info: SerdeTypeInfo) =
         let append (s: string) = sb.Append(s).Append('\n') |> ignore
+        let fromTi = fromTypeInfo collidingShortNames
         let fields = info.Fields |> Option.defaultValue []
         let fqType = Types.typeInfoToFqFSharpType info.Raw
-        let modName = codecModuleNameFromTi info.Raw
+        let modName = codecModuleNameFromTi collidingShortNames info.Raw
 
         append (sprintf "module private %s =" modName)
         append (sprintf "    let encode (value: %s) : obj =" fqType)
         append          "        createObj ["
         for field in fields do
-            let expr = encodeExpr (sprintf "value.%s" field.RawName) (fromTypeInfo field.Type)
+            let expr = encodeExpr (sprintf "value.%s" field.RawName) (fromTi field.Type)
             append (sprintf "            \"%s\", %s" field.Name expr)
         append          "        ]"
         append (sprintf "    let decode (json: obj) : %s =" fqType)
         append          "        {"
         for field in fields do
-            let expr = decodeExpr (sprintf "(json?(\"%s\"))" field.Name) (fromTypeInfo field.Type)
+            let expr = decodeExpr (sprintf "(json?(\"%s\"))" field.Name) (fromTi field.Type)
             append (sprintf "            %s = %s" field.RawName expr)
         append          "        }"
         append ""
 
-    let private emitWrapperUnionCodec (sb: StringBuilder) (info: SerdeTypeInfo) =
+    let private emitWrapperUnionCodec (collidingShortNames: Set<string>) (sb: StringBuilder) (info: SerdeTypeInfo) =
         let append (s: string) = sb.Append(s).Append('\n') |> ignore
+        let fromTi = fromTypeInfo collidingShortNames
         let cases = info.UnionCases |> Option.defaultValue []
         let case = cases.[0]
         let field = case.Fields.[0]
         let fqType = Types.typeInfoToFqFSharpType info.Raw
-        let modName = codecModuleNameFromTi info.Raw
+        let modName = codecModuleNameFromTi collidingShortNames info.Raw
 
         append (sprintf "module private %s =" modName)
         append (sprintf "    let encode (value: %s) : obj =" fqType)
         append          "        match value with"
         append (sprintf "        | %s.%s x ->" fqType case.RawCaseName)
-        append (sprintf "            createObj [ \"%s\", %s ]" case.CaseName (encodeExpr "x" (fromTypeInfo field.Type)))
+        append (sprintf "            createObj [ \"%s\", %s ]" case.CaseName (encodeExpr "x" (fromTi field.Type)))
         append (sprintf "    let decode (json: obj) : %s =" fqType)
         append (sprintf "        let v = json?(\"%s\")" case.CaseName)
-        append (sprintf "        %s.%s (%s)" fqType case.RawCaseName (decodeExpr "v" (fromTypeInfo field.Type)))
+        append (sprintf "        %s.%s (%s)" fqType case.RawCaseName (decodeExpr "v" (fromTi field.Type)))
         append ""
 
-    let private emitMultiCaseUnionCodec (sb: StringBuilder) (info: SerdeTypeInfo) =
+    let private emitMultiCaseUnionCodec (collidingShortNames: Set<string>) (sb: StringBuilder) (info: SerdeTypeInfo) =
         let append (s: string) = sb.Append(s).Append('\n') |> ignore
+        let fromTi = fromTypeInfo collidingShortNames
         let cases =
             info.UnionCases
             |> Option.defaultValue []
             |> List.filter (fun c -> not c.Attributes.Skip)
         let fqType = Types.typeInfoToFqFSharpType info.Raw
-        let modName = codecModuleNameFromTi info.Raw
+        let modName = codecModuleNameFromTi collidingShortNames info.Raw
 
         append (sprintf "module private %s =" modName)
         append (sprintf "    let encode (value: %s) : obj =" fqType)
@@ -259,7 +283,7 @@ module internal FableClientEmitter =
                 let args = fields |> List.mapi (fun i _ -> sprintf "e%d" i) |> String.concat ", "
                 let encs =
                     fields
-                    |> List.mapi (fun i f -> encodeExpr (sprintf "e%d" i) (fromTypeInfo f.Type))
+                    |> List.mapi (fun i f -> encodeExpr (sprintf "e%d" i) (fromTi f.Type))
                     |> String.concat "; "
                 append (sprintf "        | %s.%s(%s) ->" fqType case.RawCaseName args)
                 append (sprintf "            createObj [ \"Case\", box \"%s\"; \"Fields\", box [| %s |] ]" case.CaseName encs)
@@ -276,20 +300,20 @@ module internal FableClientEmitter =
                 let decs =
                     fields
                     |> List.mapi (fun j f ->
-                        decodeExpr (sprintf "(fieldsArr.[%d])" j) (fromTypeInfo f.Type))
+                        decodeExpr (sprintf "(fieldsArr.[%d])" j) (fromTi f.Type))
                     |> String.concat ", "
                 append (sprintf "        %s caseName = \"%s\" then %s.%s(%s)" keyword case.CaseName fqType case.RawCaseName decs)
         append          "        else failwith (sprintf \"Unknown union case: %s\" caseName)"
         append ""
 
-    let private emitEnumCodec (sb: StringBuilder) (info: SerdeTypeInfo) =
+    let private emitEnumCodec (collidingShortNames: Set<string>) (sb: StringBuilder) (info: SerdeTypeInfo) =
         let append (s: string) = sb.Append(s).Append('\n') |> ignore
         let cases =
             info.EnumCases
             |> Option.defaultValue []
             |> List.filter (fun c -> not c.Attributes.Skip)
         let fqType = Types.typeInfoToFqFSharpType info.Raw
-        let modName = codecModuleNameFromTi info.Raw
+        let modName = codecModuleNameFromTi collidingShortNames info.Raw
 
         append (sprintf "module private %s =" modName)
         append (sprintf "    let encode (value: %s) : obj =" fqType)
@@ -305,17 +329,17 @@ module internal FableClientEmitter =
         append          "        else failwith (sprintf \"Unknown enum value: %s\" s)"
         append ""
 
-    let private emitTypeCodec (sb: StringBuilder) (info: SerdeTypeInfo) =
+    let private emitTypeCodec (collidingShortNames: Set<string>) (sb: StringBuilder) (info: SerdeTypeInfo) =
         match info.Raw.Kind with
         | Types.Record _ | Types.AnonymousRecord _ ->
-            emitRecordCodec sb info
+            emitRecordCodec collidingShortNames sb info
         | Types.Union _ ->
             let cases = info.UnionCases |> Option.defaultValue []
             match cases with
-            | [single] when single.Fields.Length = 1 -> emitWrapperUnionCodec sb info
-            | _ -> emitMultiCaseUnionCodec sb info
+            | [single] when single.Fields.Length = 1 -> emitWrapperUnionCodec collidingShortNames sb info
+            | _ -> emitMultiCaseUnionCodec collidingShortNames sb info
         | Types.Enum _ ->
-            emitEnumCodec sb info
+            emitEnumCodec collidingShortNames sb info
         | _ -> ()
 
     let private shouldEmitCodec (info: SerdeTypeInfo) : bool =
@@ -346,6 +370,28 @@ module internal FableClientEmitter =
     /// Emit the full Fable client file for one interface.
     let emit (iface: RpcInterfaceInfo) (types: SerdeTypeInfo list) : string =
         let basePath = computeBasePath iface
+
+        // Detect short-name collisions across the types being emitted in this
+        // single file (e.g. `Forge.Project` and `Project.Project` both have
+        // short name "Project"). For collisions, codecModuleNameFromTi will
+        // emit disambiguated module names (`Forge_ProjectCodec`,
+        // `Project_ProjectCodec`) instead of producing two `ProjectCodec`
+        // modules that would either collide or cross-wire to the wrong type.
+        let collidingShortNames =
+            types
+            |> List.filter shouldEmitCodec
+            |> List.groupBy (fun t -> t.Raw.TypeName)
+            |> List.choose (fun (name, ts) ->
+                let distinctFqns =
+                    ts
+                    |> List.map (fun t ->
+                        [ yield! t.Raw.Namespace |> Option.toList
+                          yield! t.Raw.EnclosingModules
+                          yield t.Raw.TypeName ]
+                        |> String.concat ".")
+                    |> List.distinct
+                if distinctFqns.Length > 1 then Some name else None)
+            |> Set.ofList
 
         // Split interface FullName into (parent path, short name).
         let parentPath =
@@ -381,7 +427,7 @@ module internal FableClientEmitter =
         // Generated codecs
         for info in types do
             if shouldEmitCodec info then
-                emitTypeCodec body info
+                emitTypeCodec collidingShortNames body info
 
         // Client proxy
         bappend (sprintf "let create (baseUrl: string) : %s =" iface.FullName)
@@ -408,7 +454,7 @@ module internal FableClientEmitter =
         // diagnostic surfaced via the host's stderr.
         let resolveTy (typeInfo: Types.TypeInfo option) (typeString: string) : FableTypeExpr =
             match typeInfo with
-            | Some ti -> fromTypeInfo ti
+            | Some ti -> fromTypeInfo collidingShortNames ti
             | None ->
                 failwithf
                     "[Serde.FS] FableClientEmitter: missing TypeInfo for '%s' in interface '%s'. \

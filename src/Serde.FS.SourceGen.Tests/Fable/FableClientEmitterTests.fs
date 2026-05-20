@@ -258,6 +258,59 @@ let ``enum with three cases`` () =
     let actual = FableClientEmitter.emit iface types
     SnapshotHarness.assertSnapshot "enum_three_cases" actual
 
+/// Regression for the CEI.BimHub Fable client collision case. When two types
+/// share a short TypeName but live in different enclosing modules (e.g.
+/// `Forge.Project` and `Project.Project`), the Fable emitter used to produce
+/// two `module private ProjectCodec` declarations in the same generated file
+/// AND every `FUser` reference (in record-field encode/decode expressions)
+/// would name `ProjectCodec`, so types crossed wires and the F# compiler
+/// reported `'Forge.Project' does not match 'Project.Project'`. The emitter
+/// must now disambiguate colliding short names via EnclosingModules prefix
+/// (`Forge_ProjectCodec`, `Project_ProjectCodec`).
+[<Test>]
+let ``Fable client disambiguates colliding short-name codec modules`` () =
+    let forgeProject =
+        nestedRecord "CEI.Domain" [ "Forge" ] "Project" [
+            "Id", int32Ti
+        ]
+    let projectProject =
+        nestedRecord "CEI.Domain" [ "Project" ] "Project" [
+            "Code", stringTi
+        ]
+    // An outer record with two fields, each pointing to a different `Project`.
+    // The emitter's encode/decode for each field must reference the right
+    // codec; the codec modules themselves must have unique names.
+    let conflictTi =
+        record "CEI.Domain" "ProjectPair" [
+            "ForgeP", forgeProject
+            "DomainP", projectProject
+        ]
+    let methods = [ nullaryMethod "GetPair" conflictTi ]
+    let iface = interfaceOf "CEI.Domain" "IPairApi" methods true
+    let types = [ toSerde forgeProject; toSerde projectProject; toSerde conflictTi ]
+    let actual = FableClientEmitter.emit iface types
+
+    // Both disambiguated codec modules must be declared, and the bare
+    // `module private ProjectCodec` (which would collide with itself) must NOT
+    // appear.
+    Assert.That(actual, Does.Contain("module private Forge_ProjectCodec ="),
+        "Forge_ProjectCodec module missing")
+    Assert.That(actual, Does.Contain("module private Project_ProjectCodec ="),
+        "Project_ProjectCodec module missing")
+    Assert.That(actual, Does.Not.Contain("module private ProjectCodec ="),
+        "bare ProjectCodec would cause a duplicate-module error")
+
+    // The encode/decode expressions for the outer record's fields must
+    // reference the disambiguated codec, NOT the bare ProjectCodec.
+    Assert.That(actual, Does.Contain("Forge_ProjectCodec.encode"),
+        "ForgeP field should encode via Forge_ProjectCodec")
+    Assert.That(actual, Does.Contain("Forge_ProjectCodec.decode"),
+        "ForgeP field should decode via Forge_ProjectCodec")
+    Assert.That(actual, Does.Contain("Project_ProjectCodec.encode"),
+        "DomainP field should encode via Project_ProjectCodec")
+    Assert.That(actual, Does.Contain("Project_ProjectCodec.decode"),
+        "DomainP field should decode via Project_ProjectCodec")
+
 [<Test>]
 let ``method returning Result of T, string`` () =
     let productTi =
