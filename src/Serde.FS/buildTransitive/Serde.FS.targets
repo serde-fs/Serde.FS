@@ -14,14 +14,28 @@
 
   <!-- Auto-include generated Fable client files written by a sibling project's
        generator when the interface is annotated with [<GenerateFableClient>].
-       Fires before CoreCompile so the F# SDK emits the files into
-       FscCommandLineArgs, which Fable's project cracker reads. 
-       Fable compiler excludes obj/ dir, so we generate types here instead. -->
-  <Target Name="SerdeIncludeGeneratedFableSources"
-          BeforeTargets="CoreCompile"
-          Condition="Exists('$(MSBuildProjectDirectory)\generated-fable')">
-    <ItemGroup>
-      <Compile Include="$(MSBuildProjectDirectory)\generated-fable\*.fs" />
-    </ItemGroup>
-  </Target>
+       This MUST be an evaluation-time ItemGroup (not a target):
+         • Fable 5's project cracker invokes `FscCommandLineArgs` (not
+           `CoreCompile`), so any `BeforeTargets="CoreCompile"` target would
+           never fire under Fable and the generated file would be invisible
+           to the Fable build.
+         • The IDE's F# language service runs design-time builds that also
+           skip `CoreCompile`, so the same problem appears there as red
+           squiggles even when `dotnet build` succeeds.
+       An evaluation-time ItemGroup is target-invariant: the items are part
+       of the project's static item list, picked up by ANY MSBuild consumer
+       (dotnet build, Fable cracker, IDE design-time build) regardless of
+       which targets they invoke.
+
+       Cold-start note: this requires the file to exist at MSBuild evaluation
+       time. The file is written by a sibling backend project's generator
+       during its own build, so for a green-field workspace the user must
+       build the backend (e.g. the ASP.NET server) once before Fable can see
+       the client — subsequent builds work transparently. The Items appear
+       at the END of the Compile list (this .targets file is imported after
+       the consuming .fsproj is evaluated), which is the right order because
+       the generated client references types defined elsewhere in Domain. -->
+  <ItemGroup Condition="Exists('$(MSBuildProjectDirectory)\generated-fable')">
+    <Compile Include="$(MSBuildProjectDirectory)\generated-fable\*.fs" />
+  </ItemGroup>
 </Project>
