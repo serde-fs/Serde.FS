@@ -36,6 +36,13 @@
        the consuming .fsproj is evaluated), which is the right order because
        the generated client references types defined elsewhere in Domain. -->
   <ItemGroup Condition="Exists('$(MSBuildProjectDirectory)\fable-generated')">
-    <Compile Include="$(MSBuildProjectDirectory)\fable-generated\*.fs" />
+    <!-- Visible="false" hides these from Solution Explorer (and other IDE
+         explorers that honor MSBuild item metadata) so the auto-generated
+         Fable client doesn't clutter the consumer's project node — the user
+         never wrote these files and shouldn't have to look at them. They
+         remain active Compile items so the F# compiler / Fable's cracker
+         still pick them up. -->
+    <Compile Include="$(MSBuildProjectDirectory)\fable-generated\*.fs"
+             Visible="false" />
   </ItemGroup>
 </Project>
