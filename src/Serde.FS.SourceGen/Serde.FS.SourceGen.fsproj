@@ -22,8 +22,8 @@
          so they can be packed into analyzers/ -->
 		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 
-		<!-- Local fallback versions.
-			 The debug pipeline supplies real versions via /p:SerdeFSVersion and /p:SourceDjinnVersion. -->
+		<!-- Local fallback version.
+			 The debug pipeline supplies the real version via /p:SerdeFSVersion. -->
 		<SerdeFSVersion>1.0.0-alpha.1</SerdeFSVersion>
 	</PropertyGroup>
 
@@ -49,11 +49,20 @@
 		<!-- Serde core library (metadata + semantics) -->
 		<ProjectReference Include="..\Serde.FS\Serde.FS.fsproj" />
 
-		<!-- SourceDjinn engine (design-time only) -->
-		<PackageReference Include="FSharp.SourceDjinn" Version="$(SourceDjinnVersion)" PrivateAssets="all" />
+		<!-- SourceDjinn engine (design-time only). Folded into this repo from
+		     the standalone FSharp.SourceDjinn project so we can pin a single
+		     FSharp.Core floor across the dependency chain (the published
+		     FSharp.SourceDjinn.TypeModel package pinned 10.0.102, which made
+		     Fable 5's cracker reject consumers on older runtimes). -->
+		<ProjectReference Include="..\FSharp.SourceDjinn\FSharp.SourceDjinn.fsproj" PrivateAssets="all" />
 
-		<!-- Runtime type model used by the generator -->
-		<PackageReference Include="FSharp.SourceDjinn.TypeModel" Version="$(SourceDjinnTypeModelVersion)" />
+		<!-- Runtime type model used by the generator. PrivateAssets="all" so
+		     the TypeModel ProjectReference doesn't appear as a NuGet dep in
+		     this package's nuspec — the runtime generator that actually uses
+		     it lives in the published GeneratorHost tool (which bundles the
+		     DLL self-contained), and the analyzer payload here is vestigial
+		     until F# gains source-generator support. -->
+		<ProjectReference Include="..\FSharp.SourceDjinn.TypeModel\FSharp.SourceDjinn.TypeModel.fsproj" PrivateAssets="all" />
 	</ItemGroup>
 
 	<!-- Analyzer payload: generator engine DLL + all dependencies -->

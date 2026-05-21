@@ -67,7 +67,7 @@ type IOrderApi =
     abstract GetProduct : ProductId -> Async<Product>
 ```
 
-The Server build writes `<Shared>/generated-fable/<ApiName>.fs` into the project that hosts the interface. `Serde.FS`'s MSBuild target auto-includes the file as a `Compile` item, so there is no manual `.fsproj` wiring. The Fable project consumes it like any interface:
+The Server build writes `<Shared>/fable-generated/<ApiName>.fs` into the project that hosts the interface. `Serde.FS`'s MSBuild target auto-includes the file as a `Compile` item, so there is no manual `.fsproj` wiring. The Fable project consumes it like any interface:
 
 ```fsharp
 open SampleRpc.Shared
@@ -88,7 +88,7 @@ The Shared project only needs one extra package:
 
 ```xml
 <ItemGroup>
-  <Compile Include="generated-fable\*.fs" />
+  <Compile Include="fable-generated\*.fs" />
 </ItemGroup>
 ```
 
@@ -249,7 +249,7 @@ type IOrderApi =
     abstract GetProduct : ProductId -> Async<Product>
 ```
 
-By default the file is written to `<SharedDir>/generated-fable/<ApiName>.fs`. Override with `[<GenerateFableClient(OutputDir = "../Web/generated-fable")>]` to target a sibling project instead.
+By default the file is written to `<SharedDir>/fable-generated/<ApiName>.fs`. Override with `[<GenerateFableClient(OutputDir = "../Web/fable-generated")>]` to target a sibling project instead.
 
 ---
 

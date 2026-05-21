@@ -47,8 +47,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- Design-time only dependency (never flows to consumers) -->
-		<PackageReference Include="FSharp.SourceDjinn" Version="$(SourceDjinnVersion)" PrivateAssets="all" />
+		<!-- Design-time only dependency (never flows to consumers).
+		     ProjectReference into the in-tree FSharp.SourceDjinn project — see
+		     Serde.FS.SourceGen.fsproj for the fold-in rationale. -->
+		<ProjectReference Include="..\FSharp.SourceDjinn\FSharp.SourceDjinn.fsproj" PrivateAssets="all" />
 
 		<!-- Core Serde.FS runtime library -->
 		<ProjectReference Include="..\Serde.FS\Serde.FS.fsproj" />

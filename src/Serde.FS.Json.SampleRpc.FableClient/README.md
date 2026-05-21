@@ -42,7 +42,7 @@ the browser can call the server without CORS setup.
 
 - `[<GenerateFableClient>]` in `SampleRpc.Shared/Domain.fs` causes the server
   build to emit a ready-to-consume Fable client module at
-  `SampleRpc.Shared/generated-fable/IOrderApi.fs`.
+  `SampleRpc.Shared/fable-generated/~IOrderApi.fable.g.fs`.
 - The file compiles under both .NET and Fable. Under .NET its body is
   dead code (Fable.Core's `[<Emit>]`, `jsNative`, `createObj`, etc. throw at
   runtime if invoked), so nothing calls it. Under Fable it becomes the
@@ -53,8 +53,8 @@ the browser can call the server without CORS setup.
 ## Wiring
 
 Zero wiring on the Shared side: `Serde.FS`'s `buildTransitive/Serde.FS.targets`
-auto-includes any `.fs` files under `<ProjectDir>/generated-fable/` as Compile
-items before CoreCompile runs. Fable 5+ and `dotnet build` both pick them up.
+auto-includes any `.fs` files under `<ProjectDir>/fable-generated/` as Compile
+items at MSBuild evaluation time. Fable 5+ and `dotnet build` both pick them up.
 
 Shared only needs a `<PackageReference Include="Fable.Core" ... />` so the
 generated file's `open Fable.Core` resolves under .NET compile (it compiles as

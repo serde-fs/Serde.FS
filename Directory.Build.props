@@ -4,13 +4,21 @@
 		<SourceGenVersion>1.0.0-alpha.35</SourceGenVersion>
 		<!-- SerdeJsonVersion is shared by Serde.FS.Json and Serde.FS.Json.AspNet (lockstep versioning) -->
 		<SerdeJsonVersion>1.0.0-alpha.35</SerdeJsonVersion>
-		<SourceDjinnVersion>0.4.0</SourceDjinnVersion>
-		<SourceDjinnTypeModelVersion>0.4.0</SourceDjinnTypeModelVersion>
 		<SerdeStjVersion>1.0.0-alpha.1</SerdeStjVersion>
 	</PropertyGroup>
 
 	<PropertyGroup>
 		<!-- Suppress MSB3277: generator host targets net9 (for FCS) but references net8 SourceGen projects, producing expected System.* version conflicts -->
 		<NoWarn>$(NoWarn);MSB3277</NoWarn>
+		<!-- Suppress NU1605: our packed libs declare an FSharp.Core 8.0.100 floor so
+		     consumers on FSharp.Core 8/9/10 all resolve cleanly (and so Fable 5's
+		     project cracker, which treats NU1605 as fatal, doesn't reject them).
+		     But the in-tree FSharp.SourceDjinn project transitively depends on
+		     FSharp.Compiler.Service which pins FSharp.Core to 10.0.103 — so the
+		     LOCAL build chain inside this repo sees a "downgrade from 10.0.103 to
+		     8.0.100" and emits NU1605 here. Since FSharp.SourceDjinn is referenced
+		     PrivateAssets="all" everywhere it's consumed, this never propagates to
+		     the packed nuspecs, so the warning is purely local noise. -->
+		<NoWarn>$(NoWarn);NU1605</NoWarn>
 	</PropertyGroup>
 </Project>

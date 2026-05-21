@@ -12,11 +12,14 @@
   <ItemGroup>
     <ProjectReference Include="..\Serde.FS.SourceGen\Serde.FS.SourceGen.fsproj" />
     <ProjectReference Include="..\Serde.FS.SystemTextJson\Serde.FS.SystemTextJson.fsproj" />
-    <PackageReference Include="FSharp.SourceDjinn.TypeModel" Version="$(SourceDjinnTypeModelVersion)" />
+    <!-- ProjectReference into the in-tree TypeModel project (folded in from
+         FSharp.SourceDjinn repo). -->
+    <ProjectReference Include="..\FSharp.SourceDjinn.TypeModel\FSharp.SourceDjinn.TypeModel.fsproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Update="FSharp.Core" Version="10.0.103" />
+    <!-- See src/Serde.FS/Serde.FS.fsproj for the FSharp.Core floor rationale. -->
+    <PackageReference Update="FSharp.Core" Version="8.0.100" />
   </ItemGroup>
 
 </Project>

@@ -38,7 +38,7 @@
 		</ItemGroup>
 	</Target>
 
-	<!-- Clean cross-project generated-fable folders only when the project that runs
+	<!-- Clean cross-project fable-generated folders only when the project that runs
 	     the generator is cleaned. The Fable client files are written into a sibling
 	     (Shared) project's directory, but they are OWNED by this backend project's
 	     generator. Cleaning the sibling project must not delete them, otherwise a
@@ -47,7 +47,7 @@
 	<Target Name="SerdeJsonCleanFableClients" AfterTargets="Clean"
 			Condition="'@(_SerdeJsonDirectProjectRef)' != ''">
 		<ItemGroup>
-			<_SerdeJsonRefFableDir Include="@(_SerdeJsonDirectProjectRef->'%(RootDir)%(Directory)generated-fable')" />
+			<_SerdeJsonRefFableDir Include="@(_SerdeJsonDirectProjectRef->'%(RootDir)%(Directory)fable-generated')" />
 		</ItemGroup>
 		<RemoveDir Directories="@(_SerdeJsonRefFableDir)" />
 	</Target>

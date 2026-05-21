@@ -3,6 +3,10 @@
     <Project Path="Serde.FS.SourceGen/Serde.FS.SourceGen.fsproj" />
     <Project Path="Serde.FS/Serde.FS.fsproj" />
   </Folder>
+  <Folder Name="/SourceDjinn/">
+    <Project Path="FSharp.SourceDjinn/FSharp.SourceDjinn.fsproj" />
+    <Project Path="FSharp.SourceDjinn.TypeModel/FSharp.SourceDjinn.TypeModel.fsproj" />
+  </Folder>
   <Folder Name="/Json/">
     <Project Path="Serde.FS.Json.AspNet/Serde.FS.Json.AspNet.fsproj" />
     <Project Path="Serde.FS.Json.GeneratorHost/Serde.FS.Json.GeneratorHost.fsproj" />

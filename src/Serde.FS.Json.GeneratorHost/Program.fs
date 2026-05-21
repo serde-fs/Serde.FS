@@ -96,7 +96,7 @@ let main argv =
                     crossProjectDirs.Add parentDir |> ignore
 
             // Drop a self-ignoring .gitignore into each cross-project output directory
-            // (e.g. Shared/generated-fable/). The file contains just "*", which makes
+            // (e.g. Shared/fable-generated/). The file contains just "*", which makes
             // git ignore everything in the folder including the .gitignore itself, so
             // users never see the generated files or the marker file in `git status`.
             // Cannot live in obj/ because Fable's project cracker strips obj/ paths.
@@ -105,10 +105,26 @@ let main argv =
                 if not (File.Exists gitignorePath) then
                     File.WriteAllText(gitignorePath, "*\n")
 
-            // Remove stale generated files (only JSON-owned suffixes)
+            // Remove stale generated files we own:
+            //   • obj/serde-generated/*.json.g.fs (per-type codecs, dispatch
+            //     modules, resolver) — pattern-scoped so we don't touch
+            //     unrelated files in obj/.
+            //   • cross-project dirs (e.g. <Shared>/fable-generated/) — every
+            //     .fs file in there is ours; deleting any that we didn't just
+            //     write this run cleans up renames (e.g. the legacy
+            //     `IServerApi.fs` after migrating to `~IServerApi.fable.g.fs`)
+            //     and removes clients for interfaces that lost their
+            //     [<GenerateFableClient>] attribute. The `.gitignore` marker
+            //     stays because it's not a .fs file.
             if Directory.Exists outputDir then
                 for ext in ["*.json.g.fs"] do
                     for existingFile in Directory.GetFiles(outputDir, ext) do
+                        if not (generatedFiles.Contains existingFile) then
+                            File.Delete existingFile
+
+            for dir in crossProjectDirs do
+                if Directory.Exists dir then
+                    for existingFile in Directory.GetFiles(dir, "*.fs") do
                         if not (generatedFiles.Contains existingFile) then
                             File.Delete existingFile
 

@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+		<!-- Folded into Serde.FS from the standalone FSharp.SourceDjinn repo.
+		     See FSharp.SourceDjinn.TypeModel.fsproj for the rationale. -->
+		<IsPackable>false</IsPackable>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\FSharp.SourceDjinn.TypeModel\FSharp.SourceDjinn.TypeModel.fsproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Compile Include="TypeKindExtractor.fs" />
+		<Compile Include="CallTypeArgExtractor.fs" />
+		<Compile Include="AstParser.fs" />
+		<Compile Include="EntryPointDetector.fs" />
+		<Compile Include="EntryPointEmitter.fs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="FSharp.Compiler.Service" Version="43.10.103" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- See src/Serde.FS/Serde.FS.fsproj for the FSharp.Core floor rationale. -->
+		<PackageReference Update="FSharp.Core" Version="8.0.100" />
+	</ItemGroup>
+
+</Project>

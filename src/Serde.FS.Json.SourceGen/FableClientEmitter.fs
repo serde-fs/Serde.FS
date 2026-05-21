@@ -597,7 +597,15 @@ module internal FableClientEmitter =
         out.ToString()
 
     /// Compute the absolute path where the Fable file should be written.
-    /// The default location is "<SharedProjectDir>/generated-fable/<ApiName>.fs".
+    /// The default location is
+    ///   "<SharedProjectDir>/fable-generated/~<ApiName>.fable.g.fs"
+    /// Naming convention:
+    ///   • `~` prefix sorts the file at the top in IDE explorers alongside
+    ///     other generated artifacts (mirrors `~SerdeJsonCodecs.json.g.fs`,
+    ///     `~Rpc.IServerApi.json.g.fs` on the server side).
+    ///   • `.fable.g.fs` suffix is self-documenting on Goto-Definition —
+    ///     the IDE title bar makes it obvious the file is generated, even
+    ///     when the consumer is unfamiliar with the directory layout.
     /// We deliberately avoid obj/ because Fable's project cracker filters out
     /// any file whose path contains /obj/ — see Fable's removeFilesInObjFolder.
     let resolveOutputPath (iface: RpcInterfaceInfo) : string option =
@@ -611,6 +619,6 @@ module internal FableClientEmitter =
                     if Path.IsPathRooted custom then custom
                     else Path.GetFullPath(Path.Combine(sourceDir, custom))
                 | _ ->
-                    Path.Combine(sourceDir, "generated-fable")
-            let fileName = sprintf "%s.fs" iface.ShortName
+                    Path.Combine(sourceDir, "fable-generated")
+            let fileName = sprintf "~%s.fable.g.fs" iface.ShortName
             Some (Path.Combine(outDir, fileName))

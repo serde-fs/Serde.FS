@@ -135,4 +135,4 @@ dotnet test src/Serde.FS.Json.Tests/          # runtime factory tests
 dotnet fsi debug-build.fsx                    # full end-to-end including SampleRpc
 ```
 
-If the new type is exercised in `SampleRpc.Shared/Domain.fs`, the debug-build run will regenerate `SampleRpc.Shared/generated-fable/IOrderApi.fs` against the new emitter logic. Inspect that file to confirm the codec module shape and `FableClient` calls look right.
+If the new type is exercised in `SampleRpc.Shared/Domain.fs`, the debug-build run will regenerate `SampleRpc.Shared/fable-generated/~IOrderApi.fable.g.fs` against the new emitter logic. Inspect that file to confirm the codec module shape and `FableClient` calls look right.

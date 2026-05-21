@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+		<!-- Folded into Serde.FS from the standalone FSharp.SourceDjinn repo to
+		     eliminate the cross-repo NuGet round-trip and untangle the FSharp.Core
+		     version pinning that broke Fable 5's project cracker. Bundled into
+		     the GeneratorHost publish; not published as a standalone NuGet package. -->
+		<IsPackable>false</IsPackable>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Compile Include="EntryPointAttribute.fs" />
+		<Compile Include="EntryPointBootstrap.fs" />
+		<Compile Include="TypeModel.fs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- See src/Serde.FS/Serde.FS.fsproj for the FSharp.Core floor rationale. -->
+		<PackageReference Update="FSharp.Core" Version="8.0.100" />
+	</ItemGroup>
+
+</Project>
