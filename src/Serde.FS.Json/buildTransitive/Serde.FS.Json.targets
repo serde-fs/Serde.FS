@@ -38,6 +38,39 @@
 		</ItemGroup>
 	</Target>
 
+	<!-- Cold-start bootstrap fix for Fable clients written into a sibling
+	     project's fable-generated/ folder.
+
+	     The problem: when this backend project's build runs, MSBuild compiles
+	     the referenced Shared project FIRST (as a ProjectReference) and only
+	     THEN runs our `SerdeGenerate` target. So on a green-field build the
+	     sequence is:
+	         1. Shared compiles → Shared.dll has no Fable client.
+	         2. SerdeGenerate runs → writes Shared/fable-generated/<api>.fable.g.fs.
+	         3. This backend compiles.
+	     Shared.dll on disk is now stale: a downstream Fable project that
+	     references Shared.dll (e.g. WebFable) can't find IServerApiFableClient.
+
+	     The fix: after SerdeGenerate has written the Fable client files,
+	     incrementally rebuild each directly-referenced project IN-PROCESS.
+	     The Shared project's MSBuild evaluation now sees fable-generated/ in
+	     its <Compile> items (via Serde.FS.targets' ItemGroup), detects the
+	     new file is newer than Shared.dll, and recompiles. Shared.dll on disk
+	     is now current. MSBuild's incremental check makes this cheap when no
+	     new Fable file was actually emitted.
+
+	     We pass Configuration+TargetFramework through so the rebuild matches
+	     the parent build's configuration (otherwise the called project would
+	     default to its own, which can differ). -->
+	<Target Name="SerdeRebuildFableSharedProjects"
+			AfterTargets="SerdeGenerate"
+			BeforeTargets="CoreCompile"
+			Condition="'@(_SerdeJsonDirectProjectRef)' != ''">
+		<MSBuild Projects="@(_SerdeJsonDirectProjectRef)"
+				 Targets="Build"
+				 Properties="Configuration=$(Configuration);TargetFramework=$(TargetFramework)" />
+	</Target>
+
 	<!-- Clean cross-project fable-generated folders only when the project that runs
 	     the generator is cleaned. The Fable client files are written into a sibling
 	     (Shared) project's directory, but they are OWNED by this backend project's
