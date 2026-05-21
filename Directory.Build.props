@@ -1,9 +1,9 @@
 <Project>
 	<PropertyGroup>
-		<SerdeFSVersion>1.0.0-alpha.37</SerdeFSVersion>
-		<SourceGenVersion>1.0.0-alpha.37</SourceGenVersion>
+		<SerdeFSVersion>1.0.0-alpha.38</SerdeFSVersion>
+		<SourceGenVersion>1.0.0-alpha.38</SourceGenVersion>
 		<!-- SerdeJsonVersion is shared by Serde.FS.Json and Serde.FS.Json.AspNet (lockstep versioning) -->
-		<SerdeJsonVersion>1.0.0-alpha.37</SerdeJsonVersion>
+		<SerdeJsonVersion>1.0.0-alpha.38</SerdeJsonVersion>
 		<SerdeStjVersion>1.0.0-alpha.1</SerdeStjVersion>
 	</PropertyGroup>
 
