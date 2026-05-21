@@ -29,7 +29,13 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <PackageReference Update="FSharp.Core" Version="10.0.103" />
+	  <!-- Packed library: declare the minimum FSharp.Core (matching our
+	       TargetFramework's SDK-bundled version) so consumers on newer F#
+	       runtimes (9.x / 10.x) don't see an NU1605 downgrade warning.
+	       Pinning to 10.0.103 here would force every consumer onto F# 10,
+	       which also breaks Fable 5's project cracker (it treats NU1605 as
+	       fatal during its dotnet-msbuild design-time invocation). -->
+	  <PackageReference Update="FSharp.Core" Version="8.0.100" />
 	</ItemGroup>
 
 	<!-- Clean target: removes obj/serde-generated on dotnet clean -->

@@ -63,7 +63,8 @@
 	  <None Include="$(OutputPath)Serde.FS.SourceGen.*.dll" Pack="true" PackagePath="analyzers/dotnet/fs" />
 	</ItemGroup>
 	<ItemGroup>
-	  <PackageReference Update="FSharp.Core" Version="10.0.103" />
+	  <!-- See Serde.FS.fsproj for the rationale on the lowered FSharp.Core floor. -->
+	  <PackageReference Update="FSharp.Core" Version="8.0.100" />
 	</ItemGroup>
 
 	<!-- Roslyn Packages — needed when SerdeSourceGenerator.fs is enabled -->

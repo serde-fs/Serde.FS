@@ -74,7 +74,8 @@
 		<None Include="buildTransitive\Serde.FS.Json.targets" Pack="true" PackagePath="buildTransitive" Link="buildTransitive\Serde.FS.Json.targets" />
 	</ItemGroup>
 	<ItemGroup>
-	  <PackageReference Update="FSharp.Core" Version="10.0.103" />
+	  <!-- See Serde.FS.fsproj for the rationale on the lowered FSharp.Core floor. -->
+	  <PackageReference Update="FSharp.Core" Version="8.0.100" />
 	</ItemGroup>
 
 

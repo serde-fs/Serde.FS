@@ -33,7 +33,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Update="FSharp.Core" Version="10.0.103" />
+		<!-- See Serde.FS.fsproj for the rationale on the lowered FSharp.Core floor. -->
+		<PackageReference Update="FSharp.Core" Version="8.0.100" />
 	</ItemGroup>
 
 	<!-- Console host: publish output goes to tools/net9.0/ -->
