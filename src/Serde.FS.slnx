@@ -15,11 +15,6 @@
       <Build Solution="Debug|*" Project="false" />
     </Project>
   </Folder>
-  <Folder Name="/SystemTextJson/">
-    <Project Path="Serde.FS.SystemTextJson/Serde.FS.SystemTextJson.fsproj" />
-    <Project Path="Serde.FS.SystemTextJson.SourceGen/Serde.FS.SystemTextJson.SourceGen.fsproj" />
-    <Project Path="Serde.FS.SystemTextJson.GeneratorHost/Serde.FS.SystemTextJson.GeneratorHost.fsproj" />
-  </Folder>
   <Folder Name="/Fable/">
     <Project Path="Serde.FS.Json.Fable/Serde.FS.Json.Fable.fsproj">
       <Build Solution="Debug|*" Project="false" />

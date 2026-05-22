@@ -4,12 +4,12 @@ open FSharp.SourceDjinn.TypeModel.Types
 
 type ISerdeCodeEmitter =
     abstract member Emit : SerdeTypeInfo -> string
-    /// File suffix for per-type generated files (e.g. "json", "stj"). Produces "{TypeName}.{suffix}.g.fs".
+    /// File suffix for per-type generated files (e.g. "json"). Produces "{TypeName}.{suffix}.g.fs".
     abstract member HintNameSuffix : string
 
 type ISerdeResolverEmitter =
     abstract member EmitResolver : SerdeTypeInfo list -> string option
-    /// The hint name for the resolver file (e.g. "~SerdeResolver.serde.g.fs" or "~SerdeStjResolver.g.fs").
+    /// The hint name for the resolver file (e.g. "~SerdeResolver.serde.g.fs").
     abstract member ResolverHintName : string
     /// Additional files to emit after the resolver (e.g. registration + bootstrap). Returns (hintName, code) pairs.
     abstract member EmitRegistrationFiles : unit -> (string * string) list
