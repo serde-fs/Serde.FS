@@ -6,7 +6,7 @@
 		<SerdeJsonVersion>1.0.0-alpha.40</SerdeJsonVersion>
 		<!-- Fable client generator. Independent version line so the Fable side
 		     can iterate without bumping the server-side package. -->
-		<SerdeFableVersion>1.0.0-alpha.40</SerdeFableVersion>
+		<SerdeFableVersion>1.0.0-alpha.41</SerdeFableVersion>
 		<SerdeStjVersion>1.0.0-alpha.1</SerdeStjVersion>
 	</PropertyGroup>
 
