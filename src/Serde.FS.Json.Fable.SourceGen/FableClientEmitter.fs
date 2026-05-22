@@ -144,7 +144,13 @@ module FableClientEmitter =
             | "DateTimeOffset" | "System.DateTimeOffset"
             | "DateOnly" | "System.DateOnly"
             | "TimeOnly" | "System.TimeOnly" ->
-                sprintf "box ((%s).ToString(\"O\"))" varExpr
+                // Fable's `DateOnly.ToString("O")` (single-arg) overload isn't
+                // implemented — it requires an explicit CultureInfo. Pass
+                // InvariantCulture to keep wire format culture-neutral AND
+                // satisfy Fable's compat rules. The same form works under
+                // .NET (the call is dead code there since the generated
+                // module is only invoked from Fable-compiled JS).
+                sprintf "box ((%s).ToString(\"O\", System.Globalization.CultureInfo.InvariantCulture))" varExpr
             | _ -> sprintf "box (%s)" varExpr
         | FOption inner ->
             sprintf "(match %s with | Some x -> %s | None -> null)" varExpr (encodeExpr "x" inner)
