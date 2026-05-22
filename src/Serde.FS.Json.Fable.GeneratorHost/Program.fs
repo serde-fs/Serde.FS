@@ -1,6 +1,7 @@
 module Serde.FS.Json.Fable.GeneratorHost.Program
 
 open System.IO
+open System.Text.RegularExpressions
 open Serde.FS.SourceGen
 open Serde.FS.Json.Fable.SourceGen
 
@@ -9,16 +10,64 @@ open Serde.FS.Json.Fable.SourceGen
 // would shadow F#'s `Microsoft.FSharp.Core.EntryPointAttribute` and silently
 // break the `[<EntryPoint>]` annotation below — the compiler emits FS0988
 // "Main module of program is empty" and the host exe becomes a no-op.
-// Field types from Serde.FS (RpcInterfaceInfo, RpcMethodInfo) resolve through
-// inference on `discovery.Interfaces` without needing the open.
 
 // Entry point invoked from the Serde.FS.Json.Fable buildTransitive target.
 // Args:
-//   argv.[0] = projectDir     the consumer Fable project's directory.
-//   argv.[1] = outputDir      absolute path to <projectDir>/fable-generated;
-//                             we write `~<InterfaceName>.fable.g.fs` here.
-//   argv.[2] = refSourceList  semicolon-separated .fs paths from
-//                             directly-referenced projects (Shared etc.).
+//   argv.[0] = projectDir         consumer Fable project's directory.
+//   argv.[1] = outputDir          absolute path to <projectDir>/fable-generated.
+//   argv.[2] = consumerFsproj     consumer's .fsproj path. The host walks the
+//                                 ProjectReference graph from here to gather
+//                                 all transitively-reachable source files —
+//                                 essential because the consumer's direct
+//                                 ProjectReference list isn't enough when
+//                                 type references chain (e.g. WebFable →
+//                                 Domain → Forge): Forge's source files
+//                                 wouldn't be reached by walking only
+//                                 WebFable's direct refs.
+
+let private projectRefRegex =
+    Regex(@"<ProjectReference\s+Include\s*=\s*""([^""]+)""", RegexOptions.IgnoreCase)
+
+/// Walk the ProjectReference graph recursively starting from `fsprojPath`,
+/// returning the full set of canonical .fsproj paths reachable. Includes
+/// `fsprojPath` itself. Cycles are bounded by the visited set.
+let rec private collectFsprojGraph (visited: Set<string>) (fsprojPath: string) : Set<string> =
+    if not (File.Exists fsprojPath) then visited
+    else
+        let canonical = Path.GetFullPath(fsprojPath).ToLowerInvariant()
+        if visited.Contains canonical then visited
+        else
+            let visited = visited.Add canonical
+            let dir = Path.GetDirectoryName(Path.GetFullPath fsprojPath)
+            try
+                let xml = File.ReadAllText fsprojPath
+                projectRefRegex.Matches(xml)
+                |> Seq.cast<Match>
+                |> Seq.map (fun m -> m.Groups.[1].Value)
+                |> Seq.map (fun rel -> Path.GetFullPath(Path.Combine(dir, rel)))
+                |> Seq.fold collectFsprojGraph visited
+            with _ -> visited
+
+/// Collect .fs source files for a project, recursively from its directory.
+/// Excludes build artefacts and generated files so we don't try to discover
+/// types from already-generated code.
+let private collectFsFiles (fsprojPath: string) : (string * string) list =
+    let dir = Path.GetDirectoryName(Path.GetFullPath fsprojPath)
+    let isExcluded (path: string) =
+        let n = path.Replace('\\', '/').ToLowerInvariant()
+        n.Contains "/obj/"
+        || n.Contains "/bin/"
+        || n.Contains "/fable_modules/"
+        || n.Contains "/fable-generated/"
+        || n.EndsWith(".serde.g.fs")
+        || n.EndsWith(".djinn.g.fs")
+        || n.EndsWith(".json.g.fs")
+        || n.EndsWith(".fable.g.fs")
+    Directory.GetFiles(dir, "*.fs", SearchOption.AllDirectories)
+    |> Array.filter (fun f -> not (isExcluded f))
+    |> Array.map (fun f -> f, File.ReadAllText f)
+    |> Array.toList
+
 [<EntryPoint>]
 let main (argv: string array) =
     if argv.Length = 0 then
@@ -29,39 +78,32 @@ let main (argv: string array) =
         let outputDir =
             if argv.Length > 1 then argv.[1]
             else Path.Combine(projectDir, "fable-generated")
+        let consumerFsproj =
+            if argv.Length > 2 && File.Exists(argv.[2]) then argv.[2]
+            else
+                // Best-effort: find a .fsproj in projectDir.
+                let candidates = Directory.GetFiles(projectDir, "*.fsproj")
+                if candidates.Length > 0 then candidates.[0]
+                else ""
 
         if not (Directory.Exists outputDir) then
             Directory.CreateDirectory outputDir |> ignore
 
-        let isGenerated (name: string) =
-            name.EndsWith(".serde.g.fs")
-            || name.EndsWith(".djinn.g.fs")
-            || name.EndsWith(".json.g.fs")
-            || name.EndsWith(".fable.g.fs")
+        // Build the full project graph the consumer transitively depends on.
+        // The consumer's own .fsproj is included so its local sources are
+        // gathered as part of the same walk (no need for a separate
+        // "local sources" path).
+        let allProjects =
+            if consumerFsproj = "" then Set.empty
+            else collectFsprojGraph Set.empty consumerFsproj
 
-        let localSourceFiles =
-            Directory.GetFiles(projectDir, "*.fs", SearchOption.TopDirectoryOnly)
-            |> Array.filter (fun f -> not (isGenerated (Path.GetFileName f)))
-            |> Array.map (fun f -> f, File.ReadAllText f)
-            |> Array.toList
-
-        let localFullPaths =
-            localSourceFiles
-            |> List.map (fun (f, _) -> Path.GetFullPath(f).ToLowerInvariant())
-            |> Set.ofList
-
-        let refSourceFiles =
-            if argv.Length > 2 && not (System.String.IsNullOrWhiteSpace(argv.[2])) then
-                argv.[2].Split(';', System.StringSplitOptions.RemoveEmptyEntries)
-                |> Array.filter (fun f -> f.EndsWith(".fs") && File.Exists(f))
-                |> Array.filter (fun f -> not (isGenerated (Path.GetFileName f)))
-                |> Array.filter (fun f ->
-                    not (localFullPaths.Contains(Path.GetFullPath(f).ToLowerInvariant())))
-                |> Array.map (fun f -> f, File.ReadAllText f)
-                |> Array.toList
-            else []
-
-        let sourceFiles = localSourceFiles @ refSourceFiles
+        // Dedup .fs files by canonical path. Multiple ProjectReferences
+        // could point to the same project, or directories could nest.
+        let sourceFiles =
+            allProjects
+            |> Set.toList
+            |> List.collect collectFsFiles
+            |> List.distinctBy (fun (path, _) -> Path.GetFullPath(path).ToLowerInvariant())
 
         // Reuse the same discovery used by the server-side generator so the
         // Fable client stays in lockstep with what the server expects.

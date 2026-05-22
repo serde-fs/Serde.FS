@@ -1,41 +1,17 @@
 <Project>
-	<!-- Capture DIRECT @(ProjectReference) entries at evaluation time, before
-	     the .NET SDK flattens transitive project references into the same
-	     item list. We only scan sources from projects this project EXPLICITLY
-	     references (typically a Shared project containing [<RpcApi>]
-	     interfaces) so we don't pick up Server-side codec generated sources,
-	     test scaffolding, etc. -->
-	<ItemGroup>
-		<_SerdeFableDirectProjectRef Include="@(ProjectReference)" />
-	</ItemGroup>
-
-	<!-- Collect .fs source files from directly-referenced projects for
-	     [<RpcApi>] discovery. -->
-	<Target Name="SerdeFableCollectRefSources" BeforeTargets="SerdeFableGenerate"
-			Condition="'@(_SerdeFableDirectProjectRef)' != ''">
-		<ItemGroup>
-			<_SerdeFableRefProjectDir Include="@(_SerdeFableDirectProjectRef->'%(RootDir)%(Directory)')" />
-		</ItemGroup>
-		<!-- fable_modules\** is Fable's local cache of NuGet package .fs sources
-		     (copied during Fable compilation so they can be transpiled to JS).
-		     Excluding it keeps discovery focused on the consuming project's
-		     own sources in mixed Server/Shared/Client repos. -->
-		<CreateItem Include="%(_SerdeFableRefProjectDir.Identity)**\*.fs"
-					Exclude="%(_SerdeFableRefProjectDir.Identity)obj\**;%(_SerdeFableRefProjectDir.Identity)bin\**;%(_SerdeFableRefProjectDir.Identity)**\fable_modules\**"
-					Condition="'%(_SerdeFableRefProjectDir.Identity)' != ''">
-			<Output TaskParameter="Include" ItemName="_SerdeFableRefSourceFile" />
-		</CreateItem>
-		<PropertyGroup>
-			<_SerdeFableRefSourceList>@(_SerdeFableRefSourceFile, ';')</_SerdeFableRefSourceList>
-		</PropertyGroup>
-	</Target>
-
 	<!-- Invoke the GeneratorHost. It writes one ~<Api>.fable.g.fs file per
 	     discovered [<RpcApi>] interface into this project's fable-generated/
 	     folder. The folder lives in the project's source tree (NOT obj/)
 	     because Fable's project cracker strips obj/ paths. Same MSBuild
 	     invocation reorders the Compile list below, so the freshly-written
 	     file is in the right position before CoreCompile runs.
+
+	     We pass the consumer's own .fsproj path ($MSBuildProjectFullPath$)
+	     so the host can walk transitive ProjectReferences itself — a project
+	     graph that includes WebFable → Domain → Forge needs Forge's source
+	     files for discovery even though WebFable only directly references
+	     Domain. MSBuild's @(ProjectReference) item set is direct-only;
+	     parsing transitives in XML is awkward, so the host does it.
 
 	     PREPEND semantics: the generated file DECLARES `IOrderApiFableClient`
 	     (etc.) and the consumer's own source files (App.fs and friends) USE
@@ -46,7 +22,7 @@
 	     items, clear `@(Compile)`, then re-add ours first and the user's
 	     after — net effect is a prepended generated file. -->
 	<Target Name="SerdeFableGenerate" BeforeTargets="CoreCompile">
-		<Exec Command="dotnet &quot;$(MSBuildThisFileDirectory)../tools/net9.0/Serde.FS.Json.Fable.GeneratorHost.dll&quot; &quot;$(ProjectDir).&quot; &quot;$(MSBuildProjectDirectory)\fable-generated&quot; &quot;$(_SerdeFableRefSourceList)&quot;" />
+		<Exec Command="dotnet &quot;$(MSBuildThisFileDirectory)../tools/net9.0/Serde.FS.Json.Fable.GeneratorHost.dll&quot; &quot;$(ProjectDir).&quot; &quot;$(MSBuildProjectDirectory)\fable-generated&quot; &quot;$(MSBuildProjectFullPath)&quot;" />
 
 		<ItemGroup Condition="Exists('$(MSBuildProjectDirectory)\fable-generated')">
 			<_SerdeFableUserCompile Include="@(Compile)" />

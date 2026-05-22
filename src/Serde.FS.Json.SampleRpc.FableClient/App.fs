@@ -3,6 +3,7 @@ module App
 open Lit
 open Fable.Lit.Dsl
 open SampleRpc.Shared
+open SerdeGenerated.Fable
 
 let private client = IOrderApiFableClient.create "/"
 
