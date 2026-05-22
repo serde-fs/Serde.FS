@@ -167,6 +167,22 @@ let main (argv: string array) =
 
         let discovery = RpcApiDiscovery.discover allTypeInfos sourceFiles
 
+        // Normalize each discovered type's field TypeInfos via
+        // discovery.ResolveFieldType. The server-side `SerdeGeneratorEngine`
+        // performs the same normalization on every SerdeTypeInfo it processes;
+        // skipping it on the Fable side means field references captured by the
+        // parser in unqualified/partial-qualifier form (e.g. `Hub: Forge.Hub`)
+        // never reach their canonical (Namespace + EM + TN) shape before the
+        // emitter sees them — and the emitter's collision-disambiguation
+        // depends on EM being populated. Result: bare codec names like
+        // `ConduitCodec` get emitted as field references even though the
+        // actual codec module is declared under a disambiguated name like
+        // `ConduitSchedule_ConduitCodec`, and compilation fails. We must
+        // apply the same `FieldTypeResolver.resolveSerdeTypeInfo` pass here.
+        let normalizedTypes =
+            discovery.DiscoveredTypes
+            |> List.map (FieldTypeResolver.resolveSerdeTypeInfo discovery.ResolveFieldType)
+
         let generatedFiles =
             System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase)
         let mutable hadErrors = false
@@ -181,7 +197,7 @@ let main (argv: string array) =
                 hadErrors <- true
                 eprintfn "%s" err
             | None ->
-                let code = FableClientEmitter.emit rpc discovery.DiscoveredTypes
+                let code = FableClientEmitter.emit rpc normalizedTypes
                 let outputFile = Path.Combine(outputDir, FableClientEmitter.outputFileName rpc)
                 let existing =
                     if File.Exists outputFile then Some (File.ReadAllText outputFile)

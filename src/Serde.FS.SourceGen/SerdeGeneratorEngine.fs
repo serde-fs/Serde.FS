@@ -170,7 +170,17 @@ module private GenericDiscovery =
                 GenericArguments = constructed.GenericArguments
             } }
 
-module private FieldTypeResolver =
+/// Walks SerdeTypeInfo / TypeInfo trees and applies a single-type resolver
+/// (typically `RpcDiscoveryResult.ResolveFieldType`) at each leaf, normalising
+/// parser-captured field TypeInfos to their canonical (Namespace + EM + TN)
+/// form. Public so design-time tools outside SerdeGeneratorEngine — most
+/// notably `Serde.FS.Json.Fable.GeneratorHost`, which builds Fable clients
+/// without going through the full codec pipeline — can apply the same
+/// normalization the server-side generator does. Without it, codec module
+/// names emitted by the Fable client emitter would diverge from those the
+/// server emits (e.g. bare `ConduitCodec` vs disambiguated
+/// `ConduitSchedule_ConduitCodec`), and the generated client wouldn't compile.
+module FieldTypeResolver =
 
     /// FQN segments of the type whose fields we're resolving. Used as the
     /// `parentScope` to disambiguate unqualified short names (e.g. a field
