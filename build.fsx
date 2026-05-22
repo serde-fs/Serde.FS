@@ -8,7 +8,6 @@ open Fun.Build
 // ---------------------------------------------------------------------------
 
 let serdeFSProj            = "src/Serde.FS/Serde.FS.fsproj"
-let sourceGenProj          = "src/Serde.FS.SourceGen/Serde.FS.SourceGen.fsproj"
 let generatorHostProj      = "src/Serde.FS.Json.GeneratorHost/Serde.FS.Json.GeneratorHost.fsproj"
 let fableGeneratorHostProj = "src/Serde.FS.Json.Fable.GeneratorHost/Serde.FS.Json.Fable.GeneratorHost.fsproj"
 let jsonProj               = "src/Serde.FS.Json/Serde.FS.Json.fsproj"
@@ -21,7 +20,7 @@ let buildDir               = ".build"
 // ---------------------------------------------------------------------------
 
 pipeline "build" {
-    description "Build and pack Serde.FS, Serde.FS.SourceGen, Serde.FS.Json, Serde.FS.Json.AspNet, and Serde.FS.Json.Fable"
+    description "Build and pack Serde.FS, Serde.FS.Json, Serde.FS.Json.AspNet, and Serde.FS.Json.Fable"
 
     stage "Prepare output directory" {
         run (fun _ ->
@@ -35,11 +34,6 @@ pipeline "build" {
         )
     }
 
-    stage "Pack Serde.FS.SourceGen" {
-        run $"dotnet clean {sourceGenProj}"
-        run $"dotnet pack {sourceGenProj} -c Release -o {buildDir}"
-    }
-
     stage "Pack Serde.FS" {
         run $"dotnet clean {serdeFSProj}"
         run $"dotnet pack {serdeFSProj} -c Release -o {buildDir}"
@@ -51,7 +45,7 @@ pipeline "build" {
     }
 
     stage "Pack Serde.FS.Json" {
-        // Restore using the locally packed SourceGen
+        // Restore using the locally packed Serde.FS runtime dep
         run $"""dotnet restore {jsonProj} --source {Path.GetFullPath(buildDir)} --source "https://api.nuget.org/v3/index.json" """
         run $"dotnet clean {jsonProj}"
         run $"dotnet pack {jsonProj} -c Release -o {buildDir}"

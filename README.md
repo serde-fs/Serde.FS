@@ -1,9 +1,9 @@
 # **Serde.FS — Strict, Deterministic Serialization for F#**
 
 [![Serde.FS](https://img.shields.io/nuget/vpre/Serde.FS.svg?label=Serde.FS)](https://www.nuget.org/packages/Serde.FS/)
-[![Serde.FS.SourceGen](https://img.shields.io/nuget/vpre/Serde.FS.SourceGen.svg?label=Serde.FS.SourceGen)](https://www.nuget.org/packages/Serde.FS.SourceGen/)
 [![Serde.FS.Json](https://img.shields.io/nuget/vpre/Serde.FS.Json.svg?label=Serde.FS.Json)](https://www.nuget.org/packages/Serde.FS.Json/)
 [![Serde.FS.Json.AspNet](https://img.shields.io/nuget/vpre/Serde.FS.Json.AspNet.svg?label=Serde.FS.Json.AspNet)](https://www.nuget.org/packages/Serde.FS.Json.AspNet/)
+[![Serde.FS.Json.Fable](https://img.shields.io/nuget/vpre/Serde.FS.Json.Fable.svg?label=Serde.FS.Json.Fable)](https://www.nuget.org/packages/Serde.FS.Json.Fable/)
 
 Serde.FS is a reflection‑free, compile‑time validated serialization and RPC framework for F#.  
 It brings Rust‑style determinism to .NET and adds a **zero‑boilerplate RPC layer** on top — server, .NET client, and (with Fable 5+) browser‑side Fable client are all generated from a single `[<RpcApi>]` interface.

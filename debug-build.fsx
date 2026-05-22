@@ -9,7 +9,6 @@ open Fun.Build
 // ---------------------------------------------------------------------------
 
 let serdeFSProj       = "src/Serde.FS/Serde.FS.fsproj"
-let sourceGenProj     = "src/Serde.FS.SourceGen/Serde.FS.SourceGen.fsproj"
 let generatorHostProj    = "src/Serde.FS.Json.GeneratorHost/Serde.FS.Json.GeneratorHost.fsproj"
 let stjGeneratorHostProj = "src/Serde.FS.SystemTextJson.GeneratorHost/Serde.FS.SystemTextJson.GeneratorHost.fsproj"
 let fableGeneratorHostProj = "src/Serde.FS.Json.Fable.GeneratorHost/Serde.FS.Json.Fable.GeneratorHost.fsproj"
@@ -39,7 +38,6 @@ let readProp (propName: string) =
     content.Substring(start, endIdx - start).Trim()
 
 let stableSerdeFSVersion     = readProp "SerdeFSVersion"
-let stableSourceGenVersion   = readProp "SourceGenVersion"
 let stableSerdeJsonVersion   = readProp "SerdeJsonVersion"
 let stableSerdeFableVersion  = readProp "SerdeFableVersion"
 let stableSerdeStjVersion    = readProp "SerdeStjVersion"
@@ -72,7 +70,6 @@ pipeline "debug" {
     stage "Show versions" {
         run (fun _ ->
             printfn $"Stable Serde.FS:       {stableSerdeFSVersion}"
-            printfn $"Stable SourceGen:      {stableSourceGenVersion}"
             printfn $"Stable Serde.FS.Json:  {stableSerdeJsonVersion}"
             printfn $"Stable Serde.FS.Fable: {stableSerdeFableVersion}"
             printfn $"Stable Serde.FS.STJ:   {stableSerdeStjVersion}"
@@ -112,13 +109,6 @@ pipeline "debug" {
         )
     }
 
-    stage "Pack Serde.FS.SourceGen" {
-        run $"dotnet clean {sourceGenProj}"
-        run $"dotnet restore {sourceGenProj} --source https://api.nuget.org/v3/index.json --source {Path.GetFullPath(nugetLocalDir)}"
-        run $"dotnet build {sourceGenProj} -c Debug --no-restore /p:PackageVersion={debugVersion} /p:SourceGenVersion={debugVersion} /p:SerdeFSVersion={debugVersion}"
-        run $"dotnet pack {sourceGenProj} -c Debug -o {nugetLocalDir} /p:PackageVersion={debugVersion} /p:SourceGenVersion={debugVersion} /p:SerdeFSVersion={debugVersion}"
-    }
-
     stage "Pack Serde.FS" {
         run $"dotnet clean {serdeFSProj}"
         run $"dotnet build {serdeFSProj} -c Debug /p:PackageVersion={debugVersion} /p:SerdeFSVersion={debugVersion}"
@@ -132,10 +122,10 @@ pipeline "debug" {
     }
 
     stage "Pack Serde.FS.Json" {
-        run $"dotnet restore {stjProj} --no-cache /p:SourceGenVersion={debugVersion}"
+        run $"dotnet restore {stjProj} --no-cache"
         run $"dotnet clean {stjProj}"
-        run $"dotnet build {stjProj} -c Debug /p:PackageVersion={debugVersion} /p:SerdeFSVersion={debugVersion} /p:SourceGenVersion={debugVersion}"
-        run $"dotnet pack {stjProj} -c Debug -o {nugetLocalDir} /p:PackageVersion={debugVersion} /p:SerdeFSVersion={debugVersion} /p:SourceGenVersion={debugVersion}"
+        run $"dotnet build {stjProj} -c Debug /p:PackageVersion={debugVersion} /p:SerdeFSVersion={debugVersion}"
+        run $"dotnet pack {stjProj} -c Debug -o {nugetLocalDir} /p:PackageVersion={debugVersion} /p:SerdeFSVersion={debugVersion}"
     }
 
     stage "Pack Serde.FS.Json.Fable" {
@@ -206,7 +196,6 @@ pipeline "debug" {
             printfn $"  Debug version:      {debugVersion}"
             printfn $"  Packed:"
             printfn $"    Serde.FS                  {debugVersion}"
-            printfn $"    Serde.FS.SourceGen        {debugVersion}"
             printfn $"    Serde.FS.Json             {debugVersion}"
             printfn $"    Serde.FS.Json.Fable       {debugVersion}"
             printfn $"    Serde.FS.SystemTextJson   {debugVersion}"
