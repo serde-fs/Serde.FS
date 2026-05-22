@@ -30,9 +30,14 @@ let private projectRefRegex =
 
 /// Walk the ProjectReference graph recursively starting from `fsprojPath`,
 /// returning the full set of canonical .fsproj paths reachable. Includes
-/// `fsprojPath` itself. Cycles are bounded by the visited set.
+/// `fsprojPath` itself. Cycles are bounded by the visited set. Logs a
+/// warning for any `<ProjectReference Include="...">` whose target file
+/// can't be found on disk — that's the most common reason a transitive
+/// type doesn't end up in discovery.
 let rec private collectFsprojGraph (visited: Set<string>) (fsprojPath: string) : Set<string> =
-    if not (File.Exists fsprojPath) then visited
+    if not (File.Exists fsprojPath) then
+        eprintfn "[Serde.FS.Json.Fable] WARNING: project file not found, skipping: %s" fsprojPath
+        visited
     else
         let canonical = Path.GetFullPath(fsprojPath).ToLowerInvariant()
         if visited.Contains canonical then visited
@@ -46,7 +51,9 @@ let rec private collectFsprojGraph (visited: Set<string>) (fsprojPath: string) :
                 |> Seq.map (fun m -> m.Groups.[1].Value)
                 |> Seq.map (fun rel -> Path.GetFullPath(Path.Combine(dir, rel)))
                 |> Seq.fold collectFsprojGraph visited
-            with _ -> visited
+            with ex ->
+                eprintfn "[Serde.FS.Json.Fable] WARNING: failed to parse ProjectReferences from %s: %s" fsprojPath ex.Message
+                visited
 
 /// Collect .fs source files for a project, recursively from its directory.
 /// Excludes build artefacts and generated files so we don't try to discover
@@ -97,6 +104,18 @@ let main (argv: string array) =
             if consumerFsproj = "" then Set.empty
             else collectFsprojGraph Set.empty consumerFsproj
 
+        // Diagnostic — log the project graph the walker discovered so users
+        // (and we, debugging remote setups) can see whether the transitive
+        // ProjectReference walk reached every project that declares types
+        // their RpcApi methods reference. If types from a project don't
+        // appear in DiscoveredTypes, that project's .fsproj is missing
+        // from this list and the consumer needs to add a ProjectReference
+        // somewhere along the chain. Goes to stdout (not stderr) so it
+        // doesn't appear as MSBuild errors.
+        printfn "[Serde.FS.Json.Fable] Walked project graph (%d projects):" (Set.count allProjects)
+        for p in allProjects do
+            printfn "  %s" p
+
         // Dedup .fs files by canonical path. Multiple ProjectReferences
         // could point to the same project, or directories could nest.
         let sourceFiles =
@@ -104,6 +123,8 @@ let main (argv: string array) =
             |> Set.toList
             |> List.collect collectFsFiles
             |> List.distinctBy (fun (path, _) -> Path.GetFullPath(path).ToLowerInvariant())
+
+        printfn "[Serde.FS.Json.Fable] Collected %d source files." (List.length sourceFiles)
 
         // Reuse the same discovery used by the server-side generator so the
         // Fable client stays in lockstep with what the server expects.
