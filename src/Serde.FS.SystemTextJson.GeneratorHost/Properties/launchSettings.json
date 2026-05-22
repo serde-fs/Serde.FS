@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "GenSampleApp": {
-      "commandName": "Project",
-      "commandLineArgs": "..\\Serde.FS.Json.SampleApp ..\\Serde.FS.Json.SampleApp\\obj\\serde-generated"
-    }
-  }
-}
