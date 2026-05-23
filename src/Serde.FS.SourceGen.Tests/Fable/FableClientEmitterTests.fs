@@ -327,6 +327,23 @@ let ``method returning Result of T, string`` () =
     SnapshotHarness.assertSnapshot "result_return" actual
 
 [<Test>]
+let ``record with Map field`` () =
+    // Wire shape for Map<K,V> is [[k, v], ...] — matches the runtime
+    // CollectionCodecs.MapCodecFactory on the server side. Regression for
+    // "Map decoding not supported by Fable client generator".
+    let cacheTi =
+        record "Domain" "TagCounts" [
+            "Counts", mapTi stringTi int32Ti
+        ]
+    let methods = [
+        nullaryMethod "GetTagCounts" cacheTi
+    ]
+    let iface = interfaceOf "Domain" "ITagCountsApi" methods true
+    let types = [ toSerde cacheTi ]
+    let actual = FableClientEmitter.emit iface types
+    SnapshotHarness.assertSnapshot "record_map_field" actual
+
+[<Test>]
 let ``record with seq field decodes to seq, not list`` () =
     // Regression: previously synTypeToTypeInfo mapped `seq<T>` to TypeKind.List
     // with TypeName="list", so the Fable decoder produced `string list` even

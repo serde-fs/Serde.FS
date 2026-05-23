@@ -156,8 +156,12 @@ module FableClientEmitter =
             sprintf "(match %s with | Some x -> %s | None -> null)" varExpr (encodeExpr "x" inner)
         | FList inner | FArray inner | FSet inner | FSeq inner ->
             sprintf "(%s |> Seq.map (fun x -> %s) |> Array.ofSeq |> box)" varExpr (encodeExpr "x" inner)
-        | FMap _ ->
-            "(failwith \"Map encoding not supported by Fable client generator\")"
+        | FMap (k, v) ->
+            // Wire shape: [[k, v], [k, v], ...] — matches CollectionCodecs.MapCodecFactory
+            // on the server side. Map.toSeq yields F# tuples (not KeyValuePairs),
+            // which Fable handles consistently across runtimes.
+            sprintf "(%s |> Map.toSeq |> Seq.map (fun (k, v) -> box [| %s; %s |]) |> Array.ofSeq |> box)"
+                varExpr (encodeExpr "k" k) (encodeExpr "v" v)
         | FTuple elements ->
             let pattern = elements |> List.mapi (fun i _ -> sprintf "e%d" i) |> String.concat ", "
             let encs =
@@ -210,8 +214,10 @@ module FableClientEmitter =
             sprintf "(unbox<obj[]> %s |> Array.map (fun x -> %s))" jsonExpr (decodeExpr "x" inner)
         | FSet inner ->
             sprintf "(unbox<obj[]> %s |> Array.map (fun x -> %s) |> Set.ofArray)" jsonExpr (decodeExpr "x" inner)
-        | FMap _ ->
-            "(failwith \"Map decoding not supported by Fable client generator\")"
+        | FMap (k, v) ->
+            // Wire shape: outer JS array of 2-element [k, v] pairs.
+            sprintf "(unbox<obj[]> %s |> Array.map (fun pair -> let p = unbox<obj[]> pair in (%s, %s)) |> Map.ofArray)"
+                jsonExpr (decodeExpr "p.[0]" k) (decodeExpr "p.[1]" v)
         | FTuple elements ->
             let decs =
                 elements
