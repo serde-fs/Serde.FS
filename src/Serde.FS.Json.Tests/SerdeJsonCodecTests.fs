@@ -189,6 +189,48 @@ let ``deserialize non-array JSON for Set<int> throws`` () =
     ) |> ignore
 
 [<Test>]
+let ``Option<int> Some round-trips via SerdeJson`` () =
+    let original : int option = Some 42
+    let json = SerdeJson.serialize original
+    Assert.AreEqual("42", json)
+    Assert.AreEqual(original, SerdeJson.deserialize<int option> json)
+
+[<Test>]
+let ``Option<int> None round-trips via SerdeJson`` () =
+    let original : int option = None
+    let json = SerdeJson.serialize original
+    Assert.AreEqual("null", json)
+    Assert.AreEqual(original, SerdeJson.deserialize<int option> json)
+
+[<Test>]
+let ``Option<string> None round-trips via SerdeJson`` () =
+    let original : string option = None
+    let json = SerdeJson.serialize original
+    Assert.AreEqual("null", json)
+    Assert.AreEqual(original, SerdeJson.deserialize<string option> json)
+
+[<Test>]
+let ``Option<int> list round-trips (option in collection element)`` () =
+    // Regression for the CEI shape: when Option<T> appears nested inside
+    // another container (here a list), the runtime resolver is asked for
+    // Option<T> directly — record-field option special-casing doesn't help.
+    let original : int option list = [ Some 1; None; Some 3 ]
+    let json = SerdeJson.serialize original
+    Assert.AreEqual("[1,null,3]", json)
+    Assert.AreEqual(original, SerdeJson.deserialize<int option list> json)
+
+[<Test>]
+let ``Result<Option<int>, string> round-trips`` () =
+    // Closer to the CEI failure shape: Option nested inside a Result branch.
+    let originalOk : Result<int option, string> = Ok (Some 7)
+    let jsonOk = SerdeJson.serialize originalOk
+    Assert.AreEqual(originalOk, SerdeJson.deserialize<Result<int option, string>> jsonOk)
+
+    let originalOkNone : Result<int option, string> = Ok None
+    let jsonOkNone = SerdeJson.serialize originalOkNone
+    Assert.AreEqual(originalOkNone, SerdeJson.deserialize<Result<int option, string>> jsonOkNone)
+
+[<Test>]
 let ``seq<string> round-trips via SerdeJson`` () =
     // Regression: the runtime codec registry had factories for list/array/Set/
     // Map/Result but not for seq<'T>/IEnumerable<'T>, so any response DTO with

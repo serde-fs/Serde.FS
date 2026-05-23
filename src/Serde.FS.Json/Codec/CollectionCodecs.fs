@@ -121,6 +121,38 @@ module CollectionCodecs =
                         listOfArrayMethod.Invoke(null, [| arr |])
                     | _ -> failwith $"Expected JSON array for %s{listType.Name}" }
 
+    /// Factory for constructing Option<'T> codecs dynamically from the registry.
+    /// Wire shape: Some x → encode inner x; None → JSON null. Matches the
+    /// record-field option handling in JsonCodeEmitter, but kicks in for any
+    /// non-field-level context where Option<T> needs runtime resolution
+    /// (list element, Result payload, Map value, tuple element, union case
+    /// payload, etc.).
+    module OptionCodecFactory =
+        let create (typeArgs: Type[]) (registry: CodecRegistry) : IJsonCodec =
+            let innerType = typeArgs[0]
+            let innerCodec = CodecResolver.resolve innerType registry
+            let optionType = typedefof<Option<_>>.MakeGenericType(innerType)
+
+            let cases = Microsoft.FSharp.Reflection.FSharpType.GetUnionCases(optionType)
+            let noneCase = cases |> Array.find (fun c -> c.Name = "None")
+            let someCase = cases |> Array.find (fun c -> c.Name = "Some")
+
+            { new IJsonCodec with
+                member _.Type = optionType
+                member _.Encode obj =
+                    // For reference-type T, None is represented as null and
+                    // GetUnionFields on a null obj throws. Defensive null check.
+                    if isNull obj then
+                        JsonValue.Null
+                    else
+                        let case, fields = Microsoft.FSharp.Reflection.FSharpValue.GetUnionFields(obj, optionType)
+                        if case.Name = "Some" then innerCodec.Encode fields.[0]
+                        else JsonValue.Null
+                member _.Decode json =
+                    match json with
+                    | JsonValue.Null -> Microsoft.FSharp.Reflection.FSharpValue.MakeUnion(noneCase, [||])
+                    | _ -> Microsoft.FSharp.Reflection.FSharpValue.MakeUnion(someCase, [| innerCodec.Decode json |]) }
+
     /// Factory for constructing Result<'Ok,'Error> codecs dynamically from the registry.
     module ResultCodecFactory =
         let create (typeArgs: Type[]) (registry: CodecRegistry) : IJsonCodec =
