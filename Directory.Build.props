@@ -1,9 +1,9 @@
 <Project>
 	<PropertyGroup>
-		<SerdeFSVersion>1.0.0-alpha.40</SerdeFSVersion>
-		<SourceGenVersion>1.0.0-alpha.40</SourceGenVersion>
+		<SerdeFSVersion>1.0.0-alpha.41</SerdeFSVersion>
+		<SourceGenVersion>1.0.0-alpha.41</SourceGenVersion>
 		<!-- SerdeJsonVersion is shared by Serde.FS.Json and Serde.FS.Json.AspNet (lockstep versioning) -->
-		<SerdeJsonVersion>1.0.0-alpha.40</SerdeJsonVersion>
+		<SerdeJsonVersion>1.0.0-alpha.41</SerdeJsonVersion>
 		<!-- Fable client generator. Independent version line so the Fable side
 		     can iterate without bumping the server-side package. -->
 		<SerdeFableVersion>1.0.0-alpha.46</SerdeFableVersion>
