@@ -154,6 +154,12 @@ module FableClientEmitter =
             | _ -> sprintf "box (%s)" varExpr
         | FOption inner ->
             sprintf "(match %s with | Some x -> %s | None -> null)" varExpr (encodeExpr "x" inner)
+        // byte[] gets a dedicated base64 wire format on the server side
+        // (PrimitiveCodecs.byteArrayEncoder); the Fable client must mirror it
+        // or the round-trip breaks. Specific case has to come before the
+        // generic FArray branch below.
+        | FArray (FPrim "byte") ->
+            sprintf "(box (System.Convert.ToBase64String (%s)))" varExpr
         | FList inner | FArray inner | FSet inner | FSeq inner ->
             sprintf "(%s |> Seq.map (fun x -> %s) |> Array.ofSeq |> box)" varExpr (encodeExpr "x" inner)
         | FMap (k, v) ->
@@ -210,6 +216,11 @@ module FableClientEmitter =
             // expects a seq<T>, not a list<T>. F# doesn't auto-coerce list to
             // seq in record-field init / interface member overrides.
             sprintf "(unbox<obj[]> %s |> Array.map (fun x -> %s) :> seq<_>)" jsonExpr (decodeExpr "x" inner)
+        // byte[] is base64-encoded on the wire (server-side PrimitiveCodecs).
+        // Decode via System.Convert.FromBase64String, which Fable implements
+        // against the runtime's atob — yielding a Uint8Array F# sees as byte[].
+        | FArray (FPrim "byte") ->
+            sprintf "(System.Convert.FromBase64String (unbox<string> %s))" jsonExpr
         | FArray inner ->
             sprintf "(unbox<obj[]> %s |> Array.map (fun x -> %s))" jsonExpr (decodeExpr "x" inner)
         | FSet inner ->

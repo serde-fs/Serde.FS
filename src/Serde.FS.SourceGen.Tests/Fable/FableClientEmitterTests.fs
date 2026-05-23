@@ -327,6 +327,31 @@ let ``method returning Result of T, string`` () =
     SnapshotHarness.assertSnapshot "result_return" actual
 
 [<Test>]
+let ``record with byte array field uses base64`` () =
+    // byte[] gets a dedicated base64 wire format on the server side
+    // (PrimitiveCodecs.byteArrayEncoder). The Fable emitter must mirror it via
+    // System.Convert.ToBase64String / FromBase64String — NOT route through the
+    // generic FArray path (which would produce a JS array of byte numbers and
+    // crash on receiving "SGVsbG8=" from the server).
+    let exportTi =
+        record "Domain" "Export" [
+            "Payload", arrTi byteTi
+        ]
+    let methods = [
+        nullaryMethod "Download" exportTi
+    ]
+    let iface = interfaceOf "Domain" "IExportApi" methods true
+    let types = [ toSerde exportTi ]
+    let actual = FableClientEmitter.emit iface types
+    // Pin the emitted snippets directly so a future regression that re-routes
+    // byte[] through the generic FArray path fails the test.
+    Assert.That(actual, Does.Contain("System.Convert.ToBase64String"))
+    Assert.That(actual, Does.Contain("System.Convert.FromBase64String"))
+    Assert.That(actual, Does.Not.Contain("(byte (unbox<float>"),
+        "byte[] must not decode element-by-element via the generic FArray path")
+    SnapshotHarness.assertSnapshot "record_byte_array_field" actual
+
+[<Test>]
 let ``record with Map field`` () =
     // Wire shape for Map<K,V> is [[k, v], ...] — matches the runtime
     // CollectionCodecs.MapCodecFactory on the server side. Regression for

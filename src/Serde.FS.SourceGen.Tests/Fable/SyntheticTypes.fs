@@ -26,6 +26,7 @@ let decimalTi = prim PrimitiveKind.Decimal "decimal"
 let floatTi   = prim Float64 "float"
 let unitTi    = prim Unit "unit"
 let guidTi    = prim Guid "Guid"
+let byteTi    = prim UInt8 "byte"
 
 // ── Structural wrappers ────────────────────────────────────────────────────
 
