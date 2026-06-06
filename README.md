@@ -217,14 +217,6 @@ The `fable-generated/` folder is auto‑`.gitignore`d (the generator drops a sel
 
 See: a full end‑to‑end example (ASP.NET server + Lit‑based Fable web client) lives under [src/Serde.FS.Json.SampleRpc.FableClient](src/Serde.FS.Json.SampleRpc.FableClient).
 
-> **💡 Trade-off vs Fable.Remoting**
->
-> The generated Fable client scales with your API surface — a large `[<RpcApi>]` with dozens of methods produces a proportionally larger `~<Api>.fable.g.fs` (and bundled `.js`). A runtime‑reflection client like Fable.Remoting ships a fixed‑size engine instead. For a tiny API, Fable.Remoting wins bundle size; for a larger surface, the gap is smaller than the raw line count suggests — generated code is highly repetitive, which minifiers and gzip crush, and unused method codecs are tree‑shakeable.
->
-> Bundle size is paid once at load. Runtime serialization is paid on every RPC call: Serde.FS decodes through straight‑line generated code (sub‑ms cold), a reflection client walks types at call time. For chatty UIs the per‑call delta dominates the bundle delta after a handful of calls.
->
-> If bundle size *is* the dominant constraint, lean into modularization: split your `[<RpcApi>]` across multiple Shared projects (e.g. `Shared.Orders`, `Shared.Admin`), and each Fable consumer pulls only the slices it references. The attribute‑driven generation makes this clean to set up — a second interface is one more `[<RpcApi>]` declaration + one more `MapRpcApi<T>` call.
-
 ---
 
 ### 🎉 That’s the entire workflow
@@ -232,6 +224,21 @@ See: a full end‑to‑end example (ASP.NET server + Lit‑based Fable web clien
 **Define an interface → Implement it → Call it from .NET, the browser, or both.**
 
 All routing, serialization, and client code is generated at compile time by the same deterministic engine.
+
+---
+
+## 📊 Serde.FS.Json.Fable vs Fable.Remoting — Comparison Matrix
+
+| **Aspect** | **Serde.FS.Json.Fable** | **Fable.Remoting** |
+|-----------|--------------------------|---------------------|
+| **Bundle Size Behavior** | Per‑method generated codecs; scales with API surface. Compresses extremely well; unused methods tree‑shake. | Mostly constant (fixed reflection engine). |
+| **Runtime Performance** | Straight‑line generated codecs; no reflection; very fast per call. | Reflection + dynamic codecs; slower per call. |
+| **Architecture** | Fully static, deterministic, AOT/WASM‑safe. | Runtime‑driven, reflection‑based. |
+| **Modularization** | Define multiple [<RpcApi>] interfaces; each consumer imports only the APIs it references. | Define multiple API records/modules; clients can consume them separately. |
+| **Type Safety** | End‑to‑end static types; generated codecs match your domain exactly. | Static RPC signatures but runtime serialization. |
+| **Debuggability** | Generated code is explicit and inspectable; failures are deterministic. | Reflection paths can be harder to trace; failures may occur at runtime. |
+| **WASM Compatibility** | Fully compatible (no reflection). | Reflection may be unsupported or limited in some WASM targets. |
+| **Initial Setup** | Define API interface in Shared, mark with `[<RpcApi>]`, register it on the server, and instantiate the generated client on the Fable side. Codegen runs automatically on build. | Define API record in Shared, register it on the server, and instantiate the Remoting client on the Fable side. |
 
 ---
 
