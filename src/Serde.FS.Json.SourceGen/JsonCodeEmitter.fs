@@ -63,18 +63,21 @@ module internal JsonCodeEmitterImpl =
 
     /// Generates the encode expression for a single field value.
     let private encodeFieldExpr (fieldName: string) (rawFieldName: string) (fsharpType: string) (normalizedType: string) (isOption: bool) (innerType: string) (indent: string) : string =
+        // The record-field access must backtick reserved names (e.g. ``type``);
+        // the fieldCodec_ suffix is synthetic and always a legal identifier.
+        let rawAccess = IdentifierNaming.backtick rawFieldName
         if isOption then
             let innerIndent = indent + "    "
             let encodeInner =
                 $"%s{innerIndent}let fieldCodec = Serde.FS.Json.Codec.CodecResolver.resolve typeof<%s{innerType}> Serde.FS.Json.Codec.GlobalCodecRegistry.Current\n" +
                 $"%s{innerIndent}(\"%s{fieldName}\", fieldCodec.Encode(box v))"
-            $"%s{indent}match value.%s{rawFieldName} with\n" +
+            $"%s{indent}match value.%s{rawAccess} with\n" +
             $"%s{indent}| Some v ->\n%s{encodeInner}\n" +
             $"%s{indent}| None ->\n" +
             $"%s{innerIndent}(\"%s{fieldName}\", Serde.FS.Json.Codec.JsonValue.Null)"
         else
             $"%s{indent}let fieldCodec_%s{rawFieldName} = Serde.FS.Json.Codec.CodecResolver.resolve typeof<%s{fsharpType}> Serde.FS.Json.Codec.GlobalCodecRegistry.Current\n" +
-            $"%s{indent}(\"%s{fieldName}\", fieldCodec_%s{rawFieldName}.Encode(box value.%s{rawFieldName}))"
+            $"%s{indent}(\"%s{fieldName}\", fieldCodec_%s{rawFieldName}.Encode(box value.%s{rawAccess}))"
 
     /// Determines if a type is an option and extracts the inner type.
     let private parseOptionType (fsharpType: string) =
@@ -130,8 +133,11 @@ module internal JsonCodeEmitterImpl =
         for field in fields do
             let fsharpType = Types.typeInfoToFqFSharpType field.Type
             let isOption, innerType = parseOptionType fsharpType
+            // Local binding name derived from the field; backtick reserved words
+            // (e.g. Namespace -> ``namespace``, ``type`` -> ``type``).
+            let local = IdentifierNaming.backtick (lowerFirst field.RawName)
             if isOption then
-                append $"                    let %s{lowerFirst field.RawName} ="
+                append $"                    let %s{local} ="
                 append $"                        match fieldMap.TryGetValue(\"%s{field.Name}\") with"
                 append $"                        | true, JsonValue.Null -> None"
                 append $"                        | true, v ->"
@@ -140,11 +146,11 @@ module internal JsonCodeEmitterImpl =
                 append $"                        | false, _ -> None"
             else
                 append $"                    let fieldCodec_%s{field.RawName} = CodecResolver.resolve typeof<%s{fsharpType}> GlobalCodecRegistry.Current"
-                append $"                    let %s{lowerFirst field.RawName} = fieldCodec_%s{field.RawName}.Decode(fieldMap.[\"%s{field.Name}\"]) :?> %s{fsharpType}"
+                append $"                    let %s{local} = fieldCodec_%s{field.RawName}.Decode(fieldMap.[\"%s{field.Name}\"]) :?> %s{fsharpType}"
 
         let fieldAssignments =
             fields
-            |> List.map (fun f -> $"%s{f.RawName} = %s{lowerFirst f.RawName}")
+            |> List.map (fun f -> $"%s{IdentifierNaming.backtick f.RawName} = %s{IdentifierNaming.backtick (lowerFirst f.RawName)}")
             |> String.concat "; "
         append $"                    {{ %s{fieldAssignments} }} : %s{fqn}"
         append "                | _ -> failwith \"Expected JSON object\""

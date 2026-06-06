@@ -85,6 +85,44 @@ let ``Emits valid F# for simple record`` () =
     Assert.That(code, Does.Contain("\"Age\""))
 
 [<Test>]
+let ``Backticks reserved-keyword field name in decode binding`` () =
+    // Regression (reported issue): a field named `Namespace` lowercases to
+    // `namespace`, a reserved keyword, producing `let namespace = ...` which is
+    // a syntax error (FS0010: Unexpected keyword 'namespace' in binding).
+    let info = mkRecordInfo (Some "Testing") "MySchema" Both [
+        mkField "Namespace" "string" String
+    ]
+
+    let code = emitter.Emit(info)
+    // The local decode binding must be backticked.
+    Assert.That(code, Does.Contain("let ``namespace`` ="),
+        "decode binding for `namespace` must be backticked")
+    Assert.That(code, Does.Not.Contain("let namespace ="),
+        "bare `let namespace =` is a reserved-keyword syntax error")
+    // Record construction must reference the backticked local binding.
+    Assert.That(code, Does.Contain("Namespace = ``namespace``"),
+        "record construction must reference the backticked local binding")
+
+[<Test>]
+let ``Backticks field whose raw name is itself a reserved keyword`` () =
+    // A field defined in source as ``type`` has RawName "type", reserved at every
+    // emission site: the field access, the local binding, and the record label.
+    let info = mkRecordInfo (Some "Testing") "MySchema" Both [
+        mkField "type" "string" String
+    ]
+
+    let code = emitter.Emit(info)
+    // Encode: field access on the value.
+    Assert.That(code, Does.Contain("value.``type``"),
+        "field access must backtick the reserved field name")
+    // Decode: local binding.
+    Assert.That(code, Does.Contain("let ``type`` ="),
+        "decode binding must backtick the reserved field name")
+    // Record construction: both the field label and the local are reserved.
+    Assert.That(code, Does.Contain("``type`` = ``type``"),
+        "record construction must backtick both the field label and the local")
+
+[<Test>]
 let ``Emits codec encode for bool fields`` () =
     let info = mkRecordInfo (Some "MyApp") "Config" Serialize [
         mkField "IsEnabled" "bool" Bool

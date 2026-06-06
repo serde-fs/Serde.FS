@@ -257,14 +257,14 @@ module FableClientEmitter =
         append (sprintf "    let encode (value: %s) : obj =" fqType)
         append          "        createObj ["
         for field in fields do
-            let expr = encodeExpr (sprintf "value.%s" field.RawName) (fromTi field.Type)
+            let expr = encodeExpr (sprintf "value.%s" (IdentifierNaming.backtick field.RawName)) (fromTi field.Type)
             append (sprintf "            \"%s\", %s" field.Name expr)
         append          "        ]"
         append (sprintf "    let decode (json: obj) : %s =" fqType)
         append          "        {"
         for field in fields do
             let expr = decodeExpr (sprintf "(json?(\"%s\"))" field.Name) (fromTi field.Type)
-            append (sprintf "            %s = %s" field.RawName expr)
+            append (sprintf "            %s = %s" (IdentifierNaming.backtick field.RawName) expr)
         append          "        }"
         append ""
 
