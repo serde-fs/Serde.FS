@@ -5,7 +5,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Serde.FS" Version="$(SerdeFSVersion)" />
+		<PackageReference Include="Serde.FS" Version="$(SerdeVersion)" />
 		<!-- Fable.Core used to live here when the server-side build wrote
 		     the Fable client into this Shared project. After the refactor,
 		     Fable client generation moved to the FableClient project (which

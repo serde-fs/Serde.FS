@@ -35,14 +35,12 @@ let readProp (propName: string) =
     let endIdx = content.IndexOf($"</{propName}>", start)
     content.Substring(start, endIdx - start).Trim()
 
-let stableSerdeFSVersion     = readProp "SerdeFSVersion"
-let stableSerdeJsonVersion   = readProp "SerdeJsonVersion"
-let stableSerdeFableVersion  = readProp "SerdeFableVersion"
+let stableSerdeVersion = readProp "SerdeVersion"
 
 let timestamp = DateTime.UtcNow.ToString("yyyyMMddTHHmmss")
 
 // All debug packages share the same version
-let debugVersion = $"{stableSerdeFSVersion}.debug.{timestamp}"
+let debugVersion = $"{stableSerdeVersion}.debug.{timestamp}"
 
 // Helper to write Directory.Build.props for a project
 let writeVersionProps (projPath: string) (props: (string * string) list) =
@@ -66,9 +64,7 @@ pipeline "debug" {
 
     stage "Show versions" {
         run (fun _ ->
-            printfn $"Stable Serde.FS:       {stableSerdeFSVersion}"
-            printfn $"Stable Serde.FS.Json:  {stableSerdeJsonVersion}"
-            printfn $"Stable Serde.FS.Fable: {stableSerdeFableVersion}"
+            printfn $"Stable suite version:  {stableSerdeVersion}"
             printfn $"Timestamp:             {timestamp}"
             printfn $"Debug version:         {debugVersion}"
         )
@@ -107,8 +103,8 @@ pipeline "debug" {
 
     stage "Pack Serde.FS" {
         run $"dotnet clean {serdeFSProj}"
-        run $"dotnet build {serdeFSProj} -c Debug /p:PackageVersion={debugVersion} /p:SerdeFSVersion={debugVersion}"
-        run $"dotnet pack {serdeFSProj} -c Debug -o {nugetLocalDir} /p:PackageVersion={debugVersion} /p:SerdeFSVersion={debugVersion}"
+        run $"dotnet build {serdeFSProj} -c Debug /p:PackageVersion={debugVersion} /p:SerdeVersion={debugVersion}"
+        run $"dotnet pack {serdeFSProj} -c Debug -o {nugetLocalDir} /p:PackageVersion={debugVersion} /p:SerdeVersion={debugVersion}"
     }
 
     stage "Publish GeneratorHosts" {
@@ -119,15 +115,15 @@ pipeline "debug" {
     stage "Pack Serde.FS.Json" {
         run $"dotnet restore {jsonProj} --no-cache"
         run $"dotnet clean {jsonProj}"
-        run $"dotnet build {jsonProj} -c Debug /p:PackageVersion={debugVersion} /p:SerdeFSVersion={debugVersion}"
-        run $"dotnet pack {jsonProj} -c Debug -o {nugetLocalDir} /p:PackageVersion={debugVersion} /p:SerdeFSVersion={debugVersion}"
+        run $"dotnet build {jsonProj} -c Debug /p:PackageVersion={debugVersion} /p:SerdeVersion={debugVersion}"
+        run $"dotnet pack {jsonProj} -c Debug -o {nugetLocalDir} /p:PackageVersion={debugVersion} /p:SerdeVersion={debugVersion}"
     }
 
     stage "Pack Serde.FS.Fable" {
-        run $"dotnet restore {fableProj} --no-cache /p:SerdeFSVersion={debugVersion}"
+        run $"dotnet restore {fableProj} --no-cache /p:SerdeVersion={debugVersion}"
         run $"dotnet clean {fableProj}"
-        run $"dotnet build {fableProj} -c Debug /p:PackageVersion={debugVersion} /p:SerdeFSVersion={debugVersion} /p:SerdeFableVersion={debugVersion}"
-        run $"dotnet pack {fableProj} -c Debug -o {nugetLocalDir} /p:PackageVersion={debugVersion} /p:SerdeFSVersion={debugVersion} /p:SerdeFableVersion={debugVersion}"
+        run $"dotnet build {fableProj} -c Debug /p:PackageVersion={debugVersion} /p:SerdeVersion={debugVersion}"
+        run $"dotnet pack {fableProj} -c Debug -o {nugetLocalDir} /p:PackageVersion={debugVersion} /p:SerdeVersion={debugVersion}"
     }
 
     stage "Run tests" {
@@ -137,11 +133,11 @@ pipeline "debug" {
 
     stage "Write version props" {
         run (fun _ ->
-            writeVersionProps sampleRpcSharedProj [ "SerdeFSVersion", debugVersion ]
-            writeVersionProps sampleRpcServerProj [ "SerdeJsonVersion", debugVersion ]
-            writeVersionProps sampleRpcClientProj [ "SerdeJsonVersion", debugVersion ]
-            writeVersionProps sampleRpcFableClientProj [ "SerdeFableVersion", debugVersion ]
-            writeVersionProps sampleAppProj [ "SerdeJsonVersion", debugVersion ]
+            writeVersionProps sampleRpcSharedProj [ "SerdeVersion", debugVersion ]
+            writeVersionProps sampleRpcServerProj [ "SerdeVersion", debugVersion ]
+            writeVersionProps sampleRpcClientProj [ "SerdeVersion", debugVersion ]
+            writeVersionProps sampleRpcFableClientProj [ "SerdeVersion", debugVersion ]
+            writeVersionProps sampleAppProj [ "SerdeVersion", debugVersion ]
         )
     }
 

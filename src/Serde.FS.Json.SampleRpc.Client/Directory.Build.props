@@ -1,5 +1,5 @@
 <Project>
   <PropertyGroup>
-    <SerdeJsonVersion>1.0.0-beta.2.debug.20260614T195612</SerdeJsonVersion>
+    <SerdeVersion>1.0.0-beta.3.debug.20260614T202235</SerdeVersion>
   </PropertyGroup>
 </Project>

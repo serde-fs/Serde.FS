@@ -7,7 +7,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Serde.FS.Json" Version="$(SerdeJsonVersion)" />
+		<PackageReference Include="Serde.FS.Json" Version="$(SerdeVersion)" />
 	</ItemGroup>
 
 	<ItemGroup>

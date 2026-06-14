@@ -11,7 +11,7 @@
 		     GeneratorHost tool bundled at tools/net9.0/. -->
 		<IsPackable>true</IsPackable>
 		<PackageId>Serde.FS.Fable</PackageId>
-		<Version>$(SerdeFableVersion)</Version>
+		<Version>$(SerdeVersion)</Version>
 		<Authors>Jordan Marr</Authors>
 		<Description>
 			Fable client generator for Serde.FS RPC. Install on a Fable client project to auto-generate a typed client proxy (and matching JSON codecs) from `[&lt;RpcApi&gt;]` interfaces in any directly-referenced project. The generated file lives in the consumer's `fable-generated/` folder and is auto-included in compilation; no manual wiring required.
@@ -25,8 +25,8 @@
 		<IncludeBuildOutput>false</IncludeBuildOutput>
 
 		<!-- Local fallback version. The debug pipeline supplies the real
-		     version via /p:SerdeFableVersion. -->
-		<SerdeFableVersion>1.0.0-alpha.1</SerdeFableVersion>
+		     version via /p:SerdeVersion. -->
+		<SerdeVersion>1.0.0-alpha.1</SerdeVersion>
 	</PropertyGroup>
 
 	<ItemGroup>
