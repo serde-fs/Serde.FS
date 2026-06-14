@@ -69,7 +69,7 @@ Add tests covering:
 
 ### 6. Add Fable-side support
 
-The runtime factory (steps 2-4) handles the .NET client + server. To make the new type also work in a generated **Fable** client (consumers install `Serde.FS.Json.Fable` on their Fable project), three more pieces must be wired:
+The runtime factory (steps 2-4) handles the .NET client + server. To make the new type also work in a generated **Fable** client (consumers install `Serde.FS.Fable` on their Fable project), three more pieces must be wired:
 
 **6a. Map the SynType to a structural TypeInfo.**
 
@@ -86,13 +86,13 @@ If the type has no existing structural equivalent, a new `TypeKind` case is requ
 
 **6b. Route the TypeKind to a FableTypeExpr (only if a new variant is needed).**
 
-**File:** `src/Serde.FS.Json.Fable.SourceGen/FableClientEmitter.fs`, function `fromTypeInfo`
+**File:** `src/Serde.FS.Fable.SourceGen/FableClientEmitter.fs`, function `fromTypeInfo`
 
 If step 6a reused an existing `TypeKind`, `fromTypeInfo` already handles it — no change. Otherwise add a new branch and a corresponding case in the `FableTypeExpr` discriminated union at the top of the file.
 
 **6c. Implement encode/decode expressions.**
 
-**File:** `src/Serde.FS.Json.Fable.SourceGen/FableClientEmitter.fs`, functions `encodeExpr` and `decodeExpr`
+**File:** `src/Serde.FS.Fable.SourceGen/FableClientEmitter.fs`, functions `encodeExpr` and `decodeExpr`
 
 Each `FableTypeExpr` variant must produce JS-side encode and decode F# expressions. **Match the wire format of the runtime factory from step 2 exactly** — the server emits one shape and the Fable client must produce/consume the same shape, otherwise round-trips fail silently.
 
@@ -130,4 +130,4 @@ dotnet test src/Serde.FS.Json.Tests/          # runtime factory tests
 dotnet fsi debug-build.fsx                    # full end-to-end including SampleRpc
 ```
 
-If the new type is exercised in `SampleRpc.Shared/Domain.fs`, the debug-build run will regenerate `SampleRpc.FableClient/fable-generated/~IOrderApi.fable.g.fs` against the new emitter logic. (The folder lives in the Fable consumer project now, not the Shared project — the `Serde.FS.Json.Fable` package generates into its own host project.) Inspect that file to confirm the codec module shape and `FableClient` calls look right.
+If the new type is exercised in `SampleRpc.Shared/Domain.fs`, the debug-build run will regenerate `SampleRpc.FableClient/fable-generated/~IOrderApi.fable.g.fs` against the new emitter logic. (The folder lives in the Fable consumer project now, not the Shared project — the `Serde.FS.Fable` package generates into its own host project.) Inspect that file to confirm the codec module shape and `FableClient` calls look right.

@@ -76,7 +76,7 @@ let main argv =
         else
             // Write generated codecs/dispatch into this project's own
             // obj/serde-generated/ folder. Fable client generation is now
-            // owned by the Serde.FS.Json.Fable package on the Fable
+            // owned by the Serde.FS.Fable package on the Fable
             // consumer project — this Server-side host never writes
             // outside its own output dir.
             let generatedFiles =

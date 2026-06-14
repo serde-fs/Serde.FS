@@ -2,8 +2,8 @@
 
 [![Serde.FS](https://img.shields.io/nuget/vpre/Serde.FS.svg?label=Serde.FS)](https://www.nuget.org/packages/Serde.FS/)
 [![Serde.FS.Json](https://img.shields.io/nuget/vpre/Serde.FS.Json.svg?label=Serde.FS.Json)](https://www.nuget.org/packages/Serde.FS.Json/)
-[![Serde.FS.Json.AspNet](https://img.shields.io/nuget/vpre/Serde.FS.Json.AspNet.svg?label=Serde.FS.Json.AspNet)](https://www.nuget.org/packages/Serde.FS.Json.AspNet/)
-[![Serde.FS.Json.Fable](https://img.shields.io/nuget/vpre/Serde.FS.Json.Fable.svg?label=Serde.FS.Json.Fable)](https://www.nuget.org/packages/Serde.FS.Json.Fable/)
+[![Serde.FS.AspNet](https://img.shields.io/nuget/vpre/Serde.FS.AspNet.svg?label=Serde.FS.AspNet)](https://www.nuget.org/packages/Serde.FS.AspNet/)
+[![Serde.FS.Fable](https://img.shields.io/nuget/vpre/Serde.FS.Fable.svg?label=Serde.FS.Fable)](https://www.nuget.org/packages/Serde.FS.Fable/)
 
 Serde.FS is a reflection‑free, compile‑time validated serialization and RPC framework for F#.
 It brings Rust‑style determinism to .NET and adds a **zero‑boilerplate RPC layer** on top — your ASP.NET server, .NET client, and Fable browser client are all generated from a single `[<RpcApi>]` interface.
@@ -56,8 +56,8 @@ Pair one column of packages with your three‑project F# solution:
 | Project | .NET‑client stack       | Fable‑client stack       |
 |---------|-------------------------|--------------------------|
 | **Shared** (interface + DTOs) | `Serde.FS` | `Serde.FS` |
-| **Server** (ASP.NET) | `Serde.FS.Json.AspNet` | `Serde.FS.Json.AspNet` |
-| **Client** | `Serde.FS.Json` | `Serde.FS.Json.Fable` |
+| **Server** (ASP.NET) | `Serde.FS.AspNet` | `Serde.FS.AspNet` |
+| **Client** | `Serde.FS.Json` | `Serde.FS.Fable` |
 
 What each package brings:
 
@@ -65,8 +65,8 @@ What each package brings:
 |---------|--------------|
 | **Serde.FS** | Core attributes (`[<Serde>]`, `[<RpcApi>]`) and runtime metadata. Install on any project that declares serializable types or RPC interfaces. |
 | **Serde.FS.Json** | Deterministic, reflection‑free JSON backend. Use it standalone for `SerdeJson.serialize`/`deserialize`, or on a .NET client project to get `RpcClient.create<T>`. |
-| **Serde.FS.Json.AspNet** | Adds `app.MapRpcApi<T>(impl)` for ASP.NET endpoints. Builds directly on ASP.NET Core's minimal hosting — no Giraffe, Saturn, or controllers required. Transitively brings `Serde.FS.Json`, so installing this on the server is enough. |
-| **Serde.FS.Json.Fable** | Installing this on a Fable project turns ON Fable client generation: every build scans directly‑referenced projects for `[<RpcApi>]` interfaces and writes a typed proxy into `fable-generated/` (auto‑included in compilation). |
+| **Serde.FS.AspNet** | Adds `app.MapRpcApi<T>(impl)` for ASP.NET endpoints. Builds directly on ASP.NET Core's minimal hosting — no Giraffe, Saturn, or controllers required. Transitively brings `Serde.FS.Json`, so installing this on the server is enough. |
+| **Serde.FS.Fable** | Installing this on a Fable project turns ON Fable client generation: every build scans directly‑referenced projects for `[<RpcApi>]` interfaces and writes a typed proxy into `fable-generated/` (auto‑included in compilation). |
 
 ---
 
@@ -126,13 +126,13 @@ A minimal ASP.NET RPC server:
 
 ```bash
 dotnet new web -lang F# -n Server
-dotnet add package Serde.FS.Json.AspNet
+dotnet add package Serde.FS.AspNet
 ```
 
 ```fsharp
 open Shared
 open Microsoft.AspNetCore.Builder
-open Serde.FS.Json.AspNet
+open Serde.FS.AspNet
 
 type OrderApi() =
     interface IOrderApi with
@@ -152,7 +152,7 @@ let main argv =
 
 No auth, no policies, no extra endpoints — just a clean RPC server.
 
-> **No web framework required.** `MapRpcApi` is just an ASP.NET Core endpoint‑routing extension, so an RPC BFF needs nothing beyond `Microsoft.NET.Sdk.Web` + `Serde.FS.Json.AspNet` — no Giraffe, no Saturn, no controllers. And because it's plain ASP.NET, you can add minimal‑API endpoints (`app.MapGet "/health" ...`) right alongside `MapRpcApi` whenever you also need a REST surface — they coexist as two separate surfaces on the same host.
+> **No web framework required.** `MapRpcApi` is just an ASP.NET Core endpoint‑routing extension, so an RPC BFF needs nothing beyond `Microsoft.NET.Sdk.Web` + `Serde.FS.AspNet` — no Giraffe, no Saturn, no controllers. And because it's plain ASP.NET, you can add minimal‑API endpoints (`app.MapGet "/health" ...`) right alongside `MapRpcApi` whenever you also need a REST surface — they coexist as two separate surfaces on the same host.
 
 See: [SampleRpc.Server/Program.fs](src/Serde.FS.Json.SampleRpc.Server/Program.fs)
 
@@ -193,11 +193,11 @@ See: [SampleRpc.Client/Program.fs](src/Serde.FS.Json.SampleRpc.Client/Program.fs
 
 ### 🌐 3b. Create the Fable client (optional)
 
-For a browser app (Lit, Feliz, Elmish, etc.). Install `Serde.FS.Json.Fable` on the Fable project — its presence is the opt‑in. No attribute needed on the interface; every build scans directly‑referenced projects for `[<RpcApi>]` interfaces.
+For a browser app (Lit, Feliz, Elmish, etc.). Install `Serde.FS.Fable` on the Fable project — its presence is the opt‑in. No attribute needed on the interface; every build scans directly‑referenced projects for `[<RpcApi>]` interfaces.
 
 ```xml
 <!-- WebFable/WebFable.fsproj -->
-<PackageReference Include="Serde.FS.Json.Fable" Version="1.0.0-..." />
+<PackageReference Include="Serde.FS.Fable" Version="1.0.0-..." />
 <PackageReference Include="Fable.Core" Version="5.0.0" />
 ```
 
@@ -229,9 +229,9 @@ All routing, serialization, and client code is generated at compile time by the 
 
 ---
 
-## 📊 Serde.FS.Json.Fable vs Fable.Remoting — Comparison Matrix
+## 📊 Serde.FS.Fable vs Fable.Remoting — Comparison Matrix
 
-| **Aspect** | **Serde.FS.Json.Fable** | **Fable.Remoting** |
+| **Aspect** | **Serde.FS.Fable** | **Fable.Remoting** |
 |-----------|--------------------------|---------------------|
 | **Bundle Size Behavior** | Per‑method generated codecs; scales with API surface. Compresses extremely well; unused methods tree‑shake. | Mostly constant (fixed reflection engine). |
 | **Runtime Performance** | Straight‑line generated codecs; no reflection; very fast per call. | Reflection + dynamic codecs; slower per call. |

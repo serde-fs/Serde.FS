@@ -10,7 +10,7 @@ the compile-time–generated Fable client (`IOrderApiFableClient.create`).
 
 ## How it works
 
-This Fable project installs the `Serde.FS.Json.Fable` package. On every
+This Fable project installs the `Serde.FS.Fable` package. On every
 build of this project, the package's MSBuild target scans the directly-
 referenced `SampleRpc.Shared` project for `[<RpcApi>]` interfaces and writes
 a typed Fable client into THIS project's `fable-generated/` folder. The
@@ -42,7 +42,7 @@ the browser can call the server without CORS setup.
 
 - `[<RpcApi>]` in `SampleRpc.Shared/Domain.fs` is the single source of truth
   for the contract. No additional attributes needed for client generation.
-- Installing `Serde.FS.Json.Fable` here triggers generation of
+- Installing `Serde.FS.Fable` here triggers generation of
   `SampleRpc.FableClient/fable-generated/~IOrderApi.fable.g.fs` during this
   project's build.
 - The generated file compiles under both .NET and Fable. Under .NET its body
@@ -54,7 +54,7 @@ the browser can call the server without CORS setup.
 
 ## Wiring
 
-Zero manual wiring: `Serde.FS.Json.Fable`'s `buildTransitive/Serde.FS.Json.Fable.targets`
+Zero manual wiring: `Serde.FS.Fable`'s `buildTransitive/Serde.FS.Fable.targets`
 runs the generator during this project's build and auto-includes
 `fable-generated/*.fs` as Compile items. Fable 5+ picks them up via
 `FscCommandLineArgs`; `dotnet build` picks them up via the standard Compile

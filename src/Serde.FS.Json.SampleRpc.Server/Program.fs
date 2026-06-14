@@ -6,7 +6,7 @@ open Microsoft.AspNetCore.Authentication
 open SampleRpc.Shared
 open SampleRpc.Server.OrderApi
 open SampleRpc.Server.InventoryApi
-open Serde.FS.Json.AspNet
+open Serde.FS.AspNet
 
 module Handlers =
     open System.Security.Claims

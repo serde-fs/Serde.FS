@@ -1,4 +1,4 @@
-namespace Serde.FS.Json.AspNet
+namespace Serde.FS.AspNet
 
 open System.Collections.Generic
 open Microsoft.AspNetCore.Builder

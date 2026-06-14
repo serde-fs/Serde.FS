@@ -3,9 +3,9 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <!-- Design-time only; consumed by Serde.FS.Json.Fable.GeneratorHost.
+    <!-- Design-time only; consumed by Serde.FS.Fable.GeneratorHost.
          Not packed as a standalone NuGet — the host's published output
-         carries this DLL inside the Serde.FS.Json.Fable package. -->
+         carries this DLL inside the Serde.FS.Fable package. -->
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 

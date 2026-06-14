@@ -13,7 +13,7 @@
 	</ItemGroup>
 	<ItemGroup>
 		<ProjectReference Include="..\Serde.FS.SourceGen\Serde.FS.SourceGen.fsproj" />
-		<ProjectReference Include="..\Serde.FS.Json.Fable.SourceGen\Serde.FS.Json.Fable.SourceGen.fsproj" />
+		<ProjectReference Include="..\Serde.FS.Fable.SourceGen\Serde.FS.Fable.SourceGen.fsproj" />
 		<!-- Serde.FS.SourceGen marks FSharp.SourceDjinn as PrivateAssets="all"
 		     so it doesn't leak to *its* package consumers. But this host
 		     directly calls SerdeAstParser.parseSourceAllTypes (whose body

@@ -19,7 +19,7 @@
              projects for [<RpcApi>] interfaces and writes a typed proxy
              into this project's own fable-generated/ folder. No attribute
              needed on the interface — the package's presence IS the opt-in. -->
-        <PackageReference Include="Serde.FS.Json.Fable" Version="$(SerdeFableVersion)" />
+        <PackageReference Include="Serde.FS.Fable" Version="$(SerdeFableVersion)" />
     </ItemGroup>
 
     <ItemGroup>

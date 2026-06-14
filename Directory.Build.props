@@ -1,7 +1,7 @@
 <Project>
 	<PropertyGroup>
 		<SerdeFSVersion>1.0.0-beta.2</SerdeFSVersion>
-		<!-- SerdeJsonVersion is shared by Serde.FS.Json and Serde.FS.Json.AspNet (lockstep versioning) -->
+		<!-- SerdeJsonVersion is shared by Serde.FS.Json and Serde.FS.AspNet (lockstep versioning) -->
 		<SerdeJsonVersion>1.0.0-beta.2</SerdeJsonVersion>
 
 		<!-- Fable client generator. Independent version line so the Fable side

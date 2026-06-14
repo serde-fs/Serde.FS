@@ -71,7 +71,7 @@
 	</ItemGroup>
 
 	<!-- buildTransitive ensures the generator targets fire even when consumers
-	     reference Serde.FS.Json transitively (e.g., via Serde.FS.Json.AspNet). -->
+	     reference Serde.FS.Json transitively (e.g., via Serde.FS.AspNet). -->
 	<ItemGroup>
 		<None Include="buildTransitive\Serde.FS.Json.targets" Pack="true" PackagePath="buildTransitive" Link="buildTransitive\Serde.FS.Json.targets" />
 	</ItemGroup>

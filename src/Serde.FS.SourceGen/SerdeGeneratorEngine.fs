@@ -174,7 +174,7 @@ module private GenericDiscovery =
 /// (typically `RpcDiscoveryResult.ResolveFieldType`) at each leaf, normalising
 /// parser-captured field TypeInfos to their canonical (Namespace + EM + TN)
 /// form. Public so design-time tools outside SerdeGeneratorEngine — most
-/// notably `Serde.FS.Json.Fable.GeneratorHost`, which builds Fable clients
+/// notably `Serde.FS.Fable.GeneratorHost`, which builds Fable clients
 /// without going through the full codec pipeline — can apply the same
 /// normalization the server-side generator does. Without it, codec module
 /// names emitted by the Fable client emitter would diverge from those the

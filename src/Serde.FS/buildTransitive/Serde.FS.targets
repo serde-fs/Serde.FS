@@ -3,7 +3,7 @@
     <!-- Remove this project's own Serde-generated artefacts on Clean:
          obj/serde-generated/ — codecs, dispatch modules, entry-point shim.
          The Fable client folder (when present) is owned by the
-         Serde.FS.Json.Fable package's targets, NOT this base targets file —
+         Serde.FS.Fable package's targets, NOT this base targets file —
          this targets file is imported by every project that references
          Serde.FS (including Shared/Domain projects), and we must not touch
          fable-generated/ from those because the Fable consumer's package

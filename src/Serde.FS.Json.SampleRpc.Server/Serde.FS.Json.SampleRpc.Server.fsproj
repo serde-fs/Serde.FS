@@ -12,7 +12,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\Serde.FS.Json.SampleRpc.Shared\Serde.FS.Json.SampleRpc.Shared.fsproj" />
-		<ProjectReference Include="..\Serde.FS.Json.AspNet\Serde.FS.Json.AspNet.fsproj" />
+		<ProjectReference Include="..\Serde.FS.AspNet\Serde.FS.AspNet.fsproj" />
 	</ItemGroup>
 
 	<ItemGroup>

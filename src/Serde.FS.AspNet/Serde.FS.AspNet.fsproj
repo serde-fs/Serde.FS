@@ -6,12 +6,12 @@
 
 		<IsPackable>true</IsPackable>
 
-		<PackageId>Serde.FS.Json.AspNet</PackageId>
+		<PackageId>Serde.FS.AspNet</PackageId>
 		<!-- Versioned in lockstep with Serde.FS.Json to ensure runtime compatibility -->
 		<Version>$(SerdeJsonVersion)</Version>
 		<Authors>Jordan Marr</Authors>
 		<Description>
-			ASP.NET Core integration for Serde.FS.Json RPC. Provides MapRpcApi extension for routing
+			ASP.NET Core integration for Serde.FS RPC. Provides MapRpcApi extension for routing
 			[RpcApi] interfaces to minimal API endpoints using SerdeJson serialization.
 		</Description>
 

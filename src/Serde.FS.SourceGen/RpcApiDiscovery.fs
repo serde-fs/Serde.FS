@@ -11,7 +11,7 @@ open Serde.FS
 /// Discovers `[<RpcApi>]` interfaces and their transitively-referenced types
 /// from F# source files. Used by both the server-side codec generator
 /// (`Serde.FS.Json.GeneratorHost`) and the Fable client generator
-/// (`Serde.FS.Json.Fable.GeneratorHost`).
+/// (`Serde.FS.Fable.GeneratorHost`).
 module RpcApiDiscovery =
 
     let private checker = FSharpChecker.Create()

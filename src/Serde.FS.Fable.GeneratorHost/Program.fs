@@ -1,9 +1,9 @@
-module Serde.FS.Json.Fable.GeneratorHost.Program
+module Serde.FS.Fable.GeneratorHost.Program
 
 open System.IO
 open System.Text.RegularExpressions
 open Serde.FS.SourceGen
-open Serde.FS.Json.Fable.SourceGen
+open Serde.FS.Fable.SourceGen
 
 // NB: do NOT `open Serde.FS` at the top of this file. The Serde.FS namespace
 // exports its own `EntryPointAttribute` (used by the codec runtime), which
@@ -11,7 +11,7 @@ open Serde.FS.Json.Fable.SourceGen
 // break the `[<EntryPoint>]` annotation below — the compiler emits FS0988
 // "Main module of program is empty" and the host exe becomes a no-op.
 
-// Entry point invoked from the Serde.FS.Json.Fable buildTransitive target.
+// Entry point invoked from the Serde.FS.Fable buildTransitive target.
 // Args:
 //   argv.[0] = projectDir         consumer Fable project's directory.
 //   argv.[1] = outputDir          absolute path to <projectDir>/fable-generated.
@@ -58,7 +58,7 @@ let private referencesSerdeFS (fsprojPath: string) : bool =
 let private collectFsprojGraph (rootFsproj: string) : Set<string> =
     let rec walk (isRoot: bool) (visited: Set<string>) (fsprojPath: string) : Set<string> =
         if not (File.Exists fsprojPath) then
-            eprintfn "[Serde.FS.Json.Fable] WARNING: project file not found, skipping: %s" fsprojPath
+            eprintfn "[Serde.FS.Fable] WARNING: project file not found, skipping: %s" fsprojPath
             visited
         else
             let canonical = Path.GetFullPath(fsprojPath).ToLowerInvariant()
@@ -68,7 +68,7 @@ let private collectFsprojGraph (rootFsproj: string) : Set<string> =
             // The root project is exempt because the user always wants their
             // own sources scanned.
             elif not isRoot && not (referencesSerdeFS fsprojPath) then
-                eprintfn "[Serde.FS.Json.Fable] Skipping (no Serde.FS reference): %s" fsprojPath
+                eprintfn "[Serde.FS.Fable] Skipping (no Serde.FS reference): %s" fsprojPath
                 visited
             else
                 let visited = visited.Add canonical
@@ -81,7 +81,7 @@ let private collectFsprojGraph (rootFsproj: string) : Set<string> =
                     |> Seq.map (fun rel -> Path.GetFullPath(Path.Combine(dir, rel)))
                     |> Seq.fold (walk false) visited
                 with ex ->
-                    eprintfn "[Serde.FS.Json.Fable] WARNING: failed to parse ProjectReferences from %s: %s" fsprojPath ex.Message
+                    eprintfn "[Serde.FS.Fable] WARNING: failed to parse ProjectReferences from %s: %s" fsprojPath ex.Message
                     visited
     walk true Set.empty rootFsproj
 
@@ -142,7 +142,7 @@ let main (argv: string array) =
         // from this list and the consumer needs to add a ProjectReference
         // somewhere along the chain. Goes to stdout (not stderr) so it
         // doesn't appear as MSBuild errors.
-        printfn "[Serde.FS.Json.Fable] Walked project graph (%d projects):" (Set.count allProjects)
+        printfn "[Serde.FS.Fable] Walked project graph (%d projects):" (Set.count allProjects)
         for p in allProjects do
             printfn "  %s" p
 
@@ -154,7 +154,7 @@ let main (argv: string array) =
             |> List.collect collectFsFiles
             |> List.distinctBy (fun (path, _) -> Path.GetFullPath(path).ToLowerInvariant())
 
-        printfn "[Serde.FS.Json.Fable] Collected %d source files." (List.length sourceFiles)
+        printfn "[Serde.FS.Fable] Collected %d source files." (List.length sourceFiles)
 
         // Reuse the same discovery used by the server-side generator so the
         // Fable client stays in lockstep with what the server expects.

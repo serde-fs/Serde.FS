@@ -898,7 +898,7 @@ type JsonCodeEmitter() =
                 let code = RpcDispatchEmitter.emit iface
                 (hintName, code))
         member _.EmitCrossProjectFiles(_interfaces, _types) =
-            // Fable client generation moved to the separate Serde.FS.Json.Fable
+            // Fable client generation moved to the separate Serde.FS.Fable
             // package (installed on the Fable consumer project, not the server).
             // The server-side JSON backend no longer writes anything outside
             // its own obj/serde-generated/ folder.

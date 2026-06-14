@@ -33,9 +33,9 @@
 		<ProjectReference Include="..\Serde.FS.SourceGen\Serde.FS.SourceGen.fsproj" />
 		<ProjectReference Include="..\Serde.FS.Json.SourceGen\Serde.FS.Json.SourceGen.fsproj" />
 		<!-- Fable client emitter moved to its own SourceGen project (consumed
-		     by the Serde.FS.Json.Fable package's GeneratorHost) when Fable
+		     by the Serde.FS.Fable package's GeneratorHost) when Fable
 		     client generation became a consumer-side concern. -->
-		<ProjectReference Include="..\Serde.FS.Json.Fable.SourceGen\Serde.FS.Json.Fable.SourceGen.fsproj" />
+		<ProjectReference Include="..\Serde.FS.Fable.SourceGen\Serde.FS.Fable.SourceGen.fsproj" />
 	</ItemGroup>
 
 	<ItemGroup>

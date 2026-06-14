@@ -1,4 +1,4 @@
-namespace Serde.FS.Json.Fable.SourceGen
+namespace Serde.FS.Fable.SourceGen
 
 open System.Text
 open Serde.FS
@@ -7,7 +7,7 @@ open FSharp.SourceDjinn.TypeModel
 /// Emits a self-contained Fable-compatible F# client for an [<RpcApi>] interface.
 /// The emitted file is guarded by `open Fable.Core` constructs that compile as
 /// dead code under .NET but produce the real browser-side client under Fable.
-/// The consumer Fable project installs the `Serde.FS.Json.Fable` NuGet package
+/// The consumer Fable project installs the `Serde.FS.Fable` NuGet package
 /// to opt into generation; the package's buildTransitive target invokes the
 /// GeneratorHost which uses this module to produce the output file.
 module FableClientEmitter =

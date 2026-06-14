@@ -11,7 +11,7 @@ module Serde.FS.SourceGen.Tests.Fable.FableClientEmitterTests
 open NUnit.Framework
 open Serde.FS
 open Serde.FS.Json.SourceGen
-open Serde.FS.Json.Fable.SourceGen
+open Serde.FS.Fable.SourceGen
 open Serde.FS.SourceGen.Tests.Fable
 open Serde.FS.SourceGen.Tests.Fable.SyntheticTypes
 

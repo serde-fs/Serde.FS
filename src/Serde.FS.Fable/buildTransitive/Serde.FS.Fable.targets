@@ -31,7 +31,7 @@
 	<Target Name="SerdeFableGenerate" BeforeTargets="CoreCompile"
 			Condition="'$(IsTestProject)' != 'true'
 			           AND '$(SerdeFableSkipGeneration)' != 'true'">
-		<Exec Command="dotnet &quot;$(MSBuildThisFileDirectory)../tools/net9.0/Serde.FS.Json.Fable.GeneratorHost.dll&quot; &quot;$(ProjectDir).&quot; &quot;$(MSBuildProjectDirectory)\fable-generated&quot; &quot;$(MSBuildProjectFullPath)&quot;" />
+		<Exec Command="dotnet &quot;$(MSBuildThisFileDirectory)../tools/net9.0/Serde.FS.Fable.GeneratorHost.dll&quot; &quot;$(ProjectDir).&quot; &quot;$(MSBuildProjectDirectory)\fable-generated&quot; &quot;$(MSBuildProjectFullPath)&quot;" />
 
 		<ItemGroup Condition="Exists('$(MSBuildProjectDirectory)\fable-generated')">
 			<_SerdeFableUserCompile Include="@(Compile)" />

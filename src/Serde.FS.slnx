@@ -8,7 +8,7 @@
     <Project Path="FSharp.SourceDjinn.TypeModel/FSharp.SourceDjinn.TypeModel.fsproj" />
   </Folder>
   <Folder Name="/Json/">
-    <Project Path="Serde.FS.Json.AspNet/Serde.FS.Json.AspNet.fsproj" />
+    <Project Path="Serde.FS.AspNet/Serde.FS.AspNet.fsproj" />
     <Project Path="Serde.FS.Json.GeneratorHost/Serde.FS.Json.GeneratorHost.fsproj" />
     <Project Path="Serde.FS.Json.SourceGen/Serde.FS.Json.SourceGen.fsproj" Id="9d6cb6ea-7c3b-4931-b762-c53bd4553bdb" />
     <Project Path="Serde.FS.Json/Serde.FS.Json.fsproj">
@@ -16,11 +16,11 @@
     </Project>
   </Folder>
   <Folder Name="/Fable/">
-    <Project Path="Serde.FS.Json.Fable/Serde.FS.Json.Fable.fsproj">
+    <Project Path="Serde.FS.Fable/Serde.FS.Fable.fsproj">
       <Build Solution="Debug|*" Project="false" />
     </Project>
-    <Project Path="Serde.FS.Json.Fable.SourceGen/Serde.FS.Json.Fable.SourceGen.fsproj" />
-    <Project Path="Serde.FS.Json.Fable.GeneratorHost/Serde.FS.Json.Fable.GeneratorHost.fsproj" />
+    <Project Path="Serde.FS.Fable.SourceGen/Serde.FS.Fable.SourceGen.fsproj" />
+    <Project Path="Serde.FS.Fable.GeneratorHost/Serde.FS.Fable.GeneratorHost.fsproj" />
   </Folder>
   <Folder Name="/_SampleApp/">
     <Project Path="Serde.FS.Json.SampleApp/Serde.FS.Json.SampleApp.fsproj">

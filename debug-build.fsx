@@ -10,9 +10,9 @@ open Fun.Build
 
 let serdeFSProj       = "src/Serde.FS/Serde.FS.fsproj"
 let generatorHostProj    = "src/Serde.FS.Json.GeneratorHost/Serde.FS.Json.GeneratorHost.fsproj"
-let fableGeneratorHostProj = "src/Serde.FS.Json.Fable.GeneratorHost/Serde.FS.Json.Fable.GeneratorHost.fsproj"
+let fableGeneratorHostProj = "src/Serde.FS.Fable.GeneratorHost/Serde.FS.Fable.GeneratorHost.fsproj"
 let jsonProj          = "src/Serde.FS.Json/Serde.FS.Json.fsproj"
-let fableProj         = "src/Serde.FS.Json.Fable/Serde.FS.Json.Fable.fsproj"
+let fableProj         = "src/Serde.FS.Fable/Serde.FS.Fable.fsproj"
 let sampleRpcSharedProj = "src/Serde.FS.Json.SampleRpc.Shared/Serde.FS.Json.SampleRpc.Shared.fsproj"
 let sampleRpcServerProj = "src/Serde.FS.Json.SampleRpc.Server/Serde.FS.Json.SampleRpc.Server.fsproj"
 let sampleRpcClientProj = "src/Serde.FS.Json.SampleRpc.Client/Serde.FS.Json.SampleRpc.Client.fsproj"
@@ -90,7 +90,7 @@ pipeline "debug" {
             printfn "Local feed pruned."
 
             let globalPkgs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages")
-            for pkgName in [ "serde.fs"; "serde.fs.sourcegen"; "serde.fs.json"; "serde.fs.json.fable" ] do
+            for pkgName in [ "serde.fs"; "serde.fs.sourcegen"; "serde.fs.json"; "serde.fs.fable" ] do
                 let pkgDir = Path.Combine(globalPkgs, pkgName)
                 if Directory.Exists(pkgDir) then
                     for versionDir in Directory.GetDirectories(pkgDir) do
@@ -123,7 +123,7 @@ pipeline "debug" {
         run $"dotnet pack {jsonProj} -c Debug -o {nugetLocalDir} /p:PackageVersion={debugVersion} /p:SerdeFSVersion={debugVersion}"
     }
 
-    stage "Pack Serde.FS.Json.Fable" {
+    stage "Pack Serde.FS.Fable" {
         run $"dotnet restore {fableProj} --no-cache /p:SerdeFSVersion={debugVersion}"
         run $"dotnet clean {fableProj}"
         run $"dotnet build {fableProj} -c Debug /p:PackageVersion={debugVersion} /p:SerdeFSVersion={debugVersion} /p:SerdeFableVersion={debugVersion}"
@@ -167,7 +167,7 @@ pipeline "debug" {
     }
 
     stage "Build SampleRpc.FableClient" {
-        // Verifies the new Serde.FS.Json.Fable consumer flow: installing the
+        // Verifies the new Serde.FS.Fable consumer flow: installing the
         // package on a Fable client project triggers generation of
         // ~<Api>.fable.g.fs into the project's OWN fable-generated/ folder
         // during its build (no cross-project writes). We use --no-restore
@@ -185,7 +185,7 @@ pipeline "debug" {
             printfn $"  Packed:"
             printfn $"    Serde.FS                  {debugVersion}"
             printfn $"    Serde.FS.Json             {debugVersion}"
-            printfn $"    Serde.FS.Json.Fable       {debugVersion}"
+            printfn $"    Serde.FS.Fable            {debugVersion}"
             printfn $"  Sample projects:"
             printfn $"    SampleApp                 OK"
             printfn $"    SampleRpc.Server          OK"

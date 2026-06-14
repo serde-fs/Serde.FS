@@ -50,7 +50,7 @@
 	</Target>
 
 	<!-- Fable client generation is no longer this package's concern. It moved
-	     to the separate Serde.FS.Json.Fable package, which is installed on
+	     to the separate Serde.FS.Fable package, which is installed on
 	     the Fable consumer project itself. That eliminates the cross-project
 	     write (and the SerdeRebuildFableSharedProjects + SerdeJsonCleanFableClients
 	     dance we used to need to make the cross-project flow work). -->

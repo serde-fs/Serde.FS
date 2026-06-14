@@ -10,11 +10,11 @@
 		     referenced (Shared) projects. The build target invokes the
 		     GeneratorHost tool bundled at tools/net9.0/. -->
 		<IsPackable>true</IsPackable>
-		<PackageId>Serde.FS.Json.Fable</PackageId>
+		<PackageId>Serde.FS.Fable</PackageId>
 		<Version>$(SerdeFableVersion)</Version>
 		<Authors>Jordan Marr</Authors>
 		<Description>
-			Fable client generator for Serde.FS.Json RPC. Install on a Fable client project to auto-generate a typed client proxy (and matching JSON codecs) from `[&lt;RpcApi&gt;]` interfaces in any directly-referenced project. The generated file lives in the consumer's `fable-generated/` folder and is auto-included in compilation; no manual wiring required.
+			Fable client generator for Serde.FS RPC. Install on a Fable client project to auto-generate a typed client proxy (and matching JSON codecs) from `[&lt;RpcApi&gt;]` interfaces in any directly-referenced project. The generated file lives in the consumer's `fable-generated/` folder and is auto-included in compilation; no manual wiring required.
 		</Description>
 		<PackageTags>fsharp;serde;fable;rpc;json;client</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -41,12 +41,12 @@
 		     project: it would fail the TFM compatibility check. The debug
 		     pipeline publishes the GeneratorHost separately before packing,
 		     so the `<Content>` glob below has files to pick up. -->
-		<ProjectReference Include="..\Serde.FS.Json.Fable.SourceGen\Serde.FS.Json.Fable.SourceGen.fsproj" PrivateAssets="all" />
+		<ProjectReference Include="..\Serde.FS.Fable.SourceGen\Serde.FS.Fable.SourceGen.fsproj" PrivateAssets="all" />
 	</ItemGroup>
 
 	<!-- Console host: publish output goes to tools/net9.0/ inside the package. -->
 	<ItemGroup>
-		<Content Include="..\Serde.FS.Json.Fable.GeneratorHost\bin\$(Configuration)\net9.0\publish\**\*"
+		<Content Include="..\Serde.FS.Fable.GeneratorHost\bin\$(Configuration)\net9.0\publish\**\*"
 				 PackagePath="tools/net9.0/"
 				 CopyToOutputDirectory="Never"
 				 Visible="false" />
@@ -56,7 +56,7 @@
 	     build, running the GeneratorHost and injecting the generated file
 	     as a Compile item. -->
 	<ItemGroup>
-		<None Include="buildTransitive\Serde.FS.Json.Fable.targets" Pack="true" PackagePath="buildTransitive" Link="buildTransitive\Serde.FS.Json.Fable.targets" />
+		<None Include="buildTransitive\Serde.FS.Fable.targets" Pack="true" PackagePath="buildTransitive" Link="buildTransitive\Serde.FS.Fable.targets" />
 	</ItemGroup>
 
 	<ItemGroup>
