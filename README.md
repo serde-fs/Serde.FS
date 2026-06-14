@@ -65,14 +65,14 @@ What each package brings:
 |---------|--------------|
 | **Serde.FS** | Core attributes (`[<Serde>]`, `[<RpcApi>]`) and runtime metadata. Install on any project that declares serializable types or RPC interfaces. |
 | **Serde.FS.Json** | Deterministic, reflection‑free JSON backend. Use it standalone for `SerdeJson.serialize`/`deserialize`, or on a .NET client project to get `RpcClient.create<T>`. |
-| **Serde.FS.Json.AspNet** | Adds `app.MapRpcApi<T>(impl)` for ASP.NET endpoints. Transitively brings `Serde.FS.Json`, so installing this on the server is enough. |
+| **Serde.FS.Json.AspNet** | Adds `app.MapRpcApi<T>(impl)` for ASP.NET endpoints. Builds directly on ASP.NET Core's minimal hosting — no Giraffe, Saturn, or controllers required. Transitively brings `Serde.FS.Json`, so installing this on the server is enough. |
 | **Serde.FS.Json.Fable** | Installing this on a Fable project turns ON Fable client generation: every build scans directly‑referenced projects for `[<RpcApi>]` interfaces and writes a typed proxy into `fable-generated/` (auto‑included in compilation). |
 
 ---
 
 ## 🚀 Getting Started
 
-The smallest possible Serde.FS RPC setup follows the classic SAFE‑style layout:
+The smallest possible Serde.FS RPC setup follows the classic three‑project full‑stack layout:
 
 ```
 SampleRpc/
@@ -151,6 +151,8 @@ let main argv =
 ```
 
 No auth, no policies, no extra endpoints — just a clean RPC server.
+
+> **No web framework required.** `MapRpcApi` is just an ASP.NET Core endpoint‑routing extension, so an RPC BFF needs nothing beyond `Microsoft.NET.Sdk.Web` + `Serde.FS.Json.AspNet` — no Giraffe, no Saturn, no controllers. And because it's plain ASP.NET, you can add minimal‑API endpoints (`app.MapGet "/health" ...`) right alongside `MapRpcApi` whenever you also need a REST surface — they coexist as two separate surfaces on the same host.
 
 See: [SampleRpc.Server/Program.fs](src/Serde.FS.Json.SampleRpc.Server/Program.fs)
 
