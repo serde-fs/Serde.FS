@@ -7,7 +7,10 @@ open FSharp.Compiler.Text
 type EntryPointInfo =
     { ModuleName : string
       FunctionName : string
-      BootstrapInterface : string }
+      BootstrapInterface : string
+      /// Fully-qualified function the generated entry point calls to run
+      /// bootstraps. None = emit the inline reflection scan.
+      BootstrapRunner : string option }
 
 module EntryPointDetector =
 
@@ -68,6 +71,6 @@ module EntryPointDetector =
                 match findEntryPointInDecls decls with
                 | Some funcName ->
                     let moduleName = nsId |> List.map (fun i -> i.idText) |> String.concat "."
-                    Some { ModuleName = moduleName; FunctionName = funcName; BootstrapInterface = "FSharp.SourceDjinn.TypeModel.IEntryPointBootstrap" }
+                    Some { ModuleName = moduleName; FunctionName = funcName; BootstrapInterface = "FSharp.SourceDjinn.TypeModel.IEntryPointBootstrap"; BootstrapRunner = None }
                 | None -> None)
         | _ -> None

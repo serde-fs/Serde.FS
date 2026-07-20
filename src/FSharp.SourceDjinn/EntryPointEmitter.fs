@@ -3,6 +3,16 @@ namespace FSharp.SourceDjinn
 module EntryPointEmitter =
 
     let emit (info: EntryPointInfo) : string =
+        match info.BootstrapRunner with
+        | Some runner ->
+            // A library-side bootstrap runner exists; the generated entry point
+            // just calls it - no inline reflection scan needed.
+            "namespace FSharp.SourceDjinn.Generated\n" +
+            "\n" +
+            sprintf "module DjinnEntryPoint =\n\n    [<EntryPoint>]\n    let main argv =\n        %s()\n        %s.%s argv\n"
+                runner info.ModuleName info.FunctionName
+        | None ->
+
         "namespace FSharp.SourceDjinn.Generated\n" +
         "\n" +
         "module internal DjinnBootstrap =\n" +

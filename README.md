@@ -154,6 +154,8 @@ No auth, no policies, no extra endpoints — just a clean RPC server.
 
 > **No web framework required.** `MapRpcApi` is just an ASP.NET Core endpoint‑routing extension, so an RPC BFF needs nothing beyond `Microsoft.NET.Sdk.Web` + `Serde.FS.AspNet` — no Giraffe, no Saturn, no controllers. And because it's plain ASP.NET, you can add minimal‑API endpoints (`app.MapGet "/health" ...`) right alongside `MapRpcApi` whenever you also need a REST surface — they coexist as two separate surfaces on the same host.
 
+> **Host it anywhere.** As of `1.0.0-beta.4`, `MapRpcApi` self‑initializes the generated codec and RPC registrations, so it works even in hosts where the source‑generated entry point never runs — a desktop shell embedding Kestrel in‑process, a `WebApplicationFactory` test host, an AutoCAD/Revit add‑in, or a C# host referencing your API assembly as a library. `[<Serde.FS.EntryPoint>]` is still recommended for apps that also serialize outside RPC before the first `MapRpcApi` call (see [Custom EntryPoint](#-custom-entrypoint-for-cli-apps)).
+
 See: [SampleRpc.Server/Program.fs](src/Serde.FS.Json.SampleRpc.Server/Program.fs)
 
 ---
@@ -185,7 +187,7 @@ let main _ =
     0
 ```
 
-The client proxy is generated at compile time — no reflection, no runtime inference, no DTO drift.
+The client proxy is generated at compile time — no reflection, no runtime inference, no DTO drift. Like `MapRpcApi`, `RpcClient.create` self‑initializes on first use, so it works in hosts without the generated entry point.
 
 See: [SampleRpc.Client/Program.fs](src/Serde.FS.Json.SampleRpc.Client/Program.fs)
 
@@ -387,6 +389,22 @@ let main argv = ...
 ```
 
 Serde.FS will generate the actual `[<EntryPoint>]` wrapper in a separate file so it appears in the correct place in the compilation order.
+
+### Hosting without the generated entry point
+
+Some hosts never run your assembly's entry point at all: a WPF/Photino desktop shell that starts Kestrel in‑process, an AutoCAD/Revit add‑in loaded into the host application, a `WebApplicationFactory` integration test, or a C# app referencing your F# API assembly as a library.
+
+As of `1.0.0-beta.4` this just works for RPC: `MapRpcApi` and `RpcClient.create` run the generated registrations on first use. If you need registrations *before* that — for example, standalone `SerdeJson.serialize` calls during startup — run them explicitly:
+
+```fsharp
+// Run every generated bootstrap in the loaded assemblies:
+Serde.FS.Bootstrap.Run()
+
+// Or target a specific assembly (Init failures propagate):
+Serde.FS.Bootstrap.Run(typeof<MyApi>.Assembly)
+```
+
+`Bootstrap.Run` is idempotent — each generated bootstrap runs at most once per process, no matter how many times or from how many threads it's called.
 
 ---
 

@@ -17,4 +17,13 @@ let create<'TApi> (http: HttpClient) (baseUrl: string) : 'TApi =
     match factories.TryGetValue(typeof<'TApi>) with
     | true, f -> f http baseUrl :?> 'TApi
     | _ ->
-        invalidOp $"No RPC client registered for type '%s{typeof<'TApi>.FullName}'. Ensure the project references Serde.FS.Json and the [<RpcApi>] interface is visible to the source generator."
+        // The generated RpcBootstrap may not have run yet (hosts without the
+        // source-generated entry point). Try the interface's own assembly first,
+        // then a full scan, before failing.
+        Serde.FS.Bootstrap.Run(typeof<'TApi>.Assembly)
+        if not (factories.ContainsKey(typeof<'TApi>)) then
+            Serde.FS.Bootstrap.Run()
+        match factories.TryGetValue(typeof<'TApi>) with
+        | true, f -> f http baseUrl :?> 'TApi
+        | _ ->
+            invalidOp $"No RPC client registered for type '%s{typeof<'TApi>.FullName}'. Ensure the project references Serde.FS.Json and the [<RpcApi>] interface is visible to the source generator."

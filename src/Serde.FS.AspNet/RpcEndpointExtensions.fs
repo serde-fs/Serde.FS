@@ -89,6 +89,13 @@ module RpcEndpointExtensions =
             let apiName = apiType.Name
             let rpcModule = RpcReflection.loadModule apiName
 
+            // Ensure the generated bootstraps (JSON codecs + RPC client factories)
+            // have run, even when the source-generated entry point never executed
+            // (in-process Kestrel hosts, WebApplicationFactory tests, add-ins, C# hosts).
+            Serde.FS.Bootstrap.Run(rpcModule.Assembly)
+            if not (obj.ReferenceEquals(apiType.Assembly, rpcModule.Assembly)) then
+                Serde.FS.Bootstrap.Run(apiType.Assembly)
+
             // Read [<RpcApi>] attribute for Root and Version
             let rpcAttr =
                 apiType.GetCustomAttributes(typeof<Serde.FS.RpcApiAttribute>, false)

@@ -3,12 +3,16 @@ module Serde.FS.Json.SerdeJson
 open Serde.FS
 open Serde.FS.Json.Codec
 
-/// Builds a JSON codec registry and installs it globally.
+let private registrationLock = obj ()
+
+/// Merges generated codecs into the global JSON codec registry.
 /// The `registerGenerated` function is supplied by generated code.
+/// Registrations are last-write-wins per type, so repeated registration from a
+/// single assembly behaves as before, and registrations from multiple
+/// assemblies accumulate instead of replacing each other.
 let registerCodecs (registerGenerated: CodecRegistry -> CodecRegistry) =
-    GlobalCodecRegistry.Current <-
-        JsonCodecRegistry.create ()
-        |> registerGenerated
+    lock registrationLock (fun () ->
+        GlobalCodecRegistry.Current <- registerGenerated GlobalCodecRegistry.Current)
 
 /// Installs JSON as the runtime backend (optional).
 /// Only needed if the user wants Serde.Serialize/Deserialize to use JSON.

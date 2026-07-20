@@ -16,6 +16,7 @@
 
 	<ItemGroup>
 		<Compile Include="Attributes.fs" />
+		<Compile Include="Bootstrap.fs" />
 		<Compile Include="JsonCodecAttribute.fs" />
 		<Compile Include="ISerdeOptions.fs" />
 		<Compile Include="ISerdeBackend.fs" />

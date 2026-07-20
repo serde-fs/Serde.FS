@@ -662,7 +662,10 @@ module SerdeGeneratorEngine =
                     if filePath.EndsWith(".fs") && isLocalSourceFile filePath then
                         match EntryPointDetector.detect filePath sourceText with
                         | Some info ->
-                            let info = { info with BootstrapInterface = "Serde.FS.IEntryPointBootstrap" }
+                            let info =
+                                { info with
+                                    BootstrapInterface = "Serde.FS.IEntryPointBootstrap"
+                                    BootstrapRunner = Some "Serde.FS.Bootstrap.Run" }
                             let code = EntryPointEmitter.emit info
                             generatedSources.Add({ HintName = "~~EntryPoint.djinn.g.fs"; Code = code; AbsolutePath = None })
                         | None -> ()
