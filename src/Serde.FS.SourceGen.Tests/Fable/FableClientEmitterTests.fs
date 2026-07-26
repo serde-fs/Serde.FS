@@ -247,6 +247,23 @@ let ``single-case wrapper union (ProductId of int)`` () =
     let actual = FableClientEmitter.emit iface types
     SnapshotHarness.assertSnapshot "wrapper_union" actual
 
+/// Same shape as `wrapper_union`, but with [<RequireQualifiedAccess>] on the
+/// union. RQA keeps the constructor function out of the enclosing scope, so
+/// the emitter must keep the Type.Case form (Domain.ProductId.ProductId).
+[<Test>]
+let ``single-case wrapper union with RequireQualifiedAccess keeps type segment`` () =
+    let rqaAttr : FSharp.SourceDjinn.TypeModel.Types.AttributeInfo =
+        { Name = "RequireQualifiedAccess"; ConstructorArgs = []; NamedArgs = [] }
+    let productIdTi =
+        { wrapperUnion "Domain" "ProductId" "ProductId" int32Ti with Attributes = [ rqaAttr ] }
+    let methods = [
+        methodOf "Lookup" productIdTi stringTi
+    ]
+    let iface = interfaceOf "Domain" "IProductApi" methods true
+    let types = [ toSerde productIdTi ]
+    let actual = FableClientEmitter.emit iface types
+    SnapshotHarness.assertSnapshot "wrapper_union_rqa" actual
+
 [<Test>]
 let ``enum with three cases`` () =
     let statusTi = enumTi "Domain" "Status" [ "Pending"; "Active"; "Closed" ]

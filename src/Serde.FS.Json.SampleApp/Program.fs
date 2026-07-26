@@ -56,6 +56,19 @@ and
 type Wrapper<'T> = Wrapper of 'T
 
 // -----------------------------
+// Newtype Examples (issue #12)
+// -----------------------------
+
+// Case name = type name: the generated codec must reference the case as
+// SampleApp.DocumentId, not SampleApp.DocumentId.DocumentId.
+[<Serde>]
+type DocumentId = DocumentId of string
+
+// RequireQualifiedAccess variant keeps the Type.Case form.
+[<Serde; RequireQualifiedAccess>]
+type UserId = UserId of string
+
+// -----------------------------
 // Complex Person Example
 // -----------------------------
 
@@ -155,5 +168,18 @@ let run _argv =
 
     printfn "Person JSON: %s" personJson
     printfn "Person roundtrip: %A" personRoundtrip
+
+    // -----------------------------------------
+    // 4. Newtype Examples (issue #12)
+    // -----------------------------------------
+    let docIdJson = SerdeJson.serialize (DocumentId "doc-42")
+    let docIdRoundtrip : DocumentId = SerdeJson.deserialize docIdJson
+    printfn "DocumentId JSON: %s" docIdJson
+    printfn "DocumentId roundtrip: %A" docIdRoundtrip
+
+    let userIdJson = SerdeJson.serialize (UserId.UserId "user-7")
+    let userIdRoundtrip : UserId = SerdeJson.deserialize userIdJson
+    printfn "UserId JSON: %s" userIdJson
+    printfn "UserId roundtrip: %A" userIdRoundtrip
 
     0

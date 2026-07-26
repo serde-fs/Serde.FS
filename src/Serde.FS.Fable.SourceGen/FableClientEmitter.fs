@@ -277,14 +277,23 @@ module FableClientEmitter =
         let fqType = Types.typeInfoToFqFSharpType info.Raw
         let modName = codecModuleNameFromTi collidingShortNames info.Raw
 
+        // RQA union with a case named like the type: no plain qualified form
+        // compiles in pattern position, so case references go through a
+        // private type abbreviation (scoped to this codec module).
+        let caseRef (c: SerdeUnionCaseInfo) =
+            if UnionCaseNaming.needsAlias info then "TAlias." + c.RawCaseName
+            else UnionCaseNaming.reference info c
+
         append (sprintf "module private %s =" modName)
+        if UnionCaseNaming.needsAlias info then
+            append (sprintf "    type private TAlias = %s" fqType)
         append (sprintf "    let encode (value: %s) : obj =" fqType)
         append          "        match value with"
-        append (sprintf "        | %s.%s x ->" fqType case.RawCaseName)
+        append (sprintf "        | %s x ->" (caseRef case))
         append (sprintf "            createObj [ \"%s\", %s ]" case.CaseName (encodeExpr "x" (fromTi field.Type)))
         append (sprintf "    let decode (json: obj) : %s =" fqType)
         append (sprintf "        let v = json?(\"%s\")" case.CaseName)
-        append (sprintf "        %s.%s (%s)" fqType case.RawCaseName (decodeExpr "v" (fromTi field.Type)))
+        append (sprintf "        %s (%s)" (caseRef case) (decodeExpr "v" (fromTi field.Type)))
         append ""
 
     let private emitMultiCaseUnionCodec (collidingShortNames: Set<string>) (sb: StringBuilder) (info: SerdeTypeInfo) =
@@ -297,20 +306,27 @@ module FableClientEmitter =
         let fqType = Types.typeInfoToFqFSharpType info.Raw
         let modName = codecModuleNameFromTi collidingShortNames info.Raw
 
+        // See emitWrapperUnionCodec for the TAlias rationale.
+        let caseRef (c: SerdeUnionCaseInfo) =
+            if UnionCaseNaming.needsAlias info then "TAlias." + c.RawCaseName
+            else UnionCaseNaming.reference info c
+
         append (sprintf "module private %s =" modName)
+        if UnionCaseNaming.needsAlias info then
+            append (sprintf "    type private TAlias = %s" fqType)
         append (sprintf "    let encode (value: %s) : obj =" fqType)
         append          "        match value with"
         for case in cases do
             match case.Fields with
             | [] ->
-                append (sprintf "        | %s.%s -> createObj [ \"Case\", box \"%s\"; \"Fields\", box [||] ]" fqType case.RawCaseName case.CaseName)
+                append (sprintf "        | %s -> createObj [ \"Case\", box \"%s\"; \"Fields\", box [||] ]" (caseRef case) case.CaseName)
             | fields ->
                 let args = fields |> List.mapi (fun i _ -> sprintf "e%d" i) |> String.concat ", "
                 let encs =
                     fields
                     |> List.mapi (fun i f -> encodeExpr (sprintf "e%d" i) (fromTi f.Type))
                     |> String.concat "; "
-                append (sprintf "        | %s.%s(%s) ->" fqType case.RawCaseName args)
+                append (sprintf "        | %s(%s) ->" (caseRef case) args)
                 append (sprintf "            createObj [ \"Case\", box \"%s\"; \"Fields\", box [| %s |] ]" case.CaseName encs)
         append ""
         append (sprintf "    let decode (json: obj) : %s =" fqType)
@@ -320,14 +336,14 @@ module FableClientEmitter =
             let keyword = if i = 0 then "if" else "elif"
             match case.Fields with
             | [] ->
-                append (sprintf "        %s caseName = \"%s\" then %s.%s" keyword case.CaseName fqType case.RawCaseName)
+                append (sprintf "        %s caseName = \"%s\" then %s" keyword case.CaseName (caseRef case))
             | fields ->
                 let decs =
                     fields
                     |> List.mapi (fun j f ->
                         decodeExpr (sprintf "(fieldsArr.[%d])" j) (fromTi f.Type))
                     |> String.concat ", "
-                append (sprintf "        %s caseName = \"%s\" then %s.%s(%s)" keyword case.CaseName fqType case.RawCaseName decs)
+                append (sprintf "        %s caseName = \"%s\" then %s(%s)" keyword case.CaseName (caseRef case) decs)
         append          "        else failwith (sprintf \"Unknown union case: %s\" caseName)"
         append ""
 

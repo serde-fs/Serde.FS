@@ -207,3 +207,55 @@ module SerdeMetadataBuilder =
             EnumCases = enumCases
             GenericContext = None
         }
+
+/// Builds qualified references to union cases for generated pattern matches
+/// and constructor calls. Shared by the Json and Fable emitters.
+module UnionCaseNaming =
+
+    let private shortName (name: string) =
+        match name.LastIndexOf('.') with
+        | -1 -> name
+        | i -> name.Substring(i + 1)
+
+    /// True when the type declaration carries [<RequireQualifiedAccess>].
+    let hasRequireQualifiedAccess (info: SerdeTypeInfo) =
+        info.Raw.Attributes
+        |> List.exists (fun a ->
+            let sn = shortName a.Name
+            sn = "RequireQualifiedAccess" || sn = "RequireQualifiedAccessAttribute")
+
+    /// True when generated pattern matches need a private type abbreviation
+    /// (`type private XAlias = Ns.X` and `XAlias.Case`): the union carries
+    /// [<RequireQualifiedAccess>] AND has a case named like the type itself.
+    /// In pattern position neither `Ns.Type.Case` (FS1127 — the trailing
+    /// same-named segments misresolve) nor `Ns.Case` (RQA keeps the
+    /// constructor out of the enclosing scope) compiles; an abbreviation
+    /// whose name differs from the case name is the only form that does.
+    let needsAlias (info: SerdeTypeInfo) : bool =
+        hasRequireQualifiedAccess info
+        && (info.UnionCases
+            |> Option.defaultValue []
+            |> List.exists (fun c -> c.RawCaseName = info.Raw.TypeName))
+
+    /// Qualified reference to a union case, e.g. "MyApp.Shared.Shape.Circle".
+    ///
+    /// The type segment is dropped when the case name equals the type name
+    /// (the newtype idiom `type DocumentId = DocumentId of string`): the
+    /// enclosing scope then contains both the type and the lifted constructor
+    /// function, and in `Ns.DocumentId.DocumentId` the first ident binds to
+    /// the constructor, so the emitted code fails to compile (issue #12).
+    /// Constructed generics also drop it (`Ns.Type<'T>.Case` is not valid F#).
+    /// [<RequireQualifiedAccess>] keeps the constructor out of the enclosing
+    /// scope, so RQA keeps the `Ns.Type.Case` form — except when `needsAlias`
+    /// is true, where the caller must emit an abbreviation and qualify cases
+    /// with it instead of using this function's result in pattern position.
+    let reference (info: SerdeTypeInfo) (case: SerdeUnionCaseInfo) : string =
+        let includeTypeSegment =
+            hasRequireQualifiedAccess info
+            || (info.GenericContext.IsNone && case.RawCaseName <> info.Raw.TypeName)
+        let parts =
+            [ yield! info.Raw.Namespace |> Option.toList
+              yield! info.Raw.EnclosingModules
+              if includeTypeSegment then yield info.Raw.TypeName
+              yield case.RawCaseName ]
+        String.concat "." parts

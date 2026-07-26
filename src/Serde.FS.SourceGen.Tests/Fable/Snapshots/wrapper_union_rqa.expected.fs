@@ -23,13 +23,14 @@ module rec IProductApiFableClient =
         let postJson (url: string) (body: string) : JS.Promise<string> = jsNative
 
     module private ProductIdCodec =
+        type private TAlias = Domain.ProductId
         let encode (value: Domain.ProductId) : obj =
             match value with
-            | Domain.ProductId x ->
+            | TAlias.ProductId x ->
                 createObj [ "ProductId", box (x) ]
         let decode (json: obj) : Domain.ProductId =
             let v = json?("ProductId")
-            Domain.ProductId ((unbox<int> v))
+            TAlias.ProductId ((unbox<int> v))
 
     let create (baseUrl: string) : Domain.IProductApi =
         let trimmed = baseUrl.TrimEnd('/')

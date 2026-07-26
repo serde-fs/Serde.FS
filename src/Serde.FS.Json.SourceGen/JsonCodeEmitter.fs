@@ -276,15 +276,14 @@ module internal JsonCodeEmitterImpl =
     let emitUnion (info: SerdeTypeInfo) : string =
         let cases = info.UnionCases |> Option.defaultValue []
         let fqn = emittedFqn info
-        let caseFqn =
-            match info.GenericContext with
-            | Some _ ->
-                let parts =
-                    [ yield! info.Raw.Namespace |> Option.toList
-                      yield! info.Raw.EnclosingModules ]
-                if parts.IsEmpty then info.Raw.TypeName
-                else String.concat "." parts
-            | None -> fullyQualifiedName info
+        // RQA union with a case named like the type: no plain qualified form
+        // compiles in pattern position, so all case references go through a
+        // private type abbreviation instead (see UnionCaseNaming.needsAlias).
+        let needsAlias = UnionCaseNaming.needsAlias info
+        let aliasName = sanitize fqn + "Alias"
+        let caseRef (case: SerdeUnionCaseInfo) =
+            if needsAlias then $"%s{aliasName}.%s{case.RawCaseName}"
+            else UnionCaseNaming.reference info case
         let pascalName = emittedName info
         let fnName = lowerFirst pascalName + "JsonCodec"
 
@@ -303,6 +302,9 @@ module internal JsonCodeEmitterImpl =
         append "[<AutoOpen>]"
         append $"module internal %s{pascalName}SerdeCodec ="
         append ""
+        if needsAlias then
+            append $"    type private %s{aliasName} = %s{fqn}"
+            append ""
         append $"    let %s{fnName} : IJsonCodec<%s{fqn}> ="
         append $"        {{ new IJsonCodec<%s{fqn}> with"
 
@@ -315,7 +317,7 @@ module internal JsonCodeEmitterImpl =
             // Encode
             append "            member _.Encode(value) ="
             append "                match value with"
-            append $"                | %s{caseFqn}.%s{case.RawCaseName}(v) ->"
+            append $"                | %s{caseRef case}(v) ->"
             append $"                    let innerCodec = CodecResolver.resolve typeof<%s{fsharpType}> GlobalCodecRegistry.Current"
             append $"                    JsonValue.Object [\"%s{case.CaseName}\", innerCodec.Encode(box v)]"
 
@@ -325,7 +327,7 @@ module internal JsonCodeEmitterImpl =
             append "                | JsonValue.Object [(caseName, payload)] ->"
             append $"                    if caseName = \"%s{case.CaseName}\" then"
             append $"                        let innerCodec = CodecResolver.resolve typeof<%s{fsharpType}> GlobalCodecRegistry.Current"
-            append $"                        %s{caseFqn}.%s{case.RawCaseName}(innerCodec.Decode(payload) :?> %s{fsharpType})"
+            append $"                        %s{caseRef case}(innerCodec.Decode(payload) :?> %s{fsharpType})"
             append "                    else failwith (sprintf \"Unknown union case: %s\" caseName)"
             append "                | _ -> failwith \"Expected JSON object for wrapper union\""
 
@@ -338,17 +340,17 @@ module internal JsonCodeEmitterImpl =
                 let shape = classifyCaseShape case
                 match shape with
                 | Nullary ->
-                    append $"                | %s{caseFqn}.%s{case.RawCaseName} ->"
+                    append $"                | %s{caseRef case} ->"
                     append $"                    JsonValue.Object [\"Case\", JsonValue.String \"%s{case.CaseName}\"; \"Fields\", JsonValue.Array []]"
                 | SingleField ->
                     let field = case.Fields.[0]
                     let fsharpType = Types.typeInfoToFqFSharpType field.Type
-                    append $"                | %s{caseFqn}.%s{case.RawCaseName}(v) ->"
+                    append $"                | %s{caseRef case}(v) ->"
                     append $"                    let fieldCodec = CodecResolver.resolve typeof<%s{fsharpType}> GlobalCodecRegistry.Current"
                     append $"                    JsonValue.Object [\"Case\", JsonValue.String \"%s{case.CaseName}\"; \"Fields\", JsonValue.Array [fieldCodec.Encode(box v)]]"
                 | TupleFields ->
                     let args = case.Fields |> List.mapi (fun j _ -> $"e%d{j}") |> String.concat ", "
-                    append $"                | %s{caseFqn}.%s{case.RawCaseName}(%s{args}) ->"
+                    append $"                | %s{caseRef case}(%s{args}) ->"
                     append "                    let fieldValues = ["
                     for j, field in case.Fields |> List.mapi (fun j x -> j, x) do
                         let fsharpType = Types.typeInfoToFqFSharpType field.Type
@@ -358,7 +360,7 @@ module internal JsonCodeEmitterImpl =
                     append $"                    JsonValue.Object [\"Case\", JsonValue.String \"%s{case.CaseName}\"; \"Fields\", JsonValue.Array fieldValues]"
                 | RecordFields ->
                     let args = case.Fields |> List.mapi (fun j _ -> $"e%d{j}") |> String.concat ", "
-                    append $"                | %s{caseFqn}.%s{case.RawCaseName}(%s{args}) ->"
+                    append $"                | %s{caseRef case}(%s{args}) ->"
                     append "                    let fieldValues = ["
                     for j, field in case.Fields |> List.mapi (fun j x -> j, x) do
                         let fsharpType = Types.typeInfoToFqFSharpType field.Type
@@ -390,26 +392,26 @@ module internal JsonCodeEmitterImpl =
                 append $"                    %s{keyword} caseName = \"%s{case.CaseName}\" then"
                 match shape with
                 | Nullary ->
-                    append $"                        %s{caseFqn}.%s{case.RawCaseName}"
+                    append $"                        %s{caseRef case}"
                 | SingleField ->
                     let field = case.Fields.[0]
                     let fsharpType = Types.typeInfoToFqFSharpType field.Type
                     append $"                        let fc = CodecResolver.resolve typeof<%s{fsharpType}> GlobalCodecRegistry.Current"
-                    append $"                        %s{caseFqn}.%s{case.RawCaseName}(fc.Decode(fieldsArr.[0]) :?> %s{fsharpType})"
+                    append $"                        %s{caseRef case}(fc.Decode(fieldsArr.[0]) :?> %s{fsharpType})"
                 | TupleFields ->
                     for j, field in case.Fields |> List.mapi (fun j x -> j, x) do
                         let fsharpType = Types.typeInfoToFqFSharpType field.Type
                         append $"                        let fc_%d{j} = CodecResolver.resolve typeof<%s{fsharpType}> GlobalCodecRegistry.Current"
                         append $"                        let e%d{j} = fc_%d{j}.Decode(fieldsArr.[%d{j}]) :?> %s{fsharpType}"
                     let args = case.Fields |> List.mapi (fun j _ -> $"e%d{j}") |> String.concat ", "
-                    append $"                        %s{caseFqn}.%s{case.RawCaseName}(%s{args})"
+                    append $"                        %s{caseRef case}(%s{args})"
                 | RecordFields ->
                     for j, field in case.Fields |> List.mapi (fun j x -> j, x) do
                         let fsharpType = Types.typeInfoToFqFSharpType field.Type
                         append $"                        let fc_%d{j} = CodecResolver.resolve typeof<%s{fsharpType}> GlobalCodecRegistry.Current"
                         append $"                        let e%d{j} = fc_%d{j}.Decode(fieldsArr.[%d{j}]) :?> %s{fsharpType}"
                     let args = case.Fields |> List.mapi (fun j _ -> $"e%d{j}") |> String.concat ", "
-                    append $"                        %s{caseFqn}.%s{case.RawCaseName}(%s{args})"
+                    append $"                        %s{caseRef case}(%s{args})"
 
             append "                    else failwith (sprintf \"Unknown union case: %s\" caseName)"
             append "                | _ -> failwith \"Expected JSON object for union\""
@@ -557,8 +559,10 @@ module internal JsonCodeEmitterImpl =
     /// Also makes the top-level binding private and removes field-level codec registration side-effects.
     let private extractCodecBody (fullEmit: string) : string =
         let lines = fullEmit.TrimEnd().Split([| '\n' |])
+        // The body may start with a private type abbreviation (RQA union with
+        // a case named like the type) that must travel with the codec binding.
         let startIdx =
-            lines |> Array.findIndex (fun l -> l.StartsWith("    let "))
+            lines |> Array.findIndex (fun l -> l.StartsWith("    let ") || l.StartsWith("    type private "))
         // Stop before field-level codec registrations if present
         let endIdx =
             match lines |> Array.tryFindIndex (fun l -> l.Contains("// Field-level codec registrations")) with
@@ -569,7 +573,8 @@ module internal JsonCodeEmitterImpl =
             lastLine <- lastLine - 1
         let bodyLines = Array.copy lines.[startIdx..lastLine]
         // Make the top-level let binding private
-        bodyLines.[0] <- bodyLines.[0].Replace("    let ", "    let private ")
+        let letIdx = bodyLines |> Array.findIndex (fun l -> l.StartsWith("    let "))
+        bodyLines.[letIdx] <- bodyLines.[letIdx].Replace("    let ", "    let private ")
         String.concat "\n" bodyLines
 
     /// Collects (fieldType, codecFqn) pairs for fields that have explicit Codec attributes.

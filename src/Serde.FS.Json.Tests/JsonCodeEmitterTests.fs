@@ -839,9 +839,57 @@ let ``Wrapper DU uses wrapper encoding`` () =
     // Wrapper format: { "Box": <payload> }
     Assert.That(code, Does.Contain("\"Box\""))
     Assert.That(code, Does.Contain("CodecResolver.resolve typeof<int>"))
-    Assert.That(code, Does.Contain("TestNs.Box.Box("))
+    // Case name = type name: Type.Case would bind the first `Box` to the
+    // lifted constructor function, not the type (issue #12), so the type
+    // segment must be dropped.
+    Assert.That(code, Does.Contain("TestNs.Box("))
+    Assert.That(code, Does.Not.Contain("TestNs.Box.Box"))
     // Should NOT contain Case/Fields format
     Assert.That(code, Does.Not.Contain("JsonValue.String \"Box\""))
+
+[<Test>]
+let ``RequireQualifiedAccess wrapper DU with colliding case goes through a type alias`` () =
+    // RQA + case name = type name: `TestNs.Box.Box` fails in pattern position
+    // (FS1127) and `TestNs.Box` alone resolves to the type (RQA hides the
+    // constructor), so the codec must reference the case through a private
+    // type abbreviation.
+    let rqaAttr : Types.AttributeInfo =
+        { Name = "RequireQualifiedAccess"; ConstructorArgs = []; NamedArgs = [] }
+    let info = mkUnionInfo (Some "TestNs") "Box" [
+        mkUnionCase "Box" [ mkField "Value" "int" Int32 ]
+    ]
+    let info = { info with Raw = { info.Raw with Attributes = [ rqaAttr ] } }
+
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("type private TestNs_BoxAlias = TestNs.Box"))
+    Assert.That(code, Does.Contain("TestNs_BoxAlias.Box("))
+    Assert.That(code, Does.Not.Contain("TestNs.Box.Box"))
+
+[<Test>]
+let ``RequireQualifiedAccess union without colliding case keeps Type-Case form`` () =
+    let rqaAttr : Types.AttributeInfo =
+        { Name = "RequireQualifiedAccess"; ConstructorArgs = []; NamedArgs = [] }
+    let info = mkUnionInfo (Some "TestNs") "OtherId" [
+        mkUnionCase "TheCase" [ mkField "Value" "string" String ]
+    ]
+    let info = { info with Raw = { info.Raw with Attributes = [ rqaAttr ] } }
+
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("TestNs.OtherId.TheCase("))
+    Assert.That(code, Does.Not.Contain("Alias"))
+
+[<Test>]
+let ``Multi-case union qualifies only the case whose name matches the type name`` () =
+    let info = mkUnionInfo (Some "TestNs") "Foo" [
+        mkUnionCase "Foo" [ mkUnnamedField (mkPrimType "int" Int32) ]
+        mkUnionCase "Bar" [ mkUnnamedField (mkPrimType "string" String) ]
+    ]
+
+    let code = emitter.Emit(info)
+    // Colliding case drops the type segment; the other keeps Type.Case.
+    Assert.That(code, Does.Contain("TestNs.Foo(v)"))
+    Assert.That(code, Does.Not.Contain("TestNs.Foo.Foo"))
+    Assert.That(code, Does.Contain("TestNs.Foo.Bar(v)"))
 
 [<Test>]
 let ``Single case with zero fields is MultiCase`` () =
