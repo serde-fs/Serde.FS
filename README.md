@@ -5,8 +5,10 @@
 [![Serde.FS.AspNet](https://img.shields.io/nuget/vpre/Serde.FS.AspNet.svg?label=Serde.FS.AspNet)](https://www.nuget.org/packages/Serde.FS.AspNet/)
 [![Serde.FS.Fable](https://img.shields.io/nuget/vpre/Serde.FS.Fable.svg?label=Serde.FS.Fable)](https://www.nuget.org/packages/Serde.FS.Fable/)
 
-Serde.FS is a reflection‑free, compile‑time validated serialization and RPC framework for F#.
+Serde.FS is a source‑generated, compile‑time validated serialization and RPC framework for F#.
 It brings Rust‑style determinism to .NET and adds a **zero‑boilerplate RPC layer** on top — your ASP.NET server, .NET client, and Fable browser client are all generated from a single `[<RpcApi>]` interface.
+
+> **Native AOT status:** the bootstrap/registration layer is AOT‑ and trimming‑safe as of `1.0.0‑beta.5` — startup runs statically‑rooted generated code, no assembly scanning. Full Native AOT support (source‑generated collection codecs) is in progress: [#14](https://github.com/serde-fs/Serde.FS/issues/14).
 
 ---
 
@@ -45,7 +47,7 @@ let! product = api.GetProduct(ProductId 42)
 That’s the entire workflow:
 **Define an interface → Implement it → Call it from any F# runtime.**
 
-Routing, serialization, and client code are all generated at compile time by the same deterministic engine that powers Serde.FS — no reflection, no runtime inference, no DTO drift.
+Routing, serialization, and client code are all generated at compile time by the same deterministic engine that powers Serde.FS — no runtime inference, no DTO drift.
 
 ---
 
@@ -64,7 +66,7 @@ What each package brings:
 | Package | What it adds |
 |---------|--------------|
 | **Serde.FS** | Core attributes (`[<Serde>]`, `[<RpcApi>]`) and runtime metadata. Install on any project that declares serializable types or RPC interfaces. |
-| **Serde.FS.Json** | Deterministic, reflection‑free JSON backend. Use it standalone for `SerdeJson.serialize`/`deserialize`, or on a .NET client project to get `RpcClient.create<T>`. |
+| **Serde.FS.Json** | Deterministic, source‑generated JSON backend. Use it standalone for `SerdeJson.serialize`/`deserialize`, or on a .NET client project to get `RpcClient.create<T>`. |
 | **Serde.FS.AspNet** | Adds `app.MapRpcApi<T>(impl)` for ASP.NET endpoints. Builds directly on ASP.NET Core's minimal hosting — no Giraffe, Saturn, or controllers required. Transitively brings `Serde.FS.Json`, so installing this on the server is enough. |
 | **Serde.FS.Fable** | Installing this on a Fable project turns ON Fable client generation: every build scans directly‑referenced projects for `[<RpcApi>]` interfaces and writes a typed proxy into `fable-generated/` (auto‑included in compilation). |
 
@@ -187,7 +189,7 @@ let main _ =
     0
 ```
 
-The client proxy is generated at compile time — no reflection, no runtime inference, no DTO drift. Like `MapRpcApi`, `RpcClient.create` self‑initializes on first use, so it works in hosts without the generated entry point.
+The client proxy is generated at compile time — no runtime inference, no DTO drift. Like `MapRpcApi`, `RpcClient.create` self‑initializes on first use, so it works in hosts without the generated entry point.
 
 See: [SampleRpc.Client/Program.fs](src/Serde.FS.Json.SampleRpc.Client/Program.fs)
 
@@ -309,7 +311,7 @@ See [🏁 Custom EntryPoint for CLI apps](#-custom-entrypoint-for-cli-apps) belo
 - **Strict, Serde‑style serialization** — Only `[<Serde>]` types participate.
 - **Compile‑time validation** — Nested types must also be annotated.
 - **Deterministic code generation** — Stable, predictable serializers.
-- **Fast runtime backend** — F# source‑generated code, no reflection.
+- **Fast runtime backend** — codecs are generated F# source, not reflection‑built serializers.
 - **Custom converters** — Override behavior per‑type without weakening strictness.
 - **Backend‑agnostic core** — JSON today, TOML/YAML tomorrow.
 - **End‑to‑end RPC** — One `[<RpcApi>]` interface generates server routes, a .NET client, and a Fable browser client.
@@ -434,7 +436,7 @@ Not designed for dynamic JSON, schema‑drifting storage, partial deserializatio
 
 ## 🎯 When to Use Serde.FS.Json
 
-Serde.FS.Json is a deterministic, reflection‑free JSON backend designed for:
+Serde.FS.Json is a deterministic, source‑generated JSON backend designed for:
 
 - compile‑time validated serialization
 - stable, schema‑aware encoding
