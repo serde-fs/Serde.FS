@@ -15,6 +15,11 @@ type ISerdeResolverEmitter =
     abstract member EmitRegistrationFiles : unit -> (string * string) list
     /// Whether this backend emits per-type files (true) or consolidates all codecs into the resolver (false).
     abstract member EmitPerTypeFiles : bool
+    /// Fully-qualified names of the IEntryPointBootstrap implementors declared
+    /// by the resolver output (e.g. ["Serde.Generated.JsonBootstrap"]). The
+    /// generated entry point news these up and runs them directly, so they
+    /// survive Native AOT / trimming, where the reflection scan finds nothing.
+    abstract member ResolverBootstrapTypes : string list
 
 /// Metadata for a single RPC method discovered from an [<RpcApi>] interface.
 type RpcMethodInfo = {
@@ -114,6 +119,10 @@ type ISerdeRpcEmitter =
     abstract member EmitRpcModules : RpcInterfaceInfo list -> (string * string) list
     /// Emit cross-project files (e.g. Fable client) for [<RpcApi>] interfaces.
     abstract member EmitCrossProjectFiles : RpcInterfaceInfo list * SerdeTypeInfo list -> CrossProjectEmitResult
+    /// Fully-qualified name of the IEntryPointBootstrap implementor emitted in
+    /// the RPC module for the given interface, if any. See
+    /// ISerdeResolverEmitter.ResolverBootstrapTypes for how it is used.
+    abstract member RpcBootstrapTypeName : RpcInterfaceInfo -> string option
 
 module SerdeCodegenRegistry =
     let mutable private defaultEmitter : ISerdeCodeEmitter option = None

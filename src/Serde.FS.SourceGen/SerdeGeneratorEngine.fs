@@ -609,6 +609,11 @@ module SerdeGeneratorEngine =
                     generatedSources.Add({ HintName = sprintf "%s.%s.g.fs" pascalName emitter.HintNameSuffix; Code = code; AbsolutePath = None })
                 allTypes.Add(tupSerdeInfo)
 
+            // Bootstrap types generated in THIS compilation. The generated
+            // entry point runs these via direct, statically-rooted calls so
+            // they survive Native AOT / trimming (issue #13).
+            let bootstrapTypeNames = ResizeArray<string>()
+
             // Emit resolver file if the emitter supports it
             match emitter with
             | :? ISerdeResolverEmitter as resolverEmitter ->
@@ -617,6 +622,7 @@ module SerdeGeneratorEngine =
                     generatedSources.Add({ HintName = resolverEmitter.ResolverHintName; Code = code; AbsolutePath = None })
                     for (hintName, code) in resolverEmitter.EmitRegistrationFiles() do
                         generatedSources.Add({ HintName = hintName; Code = code; AbsolutePath = None })
+                    bootstrapTypeNames.AddRange(resolverEmitter.ResolverBootstrapTypes)
                 | None -> ()
             | _ -> ()
 
@@ -626,6 +632,10 @@ module SerdeGeneratorEngine =
                 | :? ISerdeRpcEmitter as rpcEmitter ->
                     for (hintName, code) in rpcEmitter.EmitRpcModules(rpcDiscoveryResult.Interfaces) do
                         generatedSources.Add({ HintName = hintName; Code = code; AbsolutePath = None })
+                    for iface in rpcDiscoveryResult.Interfaces do
+                        match rpcEmitter.RpcBootstrapTypeName iface with
+                        | Some name -> bootstrapTypeNames.Add name
+                        | None -> ()
                     let crossResult = rpcEmitter.EmitCrossProjectFiles(rpcDiscoveryResult.Interfaces, Seq.toList allTypes)
                     for (absPath, code) in crossResult.Files do
                         let hint = System.IO.Path.GetFileName(absPath)
@@ -665,7 +675,8 @@ module SerdeGeneratorEngine =
                             let info =
                                 { info with
                                     BootstrapInterface = "Serde.FS.IEntryPointBootstrap"
-                                    BootstrapRunner = Some "Serde.FS.Bootstrap.Run" }
+                                    BootstrapRunner = Some "Serde.FS.Bootstrap.Run"
+                                    BootstrapTypes = List.ofSeq bootstrapTypeNames }
                             let code = EntryPointEmitter.emit info
                             generatedSources.Add({ HintName = "~~EntryPoint.djinn.g.fs"; Code = code; AbsolutePath = None })
                         | None -> ()

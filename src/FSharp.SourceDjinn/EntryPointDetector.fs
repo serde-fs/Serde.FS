@@ -9,8 +9,16 @@ type EntryPointInfo =
       FunctionName : string
       BootstrapInterface : string
       /// Fully-qualified function the generated entry point calls to run
-      /// bootstraps. None = emit the inline reflection scan.
-      BootstrapRunner : string option }
+      /// bootstraps. None = emit the inline reflection scan. When
+      /// BootstrapTypes is non-empty the runner must also expose an overload
+      /// taking a BootstrapInterface array (e.g. Serde.FS.Bootstrap.Run).
+      BootstrapRunner : string option
+      /// Fully-qualified names of the bootstrap types generated in the SAME
+      /// compilation as the entry point. The generated entry point news these
+      /// up and passes them to the runner directly, so they are statically
+      /// rooted — required under Native AOT / trimming, where the reflection
+      /// scan cannot see them.
+      BootstrapTypes : string list }
 
 module EntryPointDetector =
 
@@ -71,6 +79,6 @@ module EntryPointDetector =
                 match findEntryPointInDecls decls with
                 | Some funcName ->
                     let moduleName = nsId |> List.map (fun i -> i.idText) |> String.concat "."
-                    Some { ModuleName = moduleName; FunctionName = funcName; BootstrapInterface = "FSharp.SourceDjinn.TypeModel.IEntryPointBootstrap"; BootstrapRunner = None }
+                    Some { ModuleName = moduleName; FunctionName = funcName; BootstrapInterface = "FSharp.SourceDjinn.TypeModel.IEntryPointBootstrap"; BootstrapRunner = None; BootstrapTypes = [] }
                 | None -> None)
         | _ -> None

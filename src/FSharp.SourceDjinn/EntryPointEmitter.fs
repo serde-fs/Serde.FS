@@ -7,10 +7,26 @@ module EntryPointEmitter =
         | Some runner ->
             // A library-side bootstrap runner exists; the generated entry point
             // just calls it - no inline reflection scan needed.
+            //
+            // Bootstraps generated in this same compilation are additionally
+            // passed to the runner as directly-constructed instances. That
+            // statically roots them (and everything they reference), so they
+            // run under Native AOT / trimming where the runner's reflection
+            // scan cannot discover them. The parameterless runner call still
+            // follows to pick up bootstraps from referenced assemblies.
+            let directRun =
+                match info.BootstrapTypes with
+                | [] -> ""
+                | types ->
+                    let items =
+                        types
+                        |> List.map (fun t -> sprintf "            %s() :> %s\n" t info.BootstrapInterface)
+                        |> String.concat ""
+                    sprintf "        %s([|\n%s        |])\n" runner items
             "namespace FSharp.SourceDjinn.Generated\n" +
             "\n" +
-            sprintf "module DjinnEntryPoint =\n\n    [<EntryPoint>]\n    let main argv =\n        %s()\n        %s.%s argv\n"
-                runner info.ModuleName info.FunctionName
+            sprintf "module DjinnEntryPoint =\n\n    [<EntryPoint>]\n    let main argv =\n%s        %s()\n        %s.%s argv\n"
+                directRun runner info.ModuleName info.FunctionName
         | None ->
 
         "namespace FSharp.SourceDjinn.Generated\n" +

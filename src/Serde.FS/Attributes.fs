@@ -68,3 +68,18 @@ type RpcApiAttribute() =
 /// Defines a discoverable bootstrap that will be automatically run during the entry point startup sequence.
 type IEntryPointBootstrap =
     abstract member Init : unit -> unit
+
+/// Assembly-level marker emitted by the source generator for each generated
+/// IEntryPointBootstrap implementor (one attribute per bootstrap type).
+/// Lets Bootstrap discover bootstraps from assembly metadata instead of a
+/// full Assembly.GetTypes() scan — which also survives Native AOT and
+/// trimming, where a scan only sees types something else kept alive.
+/// The DynamicallyAccessedMembers annotation tells the trimmer to preserve
+/// the parameterless constructor Bootstrap invokes.
+[<AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)>]
+type SerdeBootstrapAttribute(
+    [<System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+        System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)>]
+    bootstrapType: Type) =
+    inherit Attribute()
+    member _.BootstrapType = bootstrapType

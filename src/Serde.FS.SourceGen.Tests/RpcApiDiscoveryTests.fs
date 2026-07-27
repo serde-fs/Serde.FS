@@ -578,3 +578,68 @@ type IServerApi =
         sprintf "ConduitSchedule.Conduit missing — discovered: %A" discoveredFqns)
     Assert.That(discoveredFqns.Contains "CEI.BimHub.Domain.FeederRelease.Conduit", Is.True,
         sprintf "FeederRelease.Conduit missing — discovered: %A" discoveredFqns)
+
+/// Issue #13: the generated entry point must run the bootstraps of its own
+/// compilation via direct, statically-rooted calls (Native AOT / trimming
+/// safe) before falling back to the reflection scan for referenced
+/// assemblies.
+[<Test>]
+let ``Generated entry point runs local bootstraps directly before the scan`` () =
+    let source = """
+module MyApp.Program
+
+open Serde.FS
+
+[<Serde>]
+type Person = { Name: string }
+
+[<RpcApi>]
+type IPersonApi =
+    abstract GetPerson : unit -> Async<Person>
+
+[<Serde.FS.EntryPoint>]
+let main argv = 0
+"""
+    // The engine only emits the wrapper for sources under the project dir
+    // (= current directory in tests).
+    let path = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "Program.fs")
+    let emitter = Serde.FS.Json.SourceGen.JsonCodeEmitter() :> Serde.FS.ISerdeCodeEmitter
+    let result = Serde.FS.SourceGen.SerdeGeneratorEngine.generate [ path, source ] emitter
+
+    Assert.That(result.Errors, Is.Empty, sprintf "Unexpected errors: %A" result.Errors)
+    let entryPoint =
+        result.Sources |> List.tryFind (fun s -> s.HintName = "~~EntryPoint.djinn.g.fs")
+    Assert.That(entryPoint.IsSome, Is.True, "entry point wrapper should be generated")
+
+    let code = entryPoint.Value.Code
+    Assert.That(code, Does.Contain("Serde.FS.Bootstrap.Run([|"))
+    Assert.That(code, Does.Contain("Serde.Generated.JsonBootstrap() :> Serde.FS.IEntryPointBootstrap"))
+    Assert.That(code, Does.Contain("SerdeGenerated.Rpc.IPersonApiRpcBootstrap() :> Serde.FS.IEntryPointBootstrap"))
+    // The parameterless scan still follows the direct calls.
+    Assert.That(code, Does.Contain("Serde.FS.Bootstrap.Run()"))
+
+/// The RPC module must carry the assembly-level SerdeBootstrap marker so
+/// Bootstrap.Run(assembly) finds the bootstrap without a type scan.
+[<Test>]
+let ``RPC module emits assembly-level SerdeBootstrap attribute`` () =
+    let source = """
+module MyApp.Program
+
+open Serde.FS
+
+[<Serde>]
+type Person = { Name: string }
+
+[<RpcApi>]
+type IPersonApi =
+    abstract GetPerson : unit -> Async<Person>
+"""
+    let emitter = Serde.FS.Json.SourceGen.JsonCodeEmitter() :> Serde.FS.ISerdeCodeEmitter
+    let result = Serde.FS.SourceGen.SerdeGeneratorEngine.generate [ "/Program.fs", source ] emitter
+
+    Assert.That(result.Errors, Is.Empty, sprintf "Unexpected errors: %A" result.Errors)
+    let rpcModule =
+        result.Sources |> List.tryFind (fun s -> s.HintName = "~Rpc.IPersonApi.json.g.fs")
+    Assert.That(rpcModule.IsSome, Is.True, "RPC module should be generated")
+    Assert.That(rpcModule.Value.Code,
+        Does.Contain("[<assembly: Serde.FS.SerdeBootstrap(typeof<SerdeGenerated.Rpc.IPersonApiRpcBootstrap>)>]"))

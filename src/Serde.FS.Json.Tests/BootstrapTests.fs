@@ -15,6 +15,23 @@ type CountingBootstrap() =
 /// Marker interface standing in for a generated [<RpcApi>] interface.
 type IManualApi = interface end
 
+/// Run via the direct-instance overload the generated entry point uses.
+type DirectRunBootstrap() =
+    static member val InitCount = 0 with get, set
+    interface IEntryPointBootstrap with
+        member _.Init() = DirectRunBootstrap.InitCount <- DirectRunBootstrap.InitCount + 1
+
+/// Declared via the assembly-level [<SerdeBootstrap>] attribute below.
+type AttributeDeclaredBootstrap() =
+    static member val InitCount = 0 with get, set
+    interface IEntryPointBootstrap with
+        member _.Init() = AttributeDeclaredBootstrap.InitCount <- AttributeDeclaredBootstrap.InitCount + 1
+
+// Mirrors what the source generator emits into consumer assemblies so
+// Bootstrap can discover bootstraps from metadata instead of a type scan.
+[<assembly: SerdeBootstrap(typeof<AttributeDeclaredBootstrap>)>]
+do ()
+
 /// Stands in for a generated <Iface>RpcBootstrap: registers a client factory
 /// so RpcClient.create can find IManualApi via the bootstrap scan.
 type ManualApiRpcBootstrap() =
@@ -31,6 +48,22 @@ let ``Bootstrap Run assembly runs each implementor at most once`` () =
     // Even if another test triggered a scan first, the global once-per-type
     // tracking means Init ran exactly once across the whole test run.
     Assert.AreEqual(1, CountingBootstrap.InitCount)
+
+[<Test>]
+let ``Bootstrap Run with direct instances runs each type at most once`` () =
+    Bootstrap.Run([| DirectRunBootstrap() :> IEntryPointBootstrap |])
+    Bootstrap.Run([| DirectRunBootstrap() :> IEntryPointBootstrap |])
+    // The once-per-type tracking is shared with the scan-based overloads.
+    Bootstrap.Run(typeof<DirectRunBootstrap>.Assembly)
+    Assert.AreEqual(1, DirectRunBootstrap.InitCount)
+
+[<Test>]
+let ``Bootstrap Run assembly runs attribute-declared bootstraps exactly once`` () =
+    // The attribute-declared type is also visible to the legacy type scan;
+    // the union of the two discovery paths must not run it twice.
+    Bootstrap.Run(typeof<AttributeDeclaredBootstrap>.Assembly)
+    Bootstrap.Run(typeof<AttributeDeclaredBootstrap>.Assembly)
+    Assert.AreEqual(1, AttributeDeclaredBootstrap.InitCount)
 
 [<Test>]
 let ``RpcClient create falls back to bootstrap scan on factory miss`` () =

@@ -245,6 +245,15 @@ let ``EmitResolver returns None for empty list`` () =
     let result = resolverEmitter.EmitResolver([])
     Assert.That(result.IsNone, Is.True)
 
+[<Test>]
+let ``EmitResolver emits assembly-level SerdeBootstrap attribute for the JsonBootstrap`` () =
+    // The attribute lets Bootstrap discover the generated bootstrap from
+    // assembly metadata instead of a full type scan (Native AOT / trimming
+    // safe - issue #13).
+    let types = [ mkRecordInfo (Some "MyApp") "Person" Both [ mkField "Name" "string" String ] ]
+    let code = (resolverEmitter.EmitResolver types).Value
+    Assert.That(code, Does.Contain("[<assembly: Serde.FS.SerdeBootstrap(typeof<Serde.Generated.JsonBootstrap>)>]"))
+
 /// Regression for the CEI.BimHub `Duplicate definition of value 'projectJsonCodec'`
 /// case: when two types share a short TypeName but live in different modules
 /// (e.g. CEI.Domain.Forge.Project vs CEI.Domain.Project.Project), their inlined

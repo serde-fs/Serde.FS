@@ -31,10 +31,24 @@ type Bootstrap private () =
                 ex.Types |> Array.filter (fun t -> not (isNull t))
             | _ -> [||]
 
+    /// Bootstrap candidates for an assembly: types declared via assembly-level
+    /// [<SerdeBootstrap>] attributes (Native AOT / trimming safe — the attribute
+    /// roots the type and its constructor), unioned with the legacy full-type
+    /// scan so assemblies generated before the attribute existed keep working.
+    static let candidateTypes (asm: Assembly) =
+        let fromAttributes =
+            try
+                asm.GetCustomAttributes(typeof<SerdeBootstrapAttribute>, false)
+                |> Array.choose (function
+                    | :? SerdeBootstrapAttribute as a when not (isNull a.BootstrapType) -> Some a.BootstrapType
+                    | _ -> None)
+            with _ -> [||]
+        Array.append fromAttributes (loadableTypes asm) |> Array.distinct
+
     static let runIn (propagateInitErrors: bool) (assemblies: Assembly seq) =
         lock gate (fun () ->
             for asm in assemblies do
-                for ty in loadableTypes asm do
+                for ty in candidateTypes asm do
                     if typeof<IEntryPointBootstrap>.IsAssignableFrom(ty)
                        && not ty.IsInterface
                        && not ty.IsAbstract
@@ -54,9 +68,33 @@ type Bootstrap private () =
     static member Run() =
         let entry = Assembly.GetEntryAssembly()
         if not (isNull entry) then
-            for name in entry.GetReferencedAssemblies() do
+            // Native AOT: GetReferencedAssemblies() throws
+            // PlatformNotSupportedException (issue #13). There everything the
+            // app needs is registered by the generated entry point's direct
+            // Run(bootstraps) call; this scan then only covers assemblies that
+            // are already loaded.
+            let refs = try entry.GetReferencedAssemblies() with _ -> [||]
+            for name in refs do
                 try Assembly.Load(name) |> ignore with _ -> ()
         runIn false (AppDomain.CurrentDomain.GetAssemblies())
+
+    /// Runs the given bootstrap instances directly — no reflection discovery.
+    /// The source-generated entry point calls this with the bootstraps of its
+    /// own compilation, so they are statically rooted and always run, even
+    /// under Native AOT / trimming where the scan-based overloads find nothing.
+    /// Each bootstrap type still runs at most once per process (the tracking
+    /// is shared with the scan-based overloads), and Init errors propagate.
+    static member Run(bootstraps: IEntryPointBootstrap[]) =
+        lock gate (fun () ->
+            for b in bootstraps do
+                let ty = b.GetType()
+                if ran.Add(ty) then
+                    try
+                        b.Init()
+                    with _ ->
+                        // Un-mark the type so a later call can retry it.
+                        ran.Remove(ty) |> ignore
+                        reraise ())
 
     /// Runs the IEntryPointBootstrap implementations declared in the given
     /// assembly only. A targeted call expresses explicit intent, so Init()

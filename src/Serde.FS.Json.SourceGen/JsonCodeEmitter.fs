@@ -689,6 +689,13 @@ module internal JsonCodeEmitterImpl =
             append "        member _.Init () ="
             append "            Serde.Generated.SerdeJsonCodecs.register"
             append "            |> Serde.FS.Json.SerdeJson.registerCodecs"
+            append ""
+            // Assembly-level marker so Bootstrap can find this bootstrap from
+            // metadata instead of a full type scan (Native AOT / trimming safe).
+            append "namespace Serde.Generated"
+            append ""
+            append "[<assembly: Serde.FS.SerdeBootstrap(typeof<Serde.Generated.JsonBootstrap>)>]"
+            append "do ()"
 
             Some (sb.ToString())
 
@@ -883,6 +890,13 @@ module internal RpcDispatchEmitter =
         append "    interface Serde.FS.IEntryPointBootstrap with"
         append "        member _.Init () ="
         append $"            Serde.FS.Json.RpcClient.register<%s{iface.FullName}>(%s{iface.ShortName}_ClientFactory.create)"
+        append ""
+        // Assembly-level marker so Bootstrap can find this bootstrap from
+        // metadata instead of a full type scan (Native AOT / trimming safe).
+        append "namespace SerdeGenerated.Rpc"
+        append ""
+        append $"[<assembly: Serde.FS.SerdeBootstrap(typeof<SerdeGenerated.Rpc.%s{iface.ShortName}RpcBootstrap>)>]"
+        append "do ()"
 
         sb.ToString()
 
@@ -895,6 +909,7 @@ type JsonCodeEmitter() =
         member _.ResolverHintName = "~SerdeJsonCodecs.json.g.fs"
         member _.EmitRegistrationFiles() = []
         member _.EmitPerTypeFiles = false
+        member _.ResolverBootstrapTypes = [ "Serde.Generated.JsonBootstrap" ]
     interface ISerdeRpcEmitter with
         member _.EmitRpcModules(interfaces) =
             interfaces
@@ -908,3 +923,5 @@ type JsonCodeEmitter() =
             // The server-side JSON backend no longer writes anything outside
             // its own obj/serde-generated/ folder.
             { Files = []; Errors = [] }
+        member _.RpcBootstrapTypeName(iface) =
+            Some $"SerdeGenerated.Rpc.%s{iface.ShortName}RpcBootstrap"
