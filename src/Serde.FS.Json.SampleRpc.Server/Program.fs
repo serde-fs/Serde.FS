@@ -47,16 +47,27 @@ let main (argv: string array) =
         )
     ) |> ignore
 
+    // IInventoryApi is resolved from DI per request (see MapRpcApi<IInventoryApi>() below),
+    // so it can take scoped/transient dependencies through its constructor.
+    builder.Services.AddScoped<IStockRepository, InMemoryStockRepository>() |> ignore
+    builder.Services.AddScoped<IInventoryApi, InventoryApi>() |> ignore
+
     let app = builder.Build()
     app.UseAuthentication() |> ignore
     app.UseAuthorization() |> ignore
 
+    // Singleton style: one implementation instance serves every request.
     let rpc = app.MapRpcApi<IOrderApi>(OrderApi())
     // Second [<RpcApi>] mapped on the same app — verifies that two interfaces
     // get isolated route prefixes (/rpc/IOrderApi/... vs /rpc/IInventoryApi/...)
     // and that their generated codec modules don't collide on shared types
     // (ProductId, Product are referenced by both).
-    app.MapRpcApi<IInventoryApi>(InventoryApi()) |> ignore
+    //
+    // DI style: the implementation is resolved from ctx.RequestServices on every call.
+    // A per-request factory is also available when you'd rather not register the API in DI:
+    //   app.MapRpcApi<IInventoryApi>(fun ctx ->
+    //       InventoryApi(ctx.RequestServices.GetRequiredService<IStockRepository>()) :> IInventoryApi)
+    app.MapRpcApi<IInventoryApi>() |> ignore
 
     rpc.ApplyRouteConventions(fun route ->
         match route.MethodName with

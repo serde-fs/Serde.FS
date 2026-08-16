@@ -4,6 +4,7 @@ open System.Collections.Generic
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Routing
+open Microsoft.Extensions.DependencyInjection
 
 module private Helpers =
     /// Transforms a method name according to the UrlCase setting.
@@ -80,59 +81,91 @@ type RpcApiBuilder =
             apply route
 
 
+module private RpcEndpointCore =
+
+    /// Maps every method of the [<RpcApi>] interface 'TApi to a POST endpoint.
+    /// `resolve` is invoked once per request to obtain the implementation that
+    /// handles that request, so implementations may be singletons, per-request
+    /// instances, or resolved from the request's DI scope.
+    let mapRpcApi<'TApi> (routes: IEndpointRouteBuilder) (resolve: HttpContext -> 'TApi) =
+        let apiType = typeof<'TApi>
+        let apiName = apiType.Name
+        let rpcModule = RpcReflection.loadModule apiName
+
+        // Ensure the generated bootstraps (JSON codecs + RPC client factories)
+        // have run, even when the source-generated entry point never executed
+        // (in-process Kestrel hosts, WebApplicationFactory tests, add-ins, C# hosts).
+        Serde.FS.Bootstrap.Run(rpcModule.Assembly)
+        if not (obj.ReferenceEquals(apiType.Assembly, rpcModule.Assembly)) then
+            Serde.FS.Bootstrap.Run(apiType.Assembly)
+
+        // Read [<RpcApi>] attribute for Root and Version
+        let rpcAttr =
+            apiType.GetCustomAttributes(typeof<Serde.FS.RpcApiAttribute>, false)
+            |> Array.tryHead
+            |> Option.map (fun a -> a :?> Serde.FS.RpcApiAttribute)
+
+        let root =
+            match rpcAttr |> Option.bind (fun a -> Option.ofObj a.Root) with
+            | Some r when r.Length > 0 -> r
+            | _ -> apiName
+
+        let versionSegment =
+            match rpcAttr |> Option.bind (fun a -> Option.ofObj a.Version) with
+            | Some v when v.Length > 0 -> $"/%s{v}"
+            | _ -> ""
+
+        let urlCase =
+            rpcAttr
+            |> Option.map (fun a -> a.UrlCase)
+            |> Option.defaultValue Serde.FS.UrlCase.Default
+
+        let routePrefix = $"/rpc/%s{root}%s{versionSegment}"
+        let group = routes.MapGroup(routePrefix)
+        let endpoints = Dictionary<string, IEndpointConventionBuilder>()
+
+        for methodName in RpcReflection.getMethods rpcModule do
+            let methodSegment = Helpers.applyUrlCase urlCase methodName
+            let builder =
+                group.MapPost(methodSegment, RequestDelegate(fun ctx ->
+                    task {
+                        let impl = resolve ctx
+                        let! body = Helpers.readBodyAsString ctx
+                        let input = RpcReflection.deserializeDynamic rpcModule methodName body
+                        let! output = RpcReflection.invoke rpcModule (box impl) methodName input
+                        let json = RpcReflection.serializeDynamic rpcModule methodName output
+                        return! Helpers.writeJson ctx json
+                    } :> System.Threading.Tasks.Task
+                ))
+            endpoints.[methodName] <- builder
+
+        { Group = routes; Endpoints = endpoints }
+
+
 [<AutoOpen>]
 module RpcEndpointExtensions =
 
     type IEndpointRouteBuilder with
+
+        /// Maps the [<RpcApi>] interface 'TApi to endpoints served by a single
+        /// implementation instance shared across all requests.
         member this.MapRpcApi<'TApi>(impl: 'TApi) =
-            let apiType = typeof<'TApi>
-            let apiName = apiType.Name
-            let rpcModule = RpcReflection.loadModule apiName
+            RpcEndpointCore.mapRpcApi<'TApi> this (fun _ -> impl)
 
-            // Ensure the generated bootstraps (JSON codecs + RPC client factories)
-            // have run, even when the source-generated entry point never executed
-            // (in-process Kestrel hosts, WebApplicationFactory tests, add-ins, C# hosts).
-            Serde.FS.Bootstrap.Run(rpcModule.Assembly)
-            if not (obj.ReferenceEquals(apiType.Assembly, rpcModule.Assembly)) then
-                Serde.FS.Bootstrap.Run(apiType.Assembly)
+        /// Maps the [<RpcApi>] interface 'TApi to endpoints whose implementation
+        /// is created per request by `factory`. Use this to build the implementation
+        /// from request-scoped state without registering it in DI, e.g.
+        /// `app.MapRpcApi<IOrderApi>(fun ctx -> OrderApi(ctx.RequestServices.GetRequiredService<IProductRepository>()) :> IOrderApi)`.
+        /// Note: as with ASP.NET's own `AddSingleton<T>(factory)` overload, an F# lambda
+        /// returning a class must upcast to 'TApi (`:> IOrderApi`); object expressions and
+        /// functions already typed as `HttpContext -> IOrderApi` need no upcast.
+        member this.MapRpcApi<'TApi>(factory: System.Func<HttpContext, 'TApi>) =
+            RpcEndpointCore.mapRpcApi<'TApi> this (fun ctx -> factory.Invoke ctx)
 
-            // Read [<RpcApi>] attribute for Root and Version
-            let rpcAttr =
-                apiType.GetCustomAttributes(typeof<Serde.FS.RpcApiAttribute>, false)
-                |> Array.tryHead
-                |> Option.map (fun a -> a :?> Serde.FS.RpcApiAttribute)
-
-            let root =
-                match rpcAttr |> Option.bind (fun a -> Option.ofObj a.Root) with
-                | Some r when r.Length > 0 -> r
-                | _ -> apiName
-
-            let versionSegment =
-                match rpcAttr |> Option.bind (fun a -> Option.ofObj a.Version) with
-                | Some v when v.Length > 0 -> $"/%s{v}"
-                | _ -> ""
-
-            let urlCase =
-                rpcAttr
-                |> Option.map (fun a -> a.UrlCase)
-                |> Option.defaultValue Serde.FS.UrlCase.Default
-
-            let routePrefix = $"/rpc/%s{root}%s{versionSegment}"
-            let group = this.MapGroup(routePrefix)
-            let endpoints = Dictionary<string, IEndpointConventionBuilder>()
-
-            for methodName in RpcReflection.getMethods rpcModule do
-                let methodSegment = Helpers.applyUrlCase urlCase methodName
-                let builder =
-                    group.MapPost(methodSegment, RequestDelegate(fun ctx ->
-                        task {
-                            let! body = Helpers.readBodyAsString ctx
-                            let input = RpcReflection.deserializeDynamic rpcModule methodName body
-                            let! output = RpcReflection.invoke rpcModule (impl :> obj) methodName input
-                            let json = RpcReflection.serializeDynamic rpcModule methodName output
-                            return! Helpers.writeJson ctx json
-                        } :> System.Threading.Tasks.Task
-                    ))
-                endpoints.[methodName] <- builder
-
-            { Group = this; Endpoints = endpoints }
+        /// Maps the [<RpcApi>] interface 'TApi to endpoints whose implementation is
+        /// resolved from the request's service scope (`ctx.RequestServices`) on every
+        /// call. Register the implementation with the host's DI container first, e.g.
+        /// `builder.Services.AddScoped<IOrderApi, OrderApi>()`; scoped and transient
+        /// dependencies are then honored per request.
+        member this.MapRpcApi<'TApi>() =
+            RpcEndpointCore.mapRpcApi<'TApi> this (fun ctx -> ctx.RequestServices.GetRequiredService<'TApi>())

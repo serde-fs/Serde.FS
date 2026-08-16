@@ -67,7 +67,7 @@ What each package brings:
 |---------|--------------|
 | **Serde.FS** | Core attributes (`[<Serde>]`, `[<RpcApi>]`) and runtime metadata. Install on any project that declares serializable types or RPC interfaces. |
 | **Serde.FS.Json** | Deterministic, source‑generated JSON backend. Use it standalone for `SerdeJson.serialize`/`deserialize`, or on a .NET client project to get `RpcClient.create<T>`. |
-| **Serde.FS.AspNet** | Adds `app.MapRpcApi<T>(impl)` for ASP.NET endpoints. Builds directly on ASP.NET Core's minimal hosting — no Giraffe, Saturn, or controllers required. Transitively brings `Serde.FS.Json`, so installing this on the server is enough. |
+| **Serde.FS.AspNet** | Adds `app.MapRpcApi<T>(impl)` for ASP.NET endpoints (also `MapRpcApi<T>()` to resolve the implementation from DI per request — see [Dependency Injection](#-dependency-injection)). Builds directly on ASP.NET Core's minimal hosting — no Giraffe, Saturn, or controllers required. Transitively brings `Serde.FS.Json`, so installing this on the server is enough. |
 | **Serde.FS.Fable** | Installing this on a Fable project turns ON Fable client generation: every build scans directly‑referenced projects for `[<RpcApi>]` interfaces and writes a typed proxy into `fable-generated/` (auto‑included in compilation). |
 
 ---
@@ -257,6 +257,34 @@ Override the URL root and case style on the interface:
 type IOrderApi =
     abstract GetProduct : ProductId -> Async<Product>
 ```
+
+---
+
+## 💉 Dependency Injection
+
+`MapRpcApi` has three overloads, so the API implementation can be a singleton, resolved from the ASP.NET DI container per request, or built by a per‑request factory:
+
+```fsharp
+// 1. Singleton — one instance serves every request.
+app.MapRpcApi<IOrderApi>(OrderApi()) |> ignore
+
+// 2. DI — resolved from ctx.RequestServices on every call, so the implementation
+//    (and its constructor dependencies) can be scoped or transient.
+builder.Services.AddScoped<IProductRepository, SqlProductRepository>() |> ignore
+builder.Services.AddScoped<IOrderApi, OrderApi>() |> ignore
+// ... after builder.Build():
+app.MapRpcApi<IOrderApi>() |> ignore
+
+// 3. Factory — build the implementation per request from anything on the HttpContext,
+//    without registering the API itself in DI.
+app.MapRpcApi<IOrderApi>(fun ctx ->
+    let repo = ctx.RequestServices.GetRequiredService<IProductRepository>()
+    OrderApi(repo) :> IOrderApi) |> ignore
+```
+
+Overload 2 is the idiomatic choice for anything with non‑singleton dependencies. In overload 3 the lambda must return `IOrderApi`, so a class implementation needs the `:> IOrderApi` upcast (object expressions and functions already typed as `HttpContext -> IOrderApi` don't) — same rule as ASP.NET's own `AddSingleton<T>(factory)` overload.
+
+See: [SampleRpc.Server/Program.fs](src/Serde.FS.Json.SampleRpc.Server/Program.fs) — `IInventoryApi` is registered scoped with a scoped repository dependency and mapped via `MapRpcApi<IInventoryApi>()`.
 
 ---
 
