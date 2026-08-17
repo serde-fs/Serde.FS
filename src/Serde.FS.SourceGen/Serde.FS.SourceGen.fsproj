@@ -35,6 +35,7 @@
 	<ItemGroup>
 		<Compile Include="IdentifierNaming.fs" />
 		<Compile Include="SerdeMetadata.fs" />
+		<Compile Include="CollectionTypes.fs" />
 		<Compile Include="ISerdeCodeEmitter.fs" />
 		<Compile Include="DebugEmitter.fs" />
 		<Compile Include="SerdeAstParser.fs" />

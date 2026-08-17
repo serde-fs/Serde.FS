@@ -8,7 +8,7 @@
 Serde.FS is a source‑generated, compile‑time validated serialization and RPC framework for F#.
 It brings Rust‑style determinism to .NET and adds a **zero‑boilerplate RPC layer** on top — your ASP.NET server, .NET client, and Fable browser client are all generated from a single `[<RpcApi>]` interface.
 
-> **Native AOT status:** the bootstrap/registration layer is AOT‑ and trimming‑safe as of `1.0.0‑beta.5` — startup runs statically‑rooted generated code, no assembly scanning. Full Native AOT support (source‑generated collection codecs) is in progress: [#14](https://github.com/serde-fs/Serde.FS/issues/14).
+> **Native AOT / trimming:** supported as of `1.0.0‑beta.6`. The generator emits a statically‑typed codec for every closed type it can see — records, unions, enums, options, tuples, and (since beta.6) `list` / `array` / `seq` / `Set` / `Map` / `Result` instantiations and closed generic wrappers — so the whole pipeline runs without reflection. `Serde.FS` and `Serde.FS.Json` are marked `IsAotCompatible` / `IsTrimmable`. See [Native AOT & trimming](#-native-aot--trimming).
 
 ---
 
@@ -435,6 +435,36 @@ Serde.FS.Bootstrap.Run(typeof<MyApi>.Assembly)
 ```
 
 `Bootstrap.Run` is idempotent — each generated bootstrap runs at most once per process, no matter how many times or from how many threads it's called.
+
+---
+
+## 🏎️ Native AOT & trimming
+
+Serde.FS is designed so a published app never needs reflection at runtime. The source generator emits — and the generated entry point registers, via direct statically‑rooted calls — a codec for every closed type it can see:
+
+| Where the generator looks | What gets a static codec |
+|---|---|
+| `[<Serde>]` records, unions, enums | the type itself |
+| record fields and union‑case fields | every nested `option`, tuple, `list` / `array` / `seq` / `Set` / `Map` / `Result` instantiation, closed generic wrappers (`Wrapper<Name>`) |
+| `[<RpcApi>]` method signatures | input and return types, e.g. `Product list`, `Result<Order, string>` |
+| explicit root calls — `SerdeJson.serialize<T>`, `SerdeJson.deserialize<T>`, `Serde.Serialize<T>`, … | the type argument, e.g. `SerdeJson.serialize<Person list>` |
+
+Publish as usual:
+
+```bash
+dotnet publish -c Release -r win-x64 -p:PublishAot=true        # Native AOT
+dotnet publish -c Release -r win-x64 -p:PublishTrimmed=true -p:SelfContained=true   # trimmed JIT
+```
+
+`Serde.FS` and `Serde.FS.Json` are marked `IsAotCompatible` / `IsTrimmable`, so ILC and the trimmer analyze them individually and the SampleApp publishes with **no Serde warnings**.
+
+**What to know:**
+
+- Anything the generator *cannot* see — a generic instantiation constructed only at runtime — falls back to reflection‑based factories that are JIT‑only. Under AOT/trimming that path fails fast with a `SerdeCodecNotFoundException` naming the type and the fix (reference the closed type from a field, an RPC signature, or an explicit `SerdeJson.serialize<T>` call so it gets a codec).
+- Your own app code must be AOT‑friendly too — e.g. F#'s `printfn "%A"` walks values through `FSharp.Reflection` and does not work in a Native AOT binary (the SampleApp uses structural equality checks instead).
+- `Serde.FS.AspNet` (the RPC host) is not yet analyzed for AOT; the serialization pipeline underneath it is.
+
+The repo ships a regression gate: `dotnet fsi debug-build.fsx -- -p aot` publishes the SampleApp trimmed + self‑contained and runs every round‑trip.
 
 ---
 

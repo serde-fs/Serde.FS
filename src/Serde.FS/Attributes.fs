@@ -6,6 +6,13 @@ open System
 [<AttributeUsage(AttributeTargets.Class ||| AttributeTargets.Struct ||| AttributeTargets.Interface ||| AttributeTargets.Enum, AllowMultiple = false)>]
 type SerdeAttribute() =
     inherit Attribute()
+    /// A codec type with a public parameterless constructor; instantiated by the
+    /// runtime resolver via Activator.CreateInstance. The annotation tells the
+    /// trimmer / Native AOT compiler to keep that constructor.
+    [<field: System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+        System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)>]
+    [<property: System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+        System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)>]
     member val Codec : Type = null with get, set
 
 /// Marks a type for serialization code generation only.
@@ -38,6 +45,11 @@ type SerdeSkipDeserializeAttribute() = inherit Attribute()
 [<AttributeUsage(AttributeTargets.Field ||| AttributeTargets.Property, AllowMultiple = false)>]
 type SerdeFieldAttribute() =
     inherit Attribute()
+    /// See SerdeAttribute.Codec.
+    [<field: System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+        System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)>]
+    [<property: System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+        System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)>]
     member val Codec : Type = null with get, set
 
 /// Marks a function as the application entry point for source-generated bootstrapping.
@@ -82,4 +94,10 @@ type SerdeBootstrapAttribute(
         System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)>]
     bootstrapType: Type) =
     inherit Attribute()
-    member _.BootstrapType = bootstrapType
+    // Backing field and property both annotated so the trimmer can follow the
+    // constructor argument all the way to Bootstrap's Activator.CreateInstance.
+    [<field: System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+        System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)>]
+    [<property: System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+        System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)>]
+    member val BootstrapType : Type = bootstrapType with get

@@ -42,6 +42,25 @@ module CodecResolver =
     let private codecNotFound (ty: Type) =
         raise (SerdeCodecNotFoundException($"No codec found for type '{ty.FullName}'. Register a codec or factory.", ty))
 
+    /// Runs a reflection-based fallback factory. Under Native AOT / trimming the
+    /// factory can fail for an instantiation that was never compiled or a member
+    /// that was trimmed; surface that as a codec-not-found error that names the
+    /// type and explains the fix, instead of a bare NullReference / NotSupported.
+    let private runFactory (ty: Type) (factory: CodecFactory) (typeArgs: Type[]) (registry: CodecRegistry) : IJsonCodec =
+        try
+            factory typeArgs registry
+        with
+        | :? SerdeCodecNotFoundException -> reraise ()   // an element type is missing — keep that message
+        | ex ->
+            raise (
+                SerdeCodecNotFoundException(
+                    $"No statically-typed codec is registered for '{ty.FullName}' and the reflection-based fallback failed " +
+                    $"({ex.GetType().Name}: {ex.Message}). This happens under Native AOT / trimming when a generic instantiation " +
+                    "was not visible to the Serde.FS source generator (for example a type only ever constructed at runtime). " +
+                    "Reference the closed type from a [<Serde>] field, an [<RpcApi>] method signature, or an explicit " +
+                    "SerdeJson.serialize<T> call so the generator emits its codec, or register a codec for it manually.",
+                    ty))
+
     /// Resolves an untyped IJsonCodec for the given type.
     ///
     /// Resolution order:
@@ -60,14 +79,14 @@ module CodecResolver =
             // Step 3a — Array factory
             if ty.IsArray && ty.GetArrayRank() = 1 then
                 match CodecRegistry.tryFindFactory typeof<System.Array> registry with
-                | Some factory -> factory [| ty.GetElementType() |] registry
+                | Some factory -> runFactory ty factory [| ty.GetElementType() |] registry
                 | None -> codecNotFound ty
 
             // Step 3b — Generic factory
             elif ty.IsGenericType then
                 let genericDef = ty.GetGenericTypeDefinition()
                 match CodecRegistry.tryFindFactory genericDef registry with
-                | Some factory -> factory (ty.GetGenericArguments()) registry
+                | Some factory -> runFactory ty factory (ty.GetGenericArguments()) registry
                 | None -> codecNotFound ty
 
             else

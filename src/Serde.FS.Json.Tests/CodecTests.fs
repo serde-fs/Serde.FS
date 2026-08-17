@@ -382,3 +382,81 @@ let ``ResultCodecFactory throws on invalid JSON`` () =
     Assert.Throws<exn>(fun () ->
         codec.Decode (String "not a result") |> ignore
     ) |> ignore
+
+// -- Statically-typed collection codecs (generator-emitted, AOT-safe) --
+// Each typed helper must produce byte-for-byte the same wire shape as its
+// reflection-based factory counterpart, since the generator swaps one for
+// the other depending on what it can see at compile time.
+
+let private resolveIn (registry: CodecRegistry) (ty: Type) : unit -> IJsonCodec =
+    fun () -> CodecResolver.resolve ty registry
+
+let private prims = CodecRegistry.withPrimitives ()
+
+[<Test>]
+let ``listCodecOf round-trips and matches ListCodecFactory wire shape`` () =
+    let typed = CollectionCodecs.listCodecOf<int> (resolveIn prims typeof<int>)
+    let viaFactory = CollectionCodecs.ListCodecFactory.create [| typeof<int> |] prims
+    let original = [ 3; 1; 2 ]
+    Assert.AreEqual(viaFactory.Encode(box original), typed.Encode original)
+    Assert.AreEqual(original, typed.Decode(typed.Encode original))
+    Assert.AreEqual(List.empty<int>, typed.Decode(typed.Encode []))
+
+[<Test>]
+let ``arrayCodecOf round-trips and matches ArrayCodecFactory wire shape`` () =
+    let typed = CollectionCodecs.arrayCodecOf<string> (resolveIn prims typeof<string>)
+    let viaFactory = CollectionCodecs.ArrayCodecFactory.create [| typeof<string> |] prims
+    let original = [| "a"; "b" |]
+    Assert.AreEqual(viaFactory.Encode(box original), typed.Encode original)
+    Assert.AreEqual(original, typed.Decode(typed.Encode original))
+
+[<Test>]
+let ``seqCodecOf round-trips and matches SeqCodecFactory wire shape`` () =
+    let typed = CollectionCodecs.seqCodecOf<int> (resolveIn prims typeof<int>)
+    let viaFactory = CollectionCodecs.SeqCodecFactory.create [| typeof<int> |] prims
+    let original = seq { 1; 2; 3 }
+    Assert.AreEqual(viaFactory.Encode(box (Seq.toArray original)), typed.Encode original)
+    Assert.AreEqual(Seq.toList original, typed.Decode(typed.Encode original) |> Seq.toList)
+
+[<Test>]
+let ``setCodecOf round-trips and matches SetCodecFactory wire shape`` () =
+    let typed = CollectionCodecs.setCodecOf<int> (resolveIn prims typeof<int>)
+    let viaFactory = CollectionCodecs.SetCodecFactory.create [| typeof<int> |] prims
+    let original = Set.ofList [ 3; 1; 2 ]
+    Assert.AreEqual(viaFactory.Encode(box original), typed.Encode original)
+    Assert.AreEqual(original, typed.Decode(typed.Encode original))
+
+[<Test>]
+let ``mapCodecOf round-trips and matches MapCodecFactory wire shape`` () =
+    let typed = CollectionCodecs.mapCodecOf<string, int> (resolveIn prims typeof<string>) (resolveIn prims typeof<int>)
+    let viaFactory = CollectionCodecs.MapCodecFactory.create [| typeof<string>; typeof<int> |] prims
+    let original = Map.ofList [ "b", 2; "a", 1 ]
+    Assert.AreEqual(viaFactory.Encode(box original), typed.Encode original)
+    Assert.AreEqual(original, typed.Decode(typed.Encode original))
+    Assert.AreEqual(Map.empty<string, int>, typed.Decode(typed.Encode Map.empty))
+
+[<Test>]
+let ``resultCodecOf round-trips and matches ResultCodecFactory wire shape`` () =
+    let typed = CollectionCodecs.resultCodecOf<string, int> (resolveIn prims typeof<string>) (resolveIn prims typeof<int>)
+    let viaFactory = CollectionCodecs.ResultCodecFactory.create [| typeof<string>; typeof<int> |] prims
+    let ok : Result<string, int> = Ok "hello"
+    let err : Result<string, int> = Error 42
+    Assert.AreEqual(viaFactory.Encode(box ok), typed.Encode ok)
+    Assert.AreEqual(viaFactory.Encode(box err), typed.Encode err)
+    Assert.AreEqual(ok, typed.Decode(typed.Encode ok))
+    Assert.AreEqual(err, typed.Decode(typed.Encode err))
+
+[<Test>]
+let ``typed collection codecs resolve the element codec per call, not at construction`` () =
+    // The element codec is not registered when the list codec is created;
+    // it only needs to exist by the time Encode/Decode runs.
+    let mutable registry = CodecRegistry.empty
+    let typed = CollectionCodecs.listCodecOf<int> (fun () -> CodecResolver.resolve typeof<int> registry)
+    Assert.Throws<Serde.FS.SerdeCodecNotFoundException>(fun () -> typed.Encode [ 1 ] |> ignore) |> ignore
+    registry <- CodecRegistry.withPrimitives ()
+    Assert.AreEqual([ 1; 2 ], typed.Decode(typed.Encode [ 1; 2 ]))
+
+[<Test>]
+let ``typed collection codecs throw on non-array JSON`` () =
+    let typed = CollectionCodecs.listCodecOf<int> (resolveIn prims typeof<int>)
+    Assert.Throws<exn>(fun () -> typed.Decode (String "nope") |> ignore) |> ignore

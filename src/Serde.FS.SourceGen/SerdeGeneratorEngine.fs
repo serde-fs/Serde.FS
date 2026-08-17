@@ -4,6 +4,41 @@ open Serde.FS
 open FSharp.SourceDjinn
 open FSharp.SourceDjinn.TypeModel.Types
 
+/// Shared helper for the synthetic-type discovery passes (option / tuple /
+/// collection): the field, union-case and root-level TypeInfos of a set of
+/// Serde types, in a stable order.
+module private DiscoveryRoots =
+
+    /// All closed TypeInfos to scan: field / union-case types of `types` plus
+    /// `extraRoots`, seq-normalized (see CollectionTypes.normalize) and with open
+    /// generic shapes dropped, since those cannot be spelled in a `typeof<...>`.
+    let all (types: SerdeTypeInfo seq) (extraRoots: TypeInfo seq) : TypeInfo seq =
+        seq {
+            for t in types do
+                match t.Fields with
+                | Some fields -> for f in fields do yield f.Type
+                | None -> ()
+                match t.UnionCases with
+                | Some cases -> for c in cases do for f in c.Fields do yield f.Type
+                | None -> ()
+            yield! extraRoots
+        }
+        |> Seq.map CollectionTypes.normalize
+        |> Seq.filter (fun ti -> not (CollectionTypes.containsGenericParameter ti))
+
+    let mkSyntheticSerdeTypeInfo (ti: TypeInfo) : SerdeTypeInfo =
+        {
+            Raw = ti
+            Capability = Both
+            Attributes = SerdeAttributes.empty
+            ConverterType = None
+            CodecType = None
+            Fields = None
+            UnionCases = None
+            EnumCases = None
+            GenericContext = None
+        }
+
 module private OptionDiscovery =
 
     /// Recursively collects all distinct option TypeInfos from a TypeInfo.
@@ -22,32 +57,22 @@ module private OptionDiscovery =
         | Map (k, v) ->
             let acc = collectOptionTypes k acc
             collectOptionTypes v acc
+        | ConstructedGenericType ->
+            // e.g. Result<Pet option, string>, seq<int option>
+            ti.GenericArguments |> List.fold (fun a arg -> collectOptionTypes arg a) acc
         | _ -> acc
 
-    /// Scans all record types' fields and returns distinct option TypeInfos in dependency order.
-    let discoverOptionTypes (types: SerdeTypeInfo seq) : TypeInfo list =
+    /// Scans all types' fields / union cases plus `extraRoots` (root-level and RPC
+    /// method types) and returns distinct closed option TypeInfos in dependency order.
+    let discoverOptionTypes (types: SerdeTypeInfo seq) (extraRoots: TypeInfo seq) : TypeInfo list =
         let mutable acc = Map.empty
-        for t in types do
-            match t.Fields with
-            | Some fields ->
-                for f in fields do
-                    acc <- collectOptionTypes f.Type acc
-            | None -> ()
+        for ti in DiscoveryRoots.all types extraRoots do
+            acc <- collectOptionTypes ti acc
         acc |> Map.toList |> List.map snd
 
     /// Creates a synthetic SerdeTypeInfo for an option TypeInfo.
     let mkOptionSerdeTypeInfo (ti: TypeInfo) : SerdeTypeInfo =
-        {
-            Raw = ti
-            Capability = Both
-            Attributes = SerdeAttributes.empty
-            ConverterType = None
-            CodecType = None
-            Fields = None
-            UnionCases = None
-            EnumCases = None
-            GenericContext = None
-        }
+        DiscoveryRoots.mkSyntheticSerdeTypeInfo ti
 
 module private TupleDiscovery =
 
@@ -65,32 +90,55 @@ module private TupleDiscovery =
         | Map (k, v) ->
             let acc = collectTupleTypes k acc
             collectTupleTypes v acc
+        | ConstructedGenericType ->
+            ti.GenericArguments |> List.fold (fun a arg -> collectTupleTypes arg a) acc
         | _ -> acc
 
-    /// Scans all types' fields and returns distinct tuple TypeInfos in dependency order.
-    let discoverTupleTypes (types: SerdeTypeInfo seq) : TypeInfo list =
+    /// Scans all types' fields / union cases plus `extraRoots` and returns distinct
+    /// closed tuple TypeInfos in dependency order.
+    let discoverTupleTypes (types: SerdeTypeInfo seq) (extraRoots: TypeInfo seq) : TypeInfo list =
         let mutable acc = Map.empty
-        for t in types do
-            match t.Fields with
-            | Some fields ->
-                for f in fields do
-                    acc <- collectTupleTypes f.Type acc
-            | None -> ()
+        for ti in DiscoveryRoots.all types extraRoots do
+            acc <- collectTupleTypes ti acc
         acc |> Map.toList |> List.map snd
 
     /// Creates a synthetic SerdeTypeInfo for a tuple TypeInfo.
     let mkTupleSerdeTypeInfo (ti: TypeInfo) : SerdeTypeInfo =
-        {
-            Raw = ti
-            Capability = Both
-            Attributes = SerdeAttributes.empty
-            ConverterType = None
-            CodecType = None
-            Fields = None
-            UnionCases = None
-            EnumCases = None
-            GenericContext = None
-        }
+        DiscoveryRoots.mkSyntheticSerdeTypeInfo ti
+
+/// Discovers every closed built-in collection instantiation (list / array / seq /
+/// Set / Map / Result) reachable from the Serde types, root-level Serde<T> calls
+/// and [<RpcApi>] method signatures, so the JSON emitter can register a
+/// statically-typed codec for each. Without this, those types fall through to
+/// the reflection-based runtime factories, which break under trimming and
+/// Native AOT (issue #14).
+module private CollectionDiscovery =
+
+    let rec private collect (ti: TypeInfo) (acc: Map<string, TypeInfo>) : Map<string, TypeInfo> =
+        // Recurse into components first so inner collections precede outer ones.
+        let acc =
+            match ti.Kind with
+            | Option inner | List inner | Array inner | Set inner -> collect inner acc
+            | Map (k, v) -> collect v (collect k acc)
+            | Tuple elements -> elements |> List.fold (fun a f -> collect f.Type a) acc
+            | ConstructedGenericType -> ti.GenericArguments |> List.fold (fun a arg -> collect arg a) acc
+            | _ -> acc
+        match ti with
+        | CollectionTypes.Shape _ when not (CollectionTypes.isByteArray ti) ->
+            let key = typeInfoToPascalName ti
+            if acc |> Map.containsKey key then acc
+            else acc |> Map.add key ti
+        | _ -> acc
+
+    /// Returns distinct closed collection TypeInfos (seq-normalized) in dependency order.
+    let discoverCollectionTypes (types: SerdeTypeInfo seq) (extraRoots: TypeInfo seq) : TypeInfo list =
+        let mutable acc = Map.empty
+        for ti in DiscoveryRoots.all types extraRoots do
+            acc <- collect ti acc
+        acc |> Map.toList |> List.map snd
+
+    let mkCollectionSerdeTypeInfo (ti: TypeInfo) : SerdeTypeInfo =
+        DiscoveryRoots.mkSyntheticSerdeTypeInfo ti
 
 module private GenericDiscovery =
 
@@ -397,11 +445,26 @@ module SerdeGeneratorEngine =
         let genericDefinitions = GenericDiscovery.buildDefinitionMap resolvedTypes
         let fieldConstructedGenerics = GenericDiscovery.discoverConstructedGenerics resolvedTypes
 
-        let rootConstructed =
+        // Root-level type arguments of Serde<T> / SerdeJson.serialize<T> calls.
+        let resolvedRootTypeArgs =
             rootTypeArgs
             |> Seq.map (FieldTypeResolver.resolveTypeInfo rpcDiscoveryResult.ResolveFieldType [])
             |> Seq.toList
-            |> GenericDiscovery.discoverFromTypeInfos
+
+        // Input / output types of [<RpcApi>] methods. The generated dispatch and
+        // client proxies serialize these at the root (SerdeJson.serialize<Product list>),
+        // so closed collections / options / tuples appearing here need static
+        // codecs just like record fields do.
+        let rpcMethodTypeInfos =
+            [ for iface in rpcDiscoveryResult.Interfaces do
+                for m in iface.Methods do
+                    yield! Option.toList m.InputTypeInfo
+                    yield! Option.toList m.OutputTypeInfo
+                    yield! m.InputParamTypeInfos |> List.choose id ]
+            |> List.map (FieldTypeResolver.resolveTypeInfo rpcDiscoveryResult.ResolveFieldType [])
+
+        let rootConstructed =
+            GenericDiscovery.discoverFromTypeInfos resolvedRootTypeArgs
 
         let constructedGenerics =
             let mutable acc = fieldConstructedGenerics |> List.map (fun ti -> typeInfoToPascalName ti, ti) |> Map.ofList
@@ -489,8 +552,16 @@ module SerdeGeneratorEngine =
             else
                 match GenericDiscovery.tryFindDefinition genericDefinitions constructed with
                 | Some defInfo ->
-                    // Skip concrete instantiations of generic single-case wrapper DUs (factory handles them)
-                    if isGenericSingleCaseWrapperDef defInfo then () else
+                    // Generic single-case wrapper DUs (`Wrapper<'T> = Wrapper of 'T`) get a
+                    // reflection-based factory for the open definition, which covers any
+                    // instantiation at runtime (JIT). Closed instantiations the generator can
+                    // see (`Wrapper<Name>`) are ALSO emitted as statically-typed codecs so
+                    // they work under Native AOT / trimming (issue #14); registered codecs
+                    // take precedence over factories at resolution time. Instantiations
+                    // that still mention a generic parameter (e.g. `Wrapper<'T>` inside
+                    // another generic definition) cannot be spelled statically and stay
+                    // factory-only.
+                    if isGenericSingleCaseWrapperDef defInfo && CollectionTypes.containsGenericParameter constructed then () else
                     let mutable argValid = true
                     for arg in constructed.GenericArguments do
                         if not (isSerdeEnabled arg) then
@@ -589,25 +660,46 @@ module SerdeGeneratorEngine =
                     generatedSources.Add({ HintName = sprintf "%s.%s.g.fs" fileName emitter.HintNameSuffix; Code = code; AbsolutePath = None })
                 allTypes.Add(typeInfo)
 
-            // Discover and emit option types from record fields
-            let optionTypeInfos = OptionDiscovery.discoverOptionTypes allTypes
-            for optTi in optionTypeInfos do
-                let optSerdeInfo = OptionDiscovery.mkOptionSerdeTypeInfo optTi
-                if emitPerTypeFiles then
-                    let code = SerdeCodeEmitter.emit emitter optSerdeInfo
-                    let pascalName = typeInfoToPascalName optTi
-                    generatedSources.Add({ HintName = sprintf "%s.%s.g.fs" pascalName emitter.HintNameSuffix; Code = code; AbsolutePath = None })
-                allTypes.Add(optSerdeInfo)
+            // Synthetic built-in types (option / tuple / collection) are discovered
+            // from the fields and union cases of every emitted type, plus the
+            // root-level Serde<T> type arguments and [<RpcApi>] method signatures.
+            // The scan runs against a snapshot of the user-declared types; the
+            // synthetic infos themselves carry no fields, so adding them to
+            // allTypes as we go does not feed back into later passes.
+            let extraRoots = resolvedRootTypeArgs @ rpcMethodTypeInfos
+            let declaredTypes = Seq.toList allTypes
 
-            // Discover and emit tuple types from record fields
-            let tupleTypeInfos = TupleDiscovery.discoverTupleTypes allTypes
-            for tupTi in tupleTypeInfos do
-                let tupSerdeInfo = TupleDiscovery.mkTupleSerdeTypeInfo tupTi
-                if emitPerTypeFiles then
-                    let code = SerdeCodeEmitter.emit emitter tupSerdeInfo
-                    let pascalName = typeInfoToPascalName tupTi
-                    generatedSources.Add({ HintName = sprintf "%s.%s.g.fs" pascalName emitter.HintNameSuffix; Code = code; AbsolutePath = None })
-                allTypes.Add(tupSerdeInfo)
+            // Some synthetic types are already present in allTypes — RpcApiDiscovery
+            // contributes a Tuple info for every multi-arg method input — so skip
+            // anything whose F# type expression is already covered to avoid emitting
+            // the same codec binding twice.
+            let alreadyEmitted =
+                System.Collections.Generic.HashSet<string>(
+                    declaredTypes
+                    |> Seq.filter (fun t -> t.Fields.IsNone && t.UnionCases.IsNone && t.EnumCases.IsNone)
+                    |> Seq.map (fun t -> typeInfoToFqFSharpType (CollectionTypes.normalize t.Raw)))
+
+            let emitSynthetic (mk: TypeInfo -> SerdeTypeInfo) (ti: TypeInfo) =
+                if alreadyEmitted.Add(typeInfoToFqFSharpType ti) then
+                    let serdeInfo = mk ti
+                    if emitPerTypeFiles then
+                        let code = SerdeCodeEmitter.emit emitter serdeInfo
+                        let pascalName = typeInfoToPascalName ti
+                        generatedSources.Add({ HintName = sprintf "%s.%s.g.fs" pascalName emitter.HintNameSuffix; Code = code; AbsolutePath = None })
+                    allTypes.Add(serdeInfo)
+
+            // Option types (Some x → x, None → null)
+            for optTi in OptionDiscovery.discoverOptionTypes declaredTypes extraRoots do
+                emitSynthetic OptionDiscovery.mkOptionSerdeTypeInfo optTi
+
+            // Tuple types (JSON array of elements)
+            for tupTi in TupleDiscovery.discoverTupleTypes declaredTypes extraRoots do
+                emitSynthetic TupleDiscovery.mkTupleSerdeTypeInfo tupTi
+
+            // Closed collection types (list / array / seq / Set / Map / Result) —
+            // statically-typed so no reflection is needed at runtime (issue #14).
+            for collTi in CollectionDiscovery.discoverCollectionTypes declaredTypes extraRoots do
+                emitSynthetic CollectionDiscovery.mkCollectionSerdeTypeInfo collTi
 
             // Bootstrap types generated in THIS compilation. The generated
             // entry point runs these via direct, statically-rooted calls so

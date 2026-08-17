@@ -32,7 +32,19 @@ module SerdeAstParser =
     let parseSourceAllTypes (filePath: string) (sourceText: string) : TypeInfo list =
         AstParser.parseSourceAllTypes filePath sourceText
 
-    let private serdeCallNames = set [ "Serde.Serialize"; "Serde.Deserialize" ]
+    /// Root-level calls whose explicit type argument names a type that is
+    /// serialized directly (not via a field): `Serde.Serialize<T>` /
+    /// `Serde.Deserialize<T>` on the backend-agnostic facade, and the JSON
+    /// backend's `SerdeJson.serialize<T>` family. Type arguments found here feed
+    /// generic / option / tuple / collection discovery, so e.g. a root
+    /// `SerdeJson.serialize<Person list>` gets a statically-typed codec and does not
+    /// fall back to the reflection factories under Native AOT (issue #14).
+    let private serdeCallNames =
+        set [
+            "Serde.Serialize"; "Serde.Deserialize"
+            "SerdeJson.serialize"; "SerdeJson.deserialize"
+            "SerdeJson.serializeToUtf8"; "SerdeJson.deserializeFromUtf8"
+        ]
 
     /// Extract type arguments from explicit Serde.Serialize<T>/Serde.Deserialize<T> calls.
     let parseFileRootTypeArgs (filePath: string) : TypeInfo list =

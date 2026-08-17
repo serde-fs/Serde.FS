@@ -97,33 +97,42 @@ type Person = {
 // Entry Point
 // -----------------------------
 
+// Round-trip check that is Native AOT friendly: F# structural equality is
+// compiled code, whereas `printfn "%A"` walks values through FSharp.Reflection,
+// which is unavailable in a Native AOT binary. This app doubles as the AOT /
+// trimming regression gate (`dotnet fsi debug-build.fsx -- -p aot`), so it must
+// not use reflection itself, and it exits non-zero on any mismatch.
+let private roundtrip (label: string) (original: 'T) (json: string) (decoded: 'T) =
+    printfn "%s JSON: %s" label json
+    if decoded = original then
+        printfn "%s roundtrip: OK" label
+    else
+        eprintfn "%s roundtrip: MISMATCH" label
+        exit 1
+
 [<Serde.FS.EntryPoint>]
 let run _argv =
     // -----------------------------------------
     // 1. Generic Wrapper Example
     // -----------------------------------------
-    let wrapperJson =
-        SerdeJson.serialize<Wrapper<Person>>(
-            Wrapper {
-                Name = "Jordan"
-                Age = 0
-                Address = None
-                LuckyNumbers = Set.empty
-                Colors = [||]
-                Pets = []
-                Position = 0.0, 0.0
-                PetMap = Map.empty
-                Shapes = []
-                Fancy = { Value = "x" }
-                WrappedName = Wrapper { Name = "x" }
-                WrappedGuid = Wrapper System.Guid.Empty }
-        )
+    let wrapped =
+        Wrapper {
+            Name = "Jordan"
+            Age = 0
+            Address = None
+            LuckyNumbers = Set.empty
+            Colors = [||]
+            Pets = []
+            Position = 0.0, 0.0
+            PetMap = Map.empty
+            Shapes = []
+            Fancy = { Value = "x" }
+            WrappedName = Wrapper { Name = "x" }
+            WrappedGuid = Wrapper System.Guid.Empty }
 
-    let wrapperRoundtrip : Wrapper<Person> =
-        SerdeJson.deserialize wrapperJson
-
-    printfn "Wrapper JSON: %s" wrapperJson
-    printfn "Wrapper roundtrip: %A" wrapperRoundtrip
+    let wrapperJson = SerdeJson.serialize<Wrapper<Person>>(wrapped)
+    let wrapperRoundtrip : Wrapper<Person> = SerdeJson.deserialize<Wrapper<Person>> wrapperJson
+    roundtrip "Wrapper" wrapped wrapperJson wrapperRoundtrip
 
     // -----------------------------------------
     // 2. DU Examples (Circle, Point, Rectangle)
@@ -137,8 +146,7 @@ let run _argv =
     for shape in shapes do
         let shapeJson = SerdeJson.serialize shape
         let back : Shape = SerdeJson.deserialize shapeJson
-        printfn "Shape JSON: %s" shapeJson
-        printfn "Shape roundtrip: %A" back
+        roundtrip "Shape" shape shapeJson back
 
     // -----------------------------------------
     // 3. Full Person Example
@@ -158,28 +166,42 @@ let run _argv =
         Position = 10.5, 20.5
         PetMap = pets |> List.map (fun p -> match p with Dog n -> n.Name, p | Cat name -> name, p) |> Map.ofList
         Shapes = shapes
-        Fancy = { Value = "Jordan" }
+        Fancy = { Value = "jordan" }   // FancyNameCodec lower-cases on decode
         WrappedName = Wrapper { Name = "Wrapped" }
         WrappedGuid = Wrapper (System.Guid.Parse("12345678-1234-1234-1234-123456789abc"))
     }
 
     let personJson = SerdeJson.serialize person
     let personRoundtrip : Person = SerdeJson.deserialize personJson
+    roundtrip "Person" person personJson personRoundtrip
 
-    printfn "Person JSON: %s" personJson
-    printfn "Person roundtrip: %A" personRoundtrip
+    // Root-level collections (issue #14): the explicit type argument makes the
+    // generator emit statically-typed codecs for these instantiations too.
+    let petsJson = SerdeJson.serialize<Pet list> pets
+    let petsRoundtrip = SerdeJson.deserialize<Pet list> petsJson
+    roundtrip "Pet list" pets petsJson petsRoundtrip
+
+    let stock = Map.ofList [ "widget", 3; "gadget", 0 ]
+    let stockJson = SerdeJson.serialize<Map<string, int>> stock
+    let stockRoundtrip = SerdeJson.deserialize<Map<string, int>> stockJson
+    roundtrip "Map<string, int>" stock stockJson stockRoundtrip
+
+    let outcome : Result<Person, string> = Ok person
+    let outcomeJson = SerdeJson.serialize<Result<Person, string>> outcome
+    let outcomeRoundtrip = SerdeJson.deserialize<Result<Person, string>> outcomeJson
+    roundtrip "Result<Person, string>" outcome outcomeJson outcomeRoundtrip
 
     // -----------------------------------------
     // 4. Newtype Examples (issue #12)
     // -----------------------------------------
-    let docIdJson = SerdeJson.serialize (DocumentId "doc-42")
+    let docId = DocumentId "doc-42"
+    let docIdJson = SerdeJson.serialize docId
     let docIdRoundtrip : DocumentId = SerdeJson.deserialize docIdJson
-    printfn "DocumentId JSON: %s" docIdJson
-    printfn "DocumentId roundtrip: %A" docIdRoundtrip
+    roundtrip "DocumentId" docId docIdJson docIdRoundtrip
 
-    let userIdJson = SerdeJson.serialize (UserId.UserId "user-7")
+    let userId = UserId.UserId "user-7"
+    let userIdJson = SerdeJson.serialize userId
     let userIdRoundtrip : UserId = SerdeJson.deserialize userIdJson
-    printfn "UserId JSON: %s" userIdJson
-    printfn "UserId roundtrip: %A" userIdRoundtrip
+    roundtrip "UserId" userId userIdJson userIdRoundtrip
 
     0

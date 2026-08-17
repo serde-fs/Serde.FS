@@ -4,6 +4,7 @@
 
 * Run `dotnet fsi debug-build.fsx` to build, pack, and test the Json backend against the SampleApp.
 * Run `dotnet fsi debug-build.fsx -- -p clean` to delete debug packages and SampleApp build artifacts.
+* Run `dotnet fsi debug-build.fsx -- -p aot` (after a `debug` run) to publish the SampleApp trimmed + self-contained and run it — the Native AOT / trimming regression gate for the codec pipeline (issue #14). A real `PublishAot=true` publish additionally needs the VS C++ toolchain.
 
 * The pipeline uses timestamped debug versions (e.g., `1.0.0-alpha.1.debug.20260228T120000`) derived from the stable version in `.fsproj` files.
 * FSharp.SourceDjinn is folded into this repo as in-tree projects (`src/FSharp.SourceDjinn/`, `src/FSharp.SourceDjinn.TypeModel/`), consumed via `ProjectReference` with `PrivateAssets="all"` — it never appears in consumer nuspecs. Rationale lives in the comment block in `Serde.FS.SourceGen.fsproj`.

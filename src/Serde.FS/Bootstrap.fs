@@ -14,14 +14,35 @@ open System.Reflection
 /// host application (AutoCAD, Revit, ...), WebApplicationFactory-style test hosts,
 /// or C# hosts referencing the API assembly as a library. RPC entry points
 /// (MapRpcApi, RpcClient.create) call this automatically.
+module private BootstrapJustifications =
+    [<Literal>]
+    let LegacyScan =
+        "Legacy full-type scan for assemblies generated before the [<SerdeBootstrap>] attribute existed. " +
+        "Generated assemblies declare their bootstraps via that attribute (annotated to keep the constructor), " +
+        "which is the path used under trimming / Native AOT; the scan there is best-effort and failures are swallowed."
+
 [<AbstractClass; Sealed>]
 type Bootstrap private () =
 
     static let gate = obj ()
     static let ran = HashSet<Type>()
 
+    /// Framework / runtime assemblies never contain generated bootstraps, and
+    /// under Native AOT enumerating their types and probing them with
+    /// IsAssignableFrom can throw TypeLoadException for internal generic
+    /// helpers that carry no reflection metadata. They are excluded from the
+    /// legacy full-type scan only — the [<SerdeBootstrap>] attribute check
+    /// below still runs for every assembly.
+    static let isFrameworkAssembly (asm: Assembly) =
+        let name = try asm.GetName().Name with _ -> ""
+        isNull name
+        || name = "mscorlib" || name = "netstandard" || name = "FSharp.Core"
+        || name.StartsWith("System.", StringComparison.Ordinal) || name = "System"
+        || name.StartsWith("Microsoft.", StringComparison.Ordinal)
+
+    [<System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = BootstrapJustifications.LegacyScan)>]
     static let loadableTypes (asm: Assembly) =
-        if asm.IsDynamic then
+        if asm.IsDynamic || isFrameworkAssembly asm then
             [||]
         else
             try
@@ -30,6 +51,14 @@ type Bootstrap private () =
             | :? ReflectionTypeLoadException as ex ->
                 ex.Types |> Array.filter (fun t -> not (isNull t))
             | _ -> [||]
+
+    /// Instantiates a bootstrap type. Types reach here either from
+    /// [<SerdeBootstrap>] attributes (constructor preserved by annotation) or from
+    /// the legacy scan (JIT only), so the unannotated flow is expected.
+    [<System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2067", Justification = BootstrapJustifications.LegacyScan)>]
+    [<System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2072", Justification = BootstrapJustifications.LegacyScan)>]
+    static let instantiate (ty: Type) : IEntryPointBootstrap =
+        Activator.CreateInstance(ty) :?> IEntryPointBootstrap
 
     /// Bootstrap candidates for an assembly: types declared via assembly-level
     /// [<SerdeBootstrap>] attributes (Native AOT / trimming safe — the attribute
@@ -45,16 +74,23 @@ type Bootstrap private () =
             with _ -> [||]
         Array.append fromAttributes (loadableTypes asm) |> Array.distinct
 
+    /// True when `ty` is a concrete IEntryPointBootstrap implementor. Reflection
+    /// probes can throw for exotic types (Native AOT metadata gaps, unloadable
+    /// generic instantiations); those are simply not bootstraps.
+    static let isBootstrapType (ty: Type) =
+        try
+            typeof<IEntryPointBootstrap>.IsAssignableFrom(ty)
+            && not ty.IsInterface
+            && not ty.IsAbstract
+        with _ -> false
+
     static let runIn (propagateInitErrors: bool) (assemblies: Assembly seq) =
         lock gate (fun () ->
             for asm in assemblies do
                 for ty in candidateTypes asm do
-                    if typeof<IEntryPointBootstrap>.IsAssignableFrom(ty)
-                       && not ty.IsInterface
-                       && not ty.IsAbstract
-                       && ran.Add(ty) then
+                    if isBootstrapType ty && ran.Add(ty) then
                         try
-                            (Activator.CreateInstance(ty) :?> IEntryPointBootstrap).Init()
+                            (instantiate ty).Init()
                         with _ ->
                             // Un-mark the type so a later call can retry it.
                             ran.Remove(ty) |> ignore
@@ -65,6 +101,10 @@ type Bootstrap private () =
     /// Failures (an assembly that cannot be reflected, or a failing Init) are
     /// swallowed so one bad bootstrap cannot crash startup; a failed bootstrap
     /// is retried on the next call.
+    [<System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "GetReferencedAssemblies is best-effort discovery of not-yet-loaded assemblies for the JIT scan; " +
+                        "it is wrapped in try/with and simply yields nothing under trimming / Native AOT, where the generated " +
+                        "entry point registers everything through the direct Run(bootstraps) overload.")>]
     static member Run() =
         let entry = Assembly.GetEntryAssembly()
         if not (isNull entry) then

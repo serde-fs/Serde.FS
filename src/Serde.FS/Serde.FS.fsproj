@@ -3,6 +3,11 @@
 	<PropertyGroup>
 		<TargetFramework>net8.0</TargetFramework>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<!-- Native AOT / trimming: the serialization pipeline is reflection-free when
+		     the generator can see every closed type (issue #14); the analyzers keep it
+		     that way and consumers get build-time feedback instead of runtime surprises. -->
+		<IsAotCompatible>true</IsAotCompatible>
+		<IsTrimmable>true</IsTrimmable>
 		<PackageId>Serde.FS</PackageId>
 		<Version>$(SerdeVersion)</Version>
 		<Authors>Jordan Marr</Authors>

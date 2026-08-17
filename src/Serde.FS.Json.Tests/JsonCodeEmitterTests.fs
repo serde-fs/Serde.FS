@@ -1002,3 +1002,71 @@ type FancyName = { Value: string }
     // Should emit as a normal record codec, not a custom converter
     Assert.That(code, Does.Contain("IJsonCodec<TestApp.FancyName>"))
     Assert.That(code, Does.Contain("JsonValue.Object"))
+
+// -- Collection codecs (issue #14: statically-typed, AOT-safe) --
+
+let private mkSynthetic (raw: TypeInfo) : SerdeTypeInfo =
+    { Raw = raw; Capability = Both; Attributes = SerdeAttributes.empty; ConverterType = None
+      CodecType = None; Fields = None; UnionCases = None; EnumCases = None; GenericContext = None }
+
+let private mkShape name kind : TypeInfo =
+    { Namespace = None; EnclosingModules = []; TypeName = name; Kind = kind; Attributes = []; GenericParameters = []; GenericArguments = [] }
+
+let private petType : TypeInfo =
+    { Namespace = Some "MyApp"; EnclosingModules = []; TypeName = "Pet"; Kind = Union []; Attributes = []; GenericParameters = []; GenericArguments = [] }
+
+[<Test>]
+let ``Emits statically-typed codec for record list via CollectionCodecs.listCodecOf`` () =
+    let code = emitter.Emit(mkSynthetic (mkShape "list" (List petType)))
+    Assert.That(code, Does.Contain("module rec Serde.Generated.PetList"))
+    Assert.That(code, Does.Contain("let petListJsonCodec : IJsonCodec<MyApp.Pet list> ="))
+    Assert.That(code, Does.Contain("CollectionCodecs.listCodecOf<MyApp.Pet> (fun () -> CodecResolver.resolve typeof<MyApp.Pet> GlobalCodecRegistry.Current)"))
+    Assert.That(code, Does.Not.Contain("MakeGenericType"))
+
+[<Test>]
+let ``Emits statically-typed codecs for array, Set and seq`` () =
+    let arr = emitter.Emit(mkSynthetic (mkShape "array" (Array (mkPrimType "int" Int32))))
+    Assert.That(arr, Does.Contain("IJsonCodec<int array>"))
+    Assert.That(arr, Does.Contain("CollectionCodecs.arrayCodecOf<int>"))
+
+    let set = emitter.Emit(mkSynthetic (mkShape "Set" (Set (mkPrimType "string" String))))
+    Assert.That(set, Does.Contain("IJsonCodec<Set<string>>"))
+    Assert.That(set, Does.Contain("CollectionCodecs.setCodecOf<string>"))
+
+    // seq<T> in its canonical (constructed-generic) form
+    let seqTi = { mkShape "seq" ConstructedGenericType with GenericArguments = [ petType ] }
+    let sq = emitter.Emit(mkSynthetic seqTi)
+    Assert.That(sq, Does.Contain("IJsonCodec<seq<MyApp.Pet>>"))
+    Assert.That(sq, Does.Contain("CollectionCodecs.seqCodecOf<MyApp.Pet>"))
+    Assert.That(sq, Does.Contain("seqPetJsonCodec"))
+
+[<Test>]
+let ``Emits statically-typed codec for Map with two resolver thunks`` () =
+    let code = emitter.Emit(mkSynthetic (mkShape "Map" (Map (mkPrimType "string" String, petType))))
+    Assert.That(code, Does.Contain("IJsonCodec<Map<string, MyApp.Pet>>"))
+    Assert.That(code, Does.Contain("CollectionCodecs.mapCodecOf<string, MyApp.Pet> (fun () -> CodecResolver.resolve typeof<string> GlobalCodecRegistry.Current) (fun () -> CodecResolver.resolve typeof<MyApp.Pet> GlobalCodecRegistry.Current)"))
+    Assert.That(code, Does.Contain("stringPetMapJsonCodec"))
+
+[<Test>]
+let ``Emits statically-typed codec for Result`` () =
+    let resultTi = { mkShape "Result" ConstructedGenericType with GenericArguments = [ petType; mkPrimType "string" String ] }
+    let code = emitter.Emit(mkSynthetic resultTi)
+    Assert.That(code, Does.Contain("IJsonCodec<Result<MyApp.Pet, string>>"))
+    Assert.That(code, Does.Contain("CollectionCodecs.resultCodecOf<MyApp.Pet, string>"))
+    Assert.That(code, Does.Contain("resultPetStringJsonCodec"))
+
+[<Test>]
+let ``Nested collection codec resolves the inner collection type, not its elements`` () =
+    let inner = mkShape "list" (List (mkPrimType "int" Int32))
+    let code = emitter.Emit(mkSynthetic (mkShape "list" (List inner)))
+    Assert.That(code, Does.Contain("IJsonCodec<int list list>"))
+    Assert.That(code, Does.Contain("CollectionCodecs.listCodecOf<int list> (fun () -> CodecResolver.resolve typeof<int list>"))
+
+[<Test>]
+let ``EmitResolver registers collection codecs alongside record codecs`` () =
+    let record = mkRecordInfo (Some "MyApp") "Owner" Both [ mkField "Name" "string" String ]
+    let listInfo = mkSynthetic (mkShape "list" (List petType))
+    let code = (resolverEmitter.EmitResolver [ record; listInfo ]).Value
+    Assert.That(code, Does.Contain("let private petListJsonCodec : IJsonCodec<MyApp.Pet list> ="))
+    Assert.That(code, Does.Contain("|> CodecRegistry.add (typeof<MyApp.Pet list>, JsonCodec.boxCodec petListJsonCodec)"))
+    Assert.That(code, Does.Contain("|> CodecRegistry.add (typeof<MyApp.Owner>, JsonCodec.boxCodec ownerJsonCodec)"))

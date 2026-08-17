@@ -195,4 +195,58 @@ pipeline "debug" {
     runIfOnlySpecified false
 }
 
+// ---------------------------------------------------------------------------
+// Pipeline: aot — trimmed publish regression gate (issue #14)
+// ---------------------------------------------------------------------------
+//
+// Publishes the SampleApp self-contained with PublishTrimmed=true and runs the
+// resulting executable. The trimmer removes anything reachable only through
+// reflection (e.g. `ListModule.OfSeq` looked up by name), so this fails fast if
+// any codec path regresses to the reflection-based runtime factories instead of
+// the generator-emitted static codecs. Run `dotnet fsi debug-build.fsx` first
+// so the SampleApp resolves the freshly packed debug version from .nuget-local.
+
+let aotRid =
+    let arch =
+        match Runtime.InteropServices.RuntimeInformation.OSArchitecture with
+        | Runtime.InteropServices.Architecture.Arm64 -> "arm64"
+        | _ -> "x64"
+    if OperatingSystem.IsWindows() then $"win-{arch}"
+    elif OperatingSystem.IsMacOS() then $"osx-{arch}"
+    else $"linux-{arch}"
+
+let aotPublishDir = Path.Combine("src", "Serde.FS.Json.SampleApp", "bin", "publish-trimmed")
+let aotExe =
+    let exeName = if OperatingSystem.IsWindows() then "Serde.FS.Json.SampleApp.exe" else "Serde.FS.Json.SampleApp"
+    Path.Combine(aotPublishDir, exeName)
+
+pipeline "aot" {
+    description "Publish the SampleApp trimmed + self-contained and run it (Native AOT / trimming regression gate)"
+
+    stage "Publish trimmed SampleApp" {
+        run $"dotnet publish {sampleAppProj} -c Release -r {aotRid} -p:PublishTrimmed=true -p:SelfContained=true -o {aotPublishDir}"
+    }
+
+    stage "Run trimmed SampleApp" {
+        // A non-zero exit (unhandled exception in any round-trip) fails the stage.
+        run aotExe
+    }
+
+    stage "Summary" {
+        run (fun _ ->
+            printfn ""
+            printfn "========================================"
+            printfn "  Serde AOT (trimmed publish) Gate"
+            printfn "========================================"
+            printfn $"  RID:                {aotRid}"
+            printfn $"  Output:             {aotPublishDir}"
+            printfn  "  Trimmed SampleApp:  OK (all round-trips ran)"
+            printfn "========================================"
+            printfn ""
+        )
+    }
+
+    runIfOnlySpecified true
+}
+
 tryPrintPipelineCommandHelp ()

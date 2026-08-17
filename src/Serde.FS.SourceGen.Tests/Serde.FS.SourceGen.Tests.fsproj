@@ -12,6 +12,7 @@
 		<Compile Include="SerdeCodeEmitterTests.fs" />
 		<Compile Include="NestedTypeValidatorTests.fs" />
 		<Compile Include="RpcApiDiscoveryTests.fs" />
+		<Compile Include="CollectionDiscoveryTests.fs" />
 		<Compile Include="Fable\SyntheticTypes.fs" />
 		<Compile Include="Fable\SnapshotHarness.fs" />
 		<Compile Include="Fable\FableClientEmitterTests.fs" />
