@@ -83,31 +83,4 @@ pipeline "build" {
     runIfOnlySpecified false
 }
 
-// ---------------------------------------------------------------------------
-// Pipeline: push
-// ---------------------------------------------------------------------------
-
-pipeline "push" {
-    description "Push all .nupkg files in .build/ to NuGet.org (requires SERDE_FS_NUGET_KEY env var)"
-
-    stage "push" {
-        whenEnvVar "SERDE_FS_NUGET_KEY"
-        run (fun ctx ->
-            let key = ctx.GetEnvVar "SERDE_FS_NUGET_KEY"
-            if not (Directory.Exists(buildDir)) then
-                failwith $"No '{buildDir}' directory found. Run the 'build' pipeline first."
-            let packages = Directory.GetFiles(buildDir, "*.nupkg")
-            if packages.Length = 0 then
-                failwith $"No .nupkg files found in '{buildDir}/'. Run the 'build' pipeline first."
-            for pkg in packages do
-                printfn $"  Pushing {Path.GetFileName(pkg)}..."
-                ctx.RunSensitiveCommand $"""dotnet nuget push {pkg} -s https://api.nuget.org/v3/index.json -k {key}"""
-                |> Async.RunSynchronously
-                |> ignore
-        )
-    }
-
-    runIfOnlySpecified
-}
-
 tryPrintPipelineCommandHelp ()

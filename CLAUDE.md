@@ -1,5 +1,14 @@
 # Serde.FS
 
+## Releasing (NuGet Trusted Publishing — keyless, no API keys)
+
+1. Bump `<SerdeVersion>` in the root `Directory.Build.props` (single suite version for all four packages).
+2. Commit and push to `main`.
+3. GitHub → Actions → "Publish to NuGet" → Run workflow (or `gh workflow run publish.yml`). It tests both suites in Release, packs via `build.fsx`, and pushes `.build/*.nupkg` using a 1-hour OIDC-minted key — authorized by the Trusted Publishing policy on nuget.org (scoped to this repo + the four package IDs).
+4. Tag the released commit: `git tag v<version> && git push origin v<version>`.
+
+`build.fsx` remains the local pack (`dotnet fsi build.fsx` → `.build/`); publishing is CI-only.
+
 ## Local debug build
 
 * Run `dotnet fsi debug-build.fsx` to build, pack, and test the Json backend against the SampleApp.
