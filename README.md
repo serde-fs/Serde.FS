@@ -8,7 +8,7 @@
 Serde.FS is a source‑generated, compile‑time validated serialization and RPC framework for F#.
 It brings Rust‑style determinism to .NET and adds a **zero‑boilerplate RPC layer** on top — your ASP.NET server, .NET client, and Fable browser client are all generated from a single `[<RpcApi>]` interface.
 
-> **Native AOT / trimming:** supported as of `1.0.0‑beta.6`. The generator emits a statically‑typed codec for every closed type it can see — records, unions, enums, options, tuples, and (since beta.6) `list` / `array` / `seq` / `Set` / `Map` / `Result` instantiations and closed generic wrappers — so the whole pipeline runs without reflection. `Serde.FS` and `Serde.FS.Json` are marked `IsAotCompatible` / `IsTrimmable`. See [Native AOT & trimming](#-native-aot--trimming).
+> **Native AOT / trimming:** supported as of `1.0.0‑beta.6`. The generator emits a statically‑typed codec for every closed type it can see — records, unions, enums, options, tuples, and (since beta.6) `list` / `array` / `seq` / `Set` / `Map` / `Result` instantiations and closed generic wrappers — so the whole pipeline runs without reflection. `Serde.FS` and `Serde.FS.Json` are marked `IsAotCompatible` / `IsTrimmable`. See [Native AOT & trimming](#️-native-aot--trimming).
 
 ---
 
