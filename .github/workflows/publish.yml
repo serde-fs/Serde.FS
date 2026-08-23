@@ -22,10 +22,14 @@ jobs:
         with:
           dotnet-version: 10.0.x # FSharp.Compiler.Service pins FSharp.Core 10.0.103
 
-      - name: Test
-        run: |
-          dotnet test src/Serde.FS.SourceGen.Tests/Serde.FS.SourceGen.Tests.fsproj --configuration Release
-          dotnet test src/Serde.FS.Json.Tests/Serde.FS.Json.Tests.fsproj --configuration Release
+      # One step per test project: pwsh only propagates the LAST command's exit
+      # code from a multi-line run block, which let a failing first suite slip
+      # through as a green step.
+      - name: Test SourceGen
+        run: dotnet test src/Serde.FS.SourceGen.Tests/Serde.FS.SourceGen.Tests.fsproj --configuration Release
+
+      - name: Test Json
+        run: dotnet test src/Serde.FS.Json.Tests/Serde.FS.Json.Tests.fsproj --configuration Release
 
       # build.fsx is the canonical release pack: it publishes the generator
       # hosts between packs and restores each package against the locally
@@ -39,5 +43,15 @@ jobs:
         with:
           user: "jordan marr" # nuget.org profile name (legacy account, literal space)
 
+      # Enumerate explicitly: `dotnet nuget push` did not expand the *.nupkg
+      # glob on the windows runner ("File does not exist (.build/*.nupkg)").
       - name: Push
-        run: dotnet nuget push .build/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        shell: pwsh
+        run: |
+          $packages = Get-ChildItem .build -Filter *.nupkg
+          if ($packages.Count -eq 0) { throw "No .nupkg files found in .build/" }
+          foreach ($pkg in $packages) {
+            Write-Host "Pushing $($pkg.Name)..."
+            dotnet nuget push $pkg.FullName --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+            if ($LASTEXITCODE -ne 0) { throw "Push failed for $($pkg.Name)" }
+          }

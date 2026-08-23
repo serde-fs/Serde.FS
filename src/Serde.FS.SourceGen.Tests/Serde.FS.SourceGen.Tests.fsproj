@@ -30,6 +30,11 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<!-- Direct references: tests use FSharp.SourceDjinn types in their own code,
+		     and the SourceGen projects reference it PrivateAssets="all", which does
+		     not flow compile assets transitively in Release builds. -->
+		<ProjectReference Include="..\FSharp.SourceDjinn\FSharp.SourceDjinn.fsproj" />
+		<ProjectReference Include="..\FSharp.SourceDjinn.TypeModel\FSharp.SourceDjinn.TypeModel.fsproj" />
 		<ProjectReference Include="..\Serde.FS\Serde.FS.fsproj" />
 		<ProjectReference Include="..\Serde.FS.SourceGen\Serde.FS.SourceGen.fsproj" />
 		<ProjectReference Include="..\Serde.FS.Json.SourceGen\Serde.FS.Json.SourceGen.fsproj" />
