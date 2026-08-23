@@ -1,0 +1,43 @@
+name: Publish to NuGet
+
+# Manual-only. Publishing uses NuGet Trusted Publishing (GitHub OIDC): the
+# NuGet/login step exchanges this run's OIDC token for a short-lived (1h) API
+# key scoped by the Trusted Publishing policy on nuget.org — no stored secrets.
+# Release flow: bump <SerdeVersion> in Directory.Build.props, push, then run
+# this workflow from the Actions tab and tag v<version>.
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: windows-2022
+    permissions:
+      id-token: write # required for GitHub OIDC token issuance (Trusted Publishing)
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x # FSharp.Compiler.Service pins FSharp.Core 10.0.103
+
+      - name: Test
+        run: |
+          dotnet test src/Serde.FS.SourceGen.Tests/Serde.FS.SourceGen.Tests.fsproj --configuration Release
+          dotnet test src/Serde.FS.Json.Tests/Serde.FS.Json.Tests.fsproj --configuration Release
+
+      # build.fsx is the canonical release pack: it publishes the generator
+      # hosts between packs and restores each package against the locally
+      # packed Serde.FS, producing all four .nupkg files in .build/.
+      - name: Pack (build.fsx)
+        run: dotnet fsi build.fsx
+
+      - name: NuGet login (OIDC -> temp API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: "jordan marr" # nuget.org profile name (legacy account, literal space)
+
+      - name: Push
+        run: dotnet nuget push .build/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
