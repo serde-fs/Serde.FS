@@ -6,6 +6,12 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
+		<PackageProjectUrl>https://github.com/serde-fs/Serde.FS</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/serde-fs/Serde.FS</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+	</PropertyGroup>
+
+	<PropertyGroup>
 		<!-- Suppress MSB3277: generator host targets net9 (for FCS) but references net8 SourceGen projects, producing expected System.* version conflicts -->
 		<NoWarn>$(NoWarn);MSB3277</NoWarn>
 		<!-- Suppress NU1605: our packed libs declare an FSharp.Core 8.0.100 floor so
