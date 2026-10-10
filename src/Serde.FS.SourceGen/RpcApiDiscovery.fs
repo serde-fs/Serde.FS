@@ -49,7 +49,8 @@ module RpcApiDiscovery =
     /// Recursively expand type abbreviations in a SynType. For each LongIdent
     /// whose name matches an alias key, replace it with the (recursively expanded)
     /// target SynType. This lets `type PageSize = int` resolve correctly when used
-    /// in interface signatures.
+    /// in interface signatures. Also strips parameter names from named
+    /// signature parameters (`id: Guid` becomes `Guid`).
     let rec private expandAliases (aliases: Map<string, SynType>) (synType: SynType) : SynType =
         match synType with
         | SynType.LongIdent(SynLongIdent(id = idents)) ->
@@ -85,6 +86,13 @@ module RpcApiDiscovery =
             SynType.Paren(expandAliases aliases inner, range)
         | SynType.Array(rank, elem, range) ->
             SynType.Array(rank, expandAliases aliases elem, range)
+        | SynType.SignatureParameter(usedType = usedType) ->
+            // Named parameter in a member signature (`id: Guid`). The name
+            // is irrelevant to the wire shape, so drop the wrapper here —
+            // every signature walk runs on the expanded type, and none of
+            // the downstream walkers handle this node (issue #16: it fell
+            // through to `obj`).
+            expandAliases aliases usedType
         | other -> other
 
     /// Recursively extract all type names referenced in a SynType.

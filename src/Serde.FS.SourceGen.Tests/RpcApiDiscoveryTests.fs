@@ -643,3 +643,71 @@ type IPersonApi =
     Assert.That(rpcModule.IsSome, Is.True, "RPC module should be generated")
     Assert.That(rpcModule.Value.Code,
         Does.Contain("[<assembly: Serde.FS.SerdeBootstrap(typeof<SerdeGenerated.Rpc.IPersonApiRpcBootstrap>)>]"))
+
+/// Issue #16: named parameters in an abstract member signature
+/// (`abstract Probe: rangeStartUtc: DateTime * rangeEndUtc: DateTime -> ...`)
+/// parse as `SynType.SignatureParameter`, which the discovery walkers didn't
+/// handle — every named parameter was emitted as `obj`. A named signature
+/// must produce exactly the same method info as its unnamed equivalent.
+[<Test>]
+let ``Named parameters resolve to the same types as unnamed parameters`` () =
+    let source = """
+module MyApp.Domain.Api
+
+open System
+open Serde.FS
+
+type Show = { Id: Guid; Title: string }
+
+[<RpcApi>]
+type IServerApi =
+    abstract ProbeNamed: rangeStartUtc: DateTime * rangeEndUtc: DateTime -> Async<unit>
+    abstract ProbeUnnamed: DateTime * DateTime -> Async<unit>
+    abstract MixedNamed: id: Guid * show: Show * tags: string list -> Async<Show>
+    abstract MixedUnnamed: Guid * Show * string list -> Async<Show>
+    abstract SingleNamed: showId: Guid -> Async<Show>
+    abstract SingleUnnamed: Guid -> Async<Show>
+"""
+    let sources = [ "/Api.fs", source ]
+    let allTypeInfos =
+        sources |> List.collect (fun (path, src) -> SerdeAstParser.parseSourceAllTypes path src)
+    let result = RpcApiDiscovery.discover allTypeInfos sources
+
+    let iface = result.Interfaces |> List.exactlyOne
+    let find name = iface.Methods |> List.find (fun m -> m.MethodName = name)
+
+    for named, unnamed in [ "ProbeNamed", "ProbeUnnamed"; "MixedNamed", "MixedUnnamed"; "SingleNamed", "SingleUnnamed" ] do
+        let n, u = find named, find unnamed
+        Assert.That(n.InputType, Does.Not.Contain("obj"), named)
+        Assert.That(n.InputType, Is.EqualTo(u.InputType), named)
+        Assert.That(n.InputIsTupled, Is.EqualTo(u.InputIsTupled), named)
+        Assert.That(n.InputParams, Is.EqualTo(u.InputParams), named)
+        Assert.That(n.InputTypeInfo.IsSome, Is.True, named)
+        Assert.That(n.InputTypeInfo, Is.EqualTo(u.InputTypeInfo), named)
+        Assert.That(n.InputParamTypeInfos, Is.EqualTo(u.InputParamTypeInfos), named)
+        Assert.That(n.InputParamTypeInfos |> List.forall Option.isSome, Is.True, named)
+
+    Assert.That(result.DiscoveredTypes |> List.exists (fun t -> t.Raw.TypeName = "Show"), Is.True)
+
+/// Issue #16, end to end: the generated server dispatch for a method with
+/// named parameters must deserialize and unpack the real parameter types.
+[<Test>]
+let ``RPC dispatch for named parameters uses the declared types`` () =
+    let source = """
+module MyApp.Program
+
+open System
+open Serde.FS
+
+[<RpcApi>]
+type IServerApi =
+    abstract Probe: rangeStartUtc: DateTime * rangeEndUtc: DateTime -> Async<unit>
+"""
+    let emitter = Serde.FS.Json.SourceGen.JsonCodeEmitter() :> Serde.FS.ISerdeCodeEmitter
+    let result = Serde.FS.SourceGen.SerdeGeneratorEngine.generate [ "/Program.fs", source ] emitter
+
+    Assert.That(result.Errors, Is.Empty, sprintf "Unexpected errors: %A" result.Errors)
+    let rpcModule =
+        result.Sources |> List.find (fun s -> s.HintName = "~Rpc.IServerApi.json.g.fs")
+    Assert.That(rpcModule.Code, Does.Not.Contain("obj * obj"))
+    Assert.That(rpcModule.Code, Does.Contain("let (p0, p1) = input :?> DateTime * DateTime"))
