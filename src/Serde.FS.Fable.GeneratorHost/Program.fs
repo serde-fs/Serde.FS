@@ -47,22 +47,37 @@ let private referencesSerdeFS (fsprojPath: string) : bool =
         serdeReferenceRegex.IsMatch(xml)
     with _ -> false
 
+/// MSBuild treats `\` as a directory separator on every OS, and Visual
+/// Studio writes `<ProjectReference Include="..\..\Shared\Shared.fsproj" />`.
+/// .NET's Path APIs don't: on Linux/macOS a backslash is an ordinary file
+/// name character, so the path has to be normalised before it's combined
+/// or probed (issue #17).
+let private normalizeSeparators (path: string) : string =
+    path.Replace('\\', Path.DirectorySeparatorChar)
+
+/// Key used to dedup paths. Only ever compared — never handed back to the
+/// file system, because a lower-cased path doesn't exist on a
+/// case-sensitive file system.
+let private pathKey (path: string) : string =
+    Path.GetFullPath(path).ToLowerInvariant()
+
 /// Walk the ProjectReference graph recursively starting from `fsprojPath`,
-/// returning the full set of canonical .fsproj paths reachable AND whose
-/// projects reference Serde.FS in some form. The starting project is always
+/// returning the full paths of every .fsproj reachable AND whose project
+/// references Serde.FS in some form. The starting project is always
 /// included regardless (it's the consumer Fable project — its own sources
 /// may not reference Serde.FS directly but they declare types that get
 /// serialized via discovered RpcApi interfaces in Shared).
-/// Cycles are bounded by the visited set. Logs a warning for any reference
-/// whose target file is missing.
-let private collectFsprojGraph (rootFsproj: string) : Set<string> =
-    let rec walk (isRoot: bool) (visited: Set<string>) (fsprojPath: string) : Set<string> =
+/// Cycles are bounded by the visited map (dedup key -> real path). Logs a
+/// warning for any reference whose target file is missing.
+let private collectFsprojGraph (rootFsproj: string) : string list =
+    let rec walk (isRoot: bool) (visited: Map<string, string>) (fsprojPath: string) : Map<string, string> =
         if not (File.Exists fsprojPath) then
             eprintfn "[Serde.FS.Fable] WARNING: project file not found, skipping: %s" fsprojPath
             visited
         else
-            let canonical = Path.GetFullPath(fsprojPath).ToLowerInvariant()
-            if visited.Contains canonical then visited
+            let fullPath = Path.GetFullPath fsprojPath
+            let key = pathKey fullPath
+            if visited.ContainsKey key then visited
             // Skip non-Serde dependencies (UI libraries etc.) — they bring
             // unrelated types into discovery and corrupt collision detection.
             // The root project is exempt because the user always wants their
@@ -71,19 +86,21 @@ let private collectFsprojGraph (rootFsproj: string) : Set<string> =
                 eprintfn "[Serde.FS.Fable] Skipping (no Serde.FS reference): %s" fsprojPath
                 visited
             else
-                let visited = visited.Add canonical
-                let dir = Path.GetDirectoryName(Path.GetFullPath fsprojPath)
+                let visited = visited.Add(key, fullPath)
+                let dir = Path.GetDirectoryName fullPath
                 try
                     let xml = File.ReadAllText fsprojPath
                     projectRefRegex.Matches(xml)
                     |> Seq.cast<Match>
                     |> Seq.map (fun m -> m.Groups.[1].Value)
-                    |> Seq.map (fun rel -> Path.GetFullPath(Path.Combine(dir, rel)))
+                    |> Seq.map (fun rel -> Path.GetFullPath(Path.Combine(dir, normalizeSeparators rel)))
                     |> Seq.fold (walk false) visited
                 with ex ->
                     eprintfn "[Serde.FS.Fable] WARNING: failed to parse ProjectReferences from %s: %s" fsprojPath ex.Message
                     visited
-    walk true Set.empty rootFsproj
+    walk true Map.empty (normalizeSeparators rootFsproj)
+    |> Map.toList
+    |> List.map snd
 
 /// Collect .fs source files for a project, recursively from its directory.
 /// Excludes build artefacts and generated files so we don't try to discover
@@ -111,12 +128,12 @@ let main (argv: string array) =
         eprintfn "Expected project directory argument"
         1
     else
-        let projectDir = argv.[0]
+        let projectDir = normalizeSeparators argv.[0]
         let outputDir =
-            if argv.Length > 1 then argv.[1]
+            if argv.Length > 1 then normalizeSeparators argv.[1]
             else Path.Combine(projectDir, "fable-generated")
         let consumerFsproj =
-            if argv.Length > 2 && File.Exists(argv.[2]) then argv.[2]
+            if argv.Length > 2 && File.Exists(normalizeSeparators argv.[2]) then normalizeSeparators argv.[2]
             else
                 // Best-effort: find a .fsproj in projectDir.
                 let candidates = Directory.GetFiles(projectDir, "*.fsproj")
@@ -131,7 +148,7 @@ let main (argv: string array) =
         // gathered as part of the same walk (no need for a separate
         // "local sources" path).
         let allProjects =
-            if consumerFsproj = "" then Set.empty
+            if consumerFsproj = "" then []
             else collectFsprojGraph consumerFsproj
 
         // Diagnostic — log the project graph the walker discovered so users
@@ -142,7 +159,7 @@ let main (argv: string array) =
         // from this list and the consumer needs to add a ProjectReference
         // somewhere along the chain. Goes to stdout (not stderr) so it
         // doesn't appear as MSBuild errors.
-        printfn "[Serde.FS.Fable] Walked project graph (%d projects):" (Set.count allProjects)
+        printfn "[Serde.FS.Fable] Walked project graph (%d projects):" (List.length allProjects)
         for p in allProjects do
             printfn "  %s" p
 
@@ -150,9 +167,8 @@ let main (argv: string array) =
         // could point to the same project, or directories could nest.
         let sourceFiles =
             allProjects
-            |> Set.toList
             |> List.collect collectFsFiles
-            |> List.distinctBy (fun (path, _) -> Path.GetFullPath(path).ToLowerInvariant())
+            |> List.distinctBy (fun (path, _) -> pathKey path)
 
         printfn "[Serde.FS.Fable] Collected %d source files." (List.length sourceFiles)
 
