@@ -78,7 +78,7 @@ module internal SerdeJsonReader =
                 advance &p
         sb.ToString()
 
-    let private parseNumber (p: Parser byref) : decimal =
+    let private parseNumber (p: Parser byref) : JsonValue =
         let start = p.Pos
         // Consume characters that can be part of a JSON number
         while p.Pos < p.Input.Length &&
@@ -86,10 +86,18 @@ module internal SerdeJsonReader =
                c = '-' || c = '+' || c = '.' || c = 'e' || c = 'E' || (c >= '0' && c <= '9')) do
             p.Pos <- p.Pos + 1
         let numStr = p.Input.Substring(start, p.Pos - start)
-        match Decimal.TryParse(numStr, Globalization.NumberStyles.Float, Globalization.CultureInfo.InvariantCulture) with
-        | true, n -> n
-        | _ ->
-            raise (SerdeJsonParseException($"Invalid number '{numStr}'", start))
+        let asFloat () =
+            match Double.TryParse(numStr, Globalization.NumberStyles.Float, Globalization.CultureInfo.InvariantCulture) with
+            | true, f when not (Double.IsInfinity f) && not (Double.IsNaN f) -> JsonValue.Float f
+            | _ -> raise (SerdeJsonParseException($"Invalid number '{numStr}'", start))
+        // Exponent notation is how doubles outside decimal's range and
+        // precision are written, and Decimal.TryParse would silently round
+        // such a token (1e-30 parses as 0), so those go straight to a double.
+        if numStr.IndexOfAny([| 'e'; 'E' |]) >= 0 then asFloat ()
+        else
+            match Decimal.TryParse(numStr, Globalization.NumberStyles.Float, Globalization.CultureInfo.InvariantCulture) with
+            | true, n -> JsonValue.Number n
+            | _ -> asFloat ()
 
     let rec private parseValue (p: Parser byref) : JsonValue =
         skipWhitespace &p
@@ -161,7 +169,7 @@ module internal SerdeJsonReader =
                         raise (SerdeJsonParseException($"Expected ',' or '}}' but got '{c}'", p.Pos))
                 JsonValue.Object fields
         | '-' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' ->
-            JsonValue.Number(parseNumber &p)
+            parseNumber &p
         | c ->
             raise (SerdeJsonParseException($"Unexpected character '{c}'", p.Pos))
 

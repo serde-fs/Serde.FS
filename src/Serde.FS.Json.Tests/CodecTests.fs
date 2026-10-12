@@ -116,7 +116,7 @@ let ``PrimitiveCodecs int64 encodes correctly`` () =
 
 [<Test>]
 let ``PrimitiveCodecs float encodes correctly`` () =
-    Assert.AreEqual(Number 1.5m, PrimitiveCodecs.floatEncoder.Encode 1.5)
+    Assert.AreEqual(Float 1.5, PrimitiveCodecs.floatEncoder.Encode 1.5)
 
 [<Test>]
 let ``PrimitiveCodecs decimal encodes correctly`` () =

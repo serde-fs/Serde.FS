@@ -41,6 +41,7 @@ module PrimitiveCodecs =
             member _.Decode json =
                 match json with
                 | JsonValue.Number n -> n
+                | JsonValue.Float f -> decimal f
                 | _ -> failwith "Expected JSON number" }
 
     let intEncoder : IJsonEncoder<int> =
@@ -52,6 +53,7 @@ module PrimitiveCodecs =
             member _.Decode json =
                 match json with
                 | JsonValue.Number n -> int n
+                | JsonValue.Float f -> int (decimal f)
                 | _ -> failwith "Expected JSON number" }
 
     let int64Encoder : IJsonEncoder<int64> =
@@ -63,17 +65,21 @@ module PrimitiveCodecs =
             member _.Decode json =
                 match json with
                 | JsonValue.Number n -> int64 n
+                | JsonValue.Float f -> int64 (decimal f)
                 | _ -> failwith "Expected JSON number" }
 
     let floatEncoder : IJsonEncoder<float> =
         { new IJsonEncoder<float> with
-            member _.Encode v = JsonValue.Number (decimal v) }
+            // Not `Number (decimal v)`: that conversion keeps 15 significant
+            // digits and overflows outside decimal's range.
+            member _.Encode v = JsonValue.Float v }
 
     let floatDecoder : IJsonDecoder<float> =
         { new IJsonDecoder<float> with
             member _.Decode json =
                 match json with
                 | JsonValue.Number n -> float n
+                | JsonValue.Float f -> f
                 | _ -> failwith "Expected JSON number" }
 
     /// Generic adapter that wraps a decode function. Used to work around the F#
@@ -117,46 +123,46 @@ module PrimitiveCodecs =
 
     let dateTimeEncoder : IJsonEncoder<DateTime> =
         { new IJsonEncoder<DateTime> with
-            member _.Encode v = JsonValue.String (v.ToString("O")) }
+            member _.Encode v = JsonValue.String (v.ToString("O", Globalization.CultureInfo.InvariantCulture)) }
 
     let dateTimeDecoder : IJsonDecoder<DateTime> =
         { new IJsonDecoder<DateTime> with
             member _.Decode json =
                 match json with
-                | JsonValue.String s -> DateTime.Parse(s, null, Globalization.DateTimeStyles.RoundtripKind)
+                | JsonValue.String s -> DateTime.Parse(s, Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.RoundtripKind)
                 | _ -> failwith "Expected JSON string (DateTime)" }
 
     let dateTimeOffsetEncoder : IJsonEncoder<DateTimeOffset> =
         { new IJsonEncoder<DateTimeOffset> with
-            member _.Encode v = JsonValue.String (v.ToString("O")) }
+            member _.Encode v = JsonValue.String (v.ToString("O", Globalization.CultureInfo.InvariantCulture)) }
 
     let dateTimeOffsetDecoder : IJsonDecoder<DateTimeOffset> =
         { new IJsonDecoder<DateTimeOffset> with
             member _.Decode json =
                 match json with
-                | JsonValue.String s -> DateTimeOffset.Parse(s, null, Globalization.DateTimeStyles.RoundtripKind)
+                | JsonValue.String s -> DateTimeOffset.Parse(s, Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.RoundtripKind)
                 | _ -> failwith "Expected JSON string (DateTimeOffset)" }
 
     let dateOnlyEncoder : IJsonEncoder<DateOnly> =
         { new IJsonEncoder<DateOnly> with
-            member _.Encode v = JsonValue.String (v.ToString("O")) }
+            member _.Encode v = JsonValue.String (v.ToString("O", Globalization.CultureInfo.InvariantCulture)) }
 
     let dateOnlyDecoder : IJsonDecoder<DateOnly> =
         { new IJsonDecoder<DateOnly> with
             member _.Decode json =
                 match json with
-                | JsonValue.String s -> DateOnly.Parse(s, null, Globalization.DateTimeStyles.None)
+                | JsonValue.String s -> DateOnly.Parse(s, Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.None)
                 | _ -> failwith "Expected JSON string (DateOnly)" }
 
     let timeOnlyEncoder : IJsonEncoder<TimeOnly> =
         { new IJsonEncoder<TimeOnly> with
-            member _.Encode v = JsonValue.String (v.ToString("O")) }
+            member _.Encode v = JsonValue.String (v.ToString("O", Globalization.CultureInfo.InvariantCulture)) }
 
     let timeOnlyDecoder : IJsonDecoder<TimeOnly> =
         { new IJsonDecoder<TimeOnly> with
             member _.Decode json =
                 match json with
-                | JsonValue.String s -> TimeOnly.Parse(s, null, Globalization.DateTimeStyles.None)
+                | JsonValue.String s -> TimeOnly.Parse(s, Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.None)
                 | _ -> failwith "Expected JSON string (TimeOnly)" }
 
     // -- Combined codecs --

@@ -1,6 +1,9 @@
 namespace Serde.FS.Json.Codec
 
+open System
+open System.Globalization
 open System.Text
+open Serde.FS
 
 /// Pure Serde-native JSON writer. Produces minimal JSON from a JsonValue AST
 /// with no dependency on System.Text.Json.
@@ -26,7 +29,14 @@ module internal SerdeJsonWriter =
         match value with
         | JsonValue.Null -> sb.Append("null") |> ignore
         | JsonValue.Bool b -> sb.Append(if b then "true" else "false") |> ignore
-        | JsonValue.Number n -> sb.Append(n.ToString("G")) |> ignore
+        // Invariant culture: the current culture may use a decimal comma or a
+        // non-ASCII negative sign, neither of which is JSON.
+        | JsonValue.Number n -> sb.Append(n.ToString("G", CultureInfo.InvariantCulture)) |> ignore
+        | JsonValue.Float f ->
+            if Double.IsNaN f || Double.IsInfinity f then
+                raise (SerdeJsonException($"Cannot write %s{f.ToString(CultureInfo.InvariantCulture)} as JSON: JSON has no representation for NaN or infinity."))
+            // "R" is the shortest string that parses back to the same double.
+            sb.Append(f.ToString("R", CultureInfo.InvariantCulture)) |> ignore
         // Defensive: a hand-built `JsonValue.String null` (e.g. from a custom
         // codec) should not NRE in escapeString. Treat it as JSON null —
         // matches the behavior of stringEncoder for null CLR strings.
