@@ -10,6 +10,7 @@ module Types =
         | Float32 | Float64
         | Decimal
         | String
+        | Char
         | Guid
         | DateTime
         | DateTimeOffset

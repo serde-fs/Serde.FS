@@ -28,6 +28,7 @@ module RpcApiDiscovery =
             "uint8"; "uint16"; "uint32"; "uint64"; "byte"
             "float"; "float32"; "double"; "single"; "decimal"
             "sbyte"
+            "char"; "Char"; "System.Char"
             "Guid"; "System.Guid"
             "DateTime"; "System.DateTime"
             "DateTimeOffset"; "System.DateTimeOffset"
@@ -215,6 +216,7 @@ module RpcApiDiscovery =
         | "float" | "double" | "Double" | "System.Double" -> Some Float64
         | "decimal" | "Decimal" | "System.Decimal" -> Some PrimitiveKind.Decimal
         | "string" | "String" | "System.String" -> Some String
+        | "char" | "Char" | "System.Char" -> Some PrimitiveKind.Char
         | "Guid" | "System.Guid" -> Some Guid
         | "DateTime" | "System.DateTime" -> Some DateTime
         | "DateTimeOffset" | "System.DateTimeOffset" -> Some DateTimeOffset

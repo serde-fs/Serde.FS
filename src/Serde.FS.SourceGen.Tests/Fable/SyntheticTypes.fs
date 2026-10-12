@@ -28,6 +28,12 @@ let floatTi   = prim Float64 "float"
 let unitTi    = prim Unit "unit"
 let guidTi    = prim Guid "Guid"
 let byteTi    = prim UInt8 "byte"
+let sbyteTi   = prim Int8 "sbyte"
+let int16Ti   = prim Int16 "int16"
+let uint16Ti  = prim UInt16 "uint16"
+let uint32Ti  = prim UInt32 "uint32"
+let float32Ti = prim Float32 "float32"
+let charTi    = prim PrimitiveKind.Char "char"
 
 // ── Structural wrappers ────────────────────────────────────────────────────
 

@@ -193,3 +193,29 @@ module Domain =
     Assert.That(t.Raw.Namespace, Is.EqualTo(Some "MyApp"))
     Assert.That(t.Raw.EnclosingModules, Is.EqualTo(["Domain"]))
     Assert.That(t.Raw.TypeName, Is.EqualTo("Person"))
+
+[<Test>]
+let ``Parses small numeric and char fields as primitives`` () =
+    let source = """
+namespace MyApp
+
+[<Serde>]
+type SmallTypes = {
+    I8: sbyte
+    I16: int16
+    U8: byte
+    U16: uint16
+    U32: uint32
+    U64: uint64
+    F32: float32
+    C: char
+    SysC: System.Char
+}
+"""
+    let types = SerdeAstParser.parseSource "/test.fs" source
+    let fields = types.[0].Fields.Value
+    let kinds = fields |> List.map (fun f -> f.Type.Kind)
+    Assert.That(kinds, Is.EqualTo([
+        Primitive Int8; Primitive Int16; Primitive UInt8; Primitive UInt16
+        Primitive UInt32; Primitive UInt64; Primitive Float32
+        Primitive PrimitiveKind.Char; Primitive PrimitiveKind.Char ]))

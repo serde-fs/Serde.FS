@@ -25,6 +25,7 @@ module TypeKindExtractor =
             "float", Float64; "double", Float64
             "decimal", Decimal
             "string", String
+            "char", Char; "System.Char", Char; "Char", Char
             "System.Guid", Guid; "Guid", Guid
             "System.DateTime", DateTime; "DateTime", DateTime
             "System.DateTimeOffset", DateTimeOffset; "DateTimeOffset", DateTimeOffset

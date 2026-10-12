@@ -264,11 +264,15 @@ let ``withPrimitives registers all primitive codecs`` () =
     Assert.IsTrue((CodecRegistry.tryFind typeof<DateTimeOffset> registry).IsSome)
     Assert.IsTrue((CodecRegistry.tryFind typeof<DateOnly> registry).IsSome)
     Assert.IsTrue((CodecRegistry.tryFind typeof<TimeOnly> registry).IsSome)
+    for ty in [ typeof<sbyte>; typeof<int16>; typeof<byte>; typeof<uint16>; typeof<uint32>; typeof<uint64>; typeof<float32>; typeof<char> ] do
+        Assert.IsTrue((CodecRegistry.tryFind ty registry).IsSome, ty.Name)
 
 [<Test>]
 let ``withPrimitives returns None for unregistered types`` () =
     let registry = CodecRegistry.withPrimitives ()
-    Assert.IsTrue((CodecRegistry.tryFind typeof<char> registry).IsNone)
+    // TimeSpan and bigint are deliberately unsupported for now.
+    Assert.IsTrue((CodecRegistry.tryFind typeof<TimeSpan> registry).IsNone)
+    Assert.IsTrue((CodecRegistry.tryFind typeof<bigint> registry).IsNone)
 
 // -- Set codec tests --
 

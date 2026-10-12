@@ -182,3 +182,105 @@ let ``Integers and decimals still decode exponent notation`` () =
     Assert.That(SerdeJson.deserialize<int> "1e2", Is.EqualTo(100))
     Assert.That(SerdeJson.deserialize<int64> "1E3", Is.EqualTo(1000L))
     Assert.That(SerdeJson.deserialize<decimal> "1.5e1", Is.EqualTo(15m))
+
+// -- Small integers --
+
+[<Test>]
+let ``Small integer types are JSON numbers and round-trip at their limits`` () =
+    Assert.That(SerdeJson.serialize 5y, Is.EqualTo("5"))
+    Assert.That(SerdeJson.serialize -5s, Is.EqualTo("-5"))
+    Assert.That(SerdeJson.serialize 5uy, Is.EqualTo("5"))
+    Assert.That(SerdeJson.serialize 5us, Is.EqualTo("5"))
+    Assert.That(SerdeJson.serialize 5u, Is.EqualTo("5"))
+    Assert.That(SerdeJson.serialize UInt32.MaxValue, Is.EqualTo("4294967295"))
+    for v in [ SByte.MinValue; 0y; SByte.MaxValue ] do Assert.That(roundTrip v, Is.EqualTo(v))
+    for v in [ Int16.MinValue; 0s; Int16.MaxValue ] do Assert.That(roundTrip v, Is.EqualTo(v))
+    for v in [ Byte.MinValue; Byte.MaxValue ] do Assert.That(roundTrip v, Is.EqualTo(v))
+    for v in [ UInt16.MinValue; UInt16.MaxValue ] do Assert.That(roundTrip v, Is.EqualTo(v))
+    for v in [ UInt32.MinValue; UInt32.MaxValue ] do Assert.That(roundTrip v, Is.EqualTo(v))
+
+[<Test>]
+let ``Small integer types reject out-of-range fractional and non-numeric input`` () =
+    for json in [ "128"; "-129"; "1.5"; "\"5\""; "null"; "true"; "1e40" ] do rejects<sbyte> json
+    for json in [ "32768"; "-32769"; "1.5"; "\"5\""; "null" ] do rejects<int16> json
+    for json in [ "256"; "-1"; "1.5"; "\"5\""; "null" ] do rejects<byte> json
+    for json in [ "65536"; "-1"; "0.5"; "\"5\""; "null" ] do rejects<uint16> json
+    for json in [ "4294967296"; "-1"; "0.5"; "\"5\""; "null"; "1e40" ] do rejects<uint32> json
+
+[<Test>]
+let ``Small integer types accept whole numbers in any number form`` () =
+    Assert.That(SerdeJson.deserialize<int16> "1e2", Is.EqualTo(100s))
+    Assert.That(SerdeJson.deserialize<byte> "2.0", Is.EqualTo(2uy))
+    Assert.That(SerdeJson.deserialize<uint32> "4.294967295E9", Is.EqualTo(UInt32.MaxValue))
+
+[<Test>]
+let ``byte array stays base64 while other byte collections are number arrays`` () =
+    Assert.That(SerdeJson.serialize [| 1uy; 2uy |], Is.EqualTo("\"AQI=\""))
+    Assert.That(SerdeJson.serialize [ 1uy; 2uy ], Is.EqualTo("[1,2]"))
+    Assert.That(roundTrip [ 0uy; 255uy ], Is.EqualTo([ 0uy; 255uy ]))
+
+// -- float32 --
+
+[<Test>]
+let ``float32 is written in its shortest form`` () =
+    Assert.That(SerdeJson.serialize 0.1f, Is.EqualTo("0.1"))
+    Assert.That(SerdeJson.serialize 1.5f, Is.EqualTo("1.5"))
+    Assert.That(SerdeJson.serialize -2f, Is.EqualTo("-2"))
+    Assert.That(SerdeJson.serialize 16777216f, Is.EqualTo("16777216"))
+
+[<Test>]
+let ``float32 round-trips exactly`` () =
+    let edge = [ 0f; 0.1f; 1f / 3f; Single.MaxValue; Single.MinValue; Single.Epsilon; 1e-30f; 1e30f; 1.17549435e-38f ]
+    for v in edge do
+        let json = SerdeJson.serialize v
+        Assert.That(SerdeJson.deserialize<float32> json, Is.EqualTo(v), json)
+    // Every bit pattern is a distinct float32; sample them broadly.
+    let rng = Random(20261012)
+    let mutable checkedCount = 0
+    while checkedCount < 200000 do
+        let v = BitConverter.Int32BitsToSingle(rng.Next(Int32.MinValue, Int32.MaxValue))
+        if not (Single.IsNaN v) && not (Single.IsInfinity v) then
+            checkedCount <- checkedCount + 1
+            let back = SerdeJson.deserialize<float32> (SerdeJson.serialize v)
+            if back <> v then
+                Assert.Fail(sprintf "float32 %s (bits %08x) decoded as %s" (v.ToString "R") (BitConverter.SingleToInt32Bits v) (back.ToString "R"))
+
+[<Test>]
+let ``float32 rejects NaN infinities and out-of-range input`` () =
+    for value in [ Single.NaN; Single.PositiveInfinity; Single.NegativeInfinity ] do
+        Assert.Throws<SerdeJsonException>(fun () -> SerdeJson.serialize value |> ignore) |> ignore
+    for json in [ "1e39"; "-1e39"; "\"1.5\""; "null" ] do rejects<float32> json
+    Assert.That(SerdeJson.deserialize<float32> "42", Is.EqualTo(42f))
+    // The Fable client sends a float32 widened to a double.
+    Assert.That(SerdeJson.deserialize<float32> "0.10000000149011612", Is.EqualTo(0.1f))
+
+// -- char --
+
+[<Test>]
+let ``char is a one-character JSON string`` () =
+    Assert.That(SerdeJson.serialize 'x', Is.EqualTo("\"x\""))
+    Assert.That(SerdeJson.serialize '"', Is.EqualTo("\"\\\"\""))
+    Assert.That(SerdeJson.serialize '\n', Is.EqualTo("\"\\n\""))
+    Assert.That(SerdeJson.serialize 'é', Is.EqualTo("\"é\""))
+    for c in [ 'x'; ' '; '"'; '\\'; '\n'; '\000'; 'é'; '\u2028'; '\uFFFF' ] do
+        Assert.That(roundTrip c, Is.EqualTo(c), sprintf "U+%04X" (int c))
+
+[<Test>]
+let ``char rejects anything but a one-character string`` () =
+    for json in [ "\"\""; "\"ab\""; "120"; "null"; "true"; "[\"x\"]" ] do rejects<char> json
+
+[<Test>]
+let ``Unpaired surrogates survive both the string and the UTF-8 path`` () =
+    // UTF-8 cannot carry half of a surrogate pair, so the writer has to
+    // escape it; written raw it would be replaced with U+FFFD.
+    let high, low = '\uD83D', '\uDE00'
+    Assert.That(SerdeJson.serialize high, Is.EqualTo("\"\\ud83d\""))
+    for c in [ high; low ] do
+        Assert.That(roundTrip c, Is.EqualTo(c))
+        Assert.That(SerdeJson.deserializeFromUtf8<char> (SerdeJson.serializeToUtf8 c), Is.EqualTo(c))
+    let lonely = "a" + string high + "b" + string low
+    Assert.That(SerdeJson.deserializeFromUtf8<string> (SerdeJson.serializeToUtf8 lonely), Is.EqualTo(lonely))
+    // A proper pair is left alone.
+    let paired = string high + string low
+    Assert.That(SerdeJson.serialize paired, Is.EqualTo("\"" + paired + "\""))
+    Assert.That(SerdeJson.deserializeFromUtf8<string> (SerdeJson.serializeToUtf8 paired), Is.EqualTo(paired))

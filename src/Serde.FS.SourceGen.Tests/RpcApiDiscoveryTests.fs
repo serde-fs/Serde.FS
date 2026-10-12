@@ -711,3 +711,33 @@ type IServerApi =
         result.Sources |> List.find (fun s -> s.HintName = "~Rpc.IServerApi.json.g.fs")
     Assert.That(rpcModule.Code, Does.Not.Contain("obj * obj"))
     Assert.That(rpcModule.Code, Does.Contain("let (p0, p1) = input :?> DateTime * DateTime"))
+
+/// `char` is a primitive: it must not be treated as an unresolved user type
+/// in RPC signatures or in the types they reference.
+[<Test>]
+let ``char in an RPC signature resolves as a primitive`` () =
+    let source = """
+module MyApp.Domain.Api
+
+open Serde.FS
+
+type Grade = { Letter: char; Marks: char list }
+
+[<RpcApi>]
+type IServerApi =
+    abstract Next: char -> Async<char>
+    abstract Lookup: letter: char * strict: bool -> Async<Grade option>
+"""
+    let emitter = Serde.FS.Json.SourceGen.JsonCodeEmitter() :> Serde.FS.ISerdeCodeEmitter
+    let result = Serde.FS.SourceGen.SerdeGeneratorEngine.generate [ "/Api.fs", source ] emitter
+    Assert.That(result.Errors, Is.Empty, sprintf "Unexpected errors: %A" result.Errors)
+
+    let sources = [ "/Api.fs", source ]
+    let allTypeInfos =
+        sources |> List.collect (fun (path, src) -> SerdeAstParser.parseSourceAllTypes path src)
+    let discovery = RpcApiDiscovery.discover allTypeInfos sources
+    let next = discovery.Interfaces.[0].Methods |> List.find (fun m -> m.MethodName = "Next")
+    let charKind = FSharp.SourceDjinn.TypeModel.Types.Primitive FSharp.SourceDjinn.TypeModel.Types.PrimitiveKind.Char
+    Assert.That(next.InputTypeInfo |> Option.map (fun t -> t.Kind), Is.EqualTo(Some charKind))
+    Assert.That(next.OutputTypeInfo |> Option.map (fun t -> t.Kind), Is.EqualTo(Some charKind))
+    Assert.That(discovery.DiscoveredTypes |> List.map (fun t -> t.Raw.TypeName), Does.Not.Contain("char"))

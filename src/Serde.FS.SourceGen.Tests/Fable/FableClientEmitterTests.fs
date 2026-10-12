@@ -257,6 +257,27 @@ let ``record with int64, uint64 and decimal fields`` () =
     SnapshotHarness.assertSnapshot "record_wide_numeric_fields" actual
 
 [<Test>]
+let ``record with small numeric and char fields`` () =
+    let sampleTi =
+        record "Domain" "Sample" [
+            "Tiny",    sbyteTi
+            "Short",   int16Ti
+            "Octet",   byteTi
+            "Port",    uint16Ti
+            "Count",   uint32Ti
+            "Ratio",   float32Ti
+            "Grade",   charTi
+            "Initial", opt charTi
+        ]
+    let methods = [
+        methodOf "Echo" sampleTi charTi
+    ]
+    let iface = interfaceOf "Domain" "ISampleApi" methods true
+    let types = [ toSerde sampleTi ]
+    let actual = FableClientEmitter.emit iface types
+    SnapshotHarness.assertSnapshot "record_small_numeric_and_char_fields" actual
+
+[<Test>]
 let ``single-case wrapper union (ProductId of int)`` () =
     let productIdTi = wrapperUnion "Domain" "ProductId" "ProductId" int32Ti
     let methods = [

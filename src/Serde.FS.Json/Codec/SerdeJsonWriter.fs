@@ -11,8 +11,15 @@ module internal SerdeJsonWriter =
 
     let private escapeString (sb: StringBuilder) (s: string) =
         sb.Append('"') |> ignore
-        for c in s do
+        for i in 0 .. s.Length - 1 do
+            let c = s.[i]
+            // Half of a surrogate pair on its own cannot be encoded as UTF-8
+            // (it would become U+FFFD), so it is written as an escape.
+            let unpaired =
+                (Char.IsHighSurrogate c && not (i + 1 < s.Length && Char.IsLowSurrogate s.[i + 1]))
+                || (Char.IsLowSurrogate c && not (i > 0 && Char.IsHighSurrogate s.[i - 1]))
             match c with
+            | c when unpaired -> sb.Append(sprintf "\\u%04x" (int c)) |> ignore
             | '"'  -> sb.Append("\\\"") |> ignore
             | '\\' -> sb.Append("\\\\") |> ignore
             | '\n' -> sb.Append("\\n") |> ignore

@@ -51,6 +51,7 @@ module FableClientEmitter =
         | Types.PrimitiveKind.Float64 -> "float"
         | Types.PrimitiveKind.Decimal -> "decimal"
         | Types.PrimitiveKind.String -> "string"
+        | Types.PrimitiveKind.Char -> "char"
         | Types.PrimitiveKind.Guid -> "Guid"
         | Types.PrimitiveKind.DateTime -> "DateTime"
         | Types.PrimitiveKind.DateTimeOffset -> "DateTimeOffset"
@@ -143,7 +144,7 @@ module FableClientEmitter =
                 // JSON number would pass through a JS double on the way in
                 // or out and lose precision past 2^53 / 15-17 digits.
                 sprintf "box (string (%s))" varExpr
-            | "Guid" | "System.Guid" ->
+            | "char" | "Guid" | "System.Guid" ->
                 sprintf "box (string (%s))" varExpr
             | "DateTime" | "System.DateTime"
             | "DateTimeOffset" | "System.DateTimeOffset"
@@ -204,6 +205,7 @@ module FableClientEmitter =
             | "uint64" -> sprintf "(let v = %s in if Interop.isString v then System.UInt64.Parse (unbox<string> v) else uint64 (unbox<float> v))" jsonExpr
             | "int64" -> sprintf "(let v = %s in if Interop.isString v then System.Int64.Parse (unbox<string> v) else int64 (unbox<float> v))" jsonExpr
             | "string" -> sprintf "(unbox<string> %s)" jsonExpr
+            | "char" -> sprintf "((unbox<string> %s).[0])" jsonExpr
             | "bool" -> sprintf "(unbox<bool> %s)" jsonExpr
             | "float" | "double" -> sprintf "(unbox<float> %s)" jsonExpr
             | "float32" | "single" -> sprintf "(float32 (unbox<float> %s))" jsonExpr

@@ -105,6 +105,78 @@ module PrimitiveCodecs =
                 | JsonValue.Float f -> uint64 (decimal f)
                 | _ -> failwith "Expected JSON string or number (uint64)" }
 
+    /// Reads a JSON number as a whole number within [min, max]. Fractions and
+    /// out-of-range values are errors rather than being truncated or wrapped.
+    let private wholeNumber (typeName: string) (min: decimal) (max: decimal) (json: JsonValue) : decimal =
+        let outOfRange (shown: string) = failwith $"%s{shown} is out of range for %s{typeName}"
+        let n =
+            match json with
+            | JsonValue.Number n -> n
+            // Guard before converting: a double past decimal's range would
+            // overflow, and no supported integer type is anywhere near it.
+            | JsonValue.Float f when abs f < 1e20 -> decimal f
+            | JsonValue.Float f -> outOfRange (f.ToString("R", invariant))
+            | _ -> failwith $"Expected JSON number (%s{typeName})"
+        if n <> Math.Truncate n then
+            failwith $"Expected a whole number for %s{typeName}, got %s{n.ToString(invariant)}"
+        elif n < min || n > max then outOfRange (n.ToString(invariant))
+        else n
+
+    let private wholeNumberCodec<'T> (typeName: string) (min: decimal) (max: decimal) (toDecimal: 'T -> decimal) (ofDecimal: decimal -> 'T) : IJsonCodec<'T> =
+        { new IJsonCodec<'T> with
+            member _.Encode v = JsonValue.Number (toDecimal v)
+            member _.Decode json = ofDecimal (wholeNumber typeName min max json) }
+
+    let sbyteCodec : IJsonCodec<sbyte> =
+        wholeNumberCodec "sbyte" (decimal SByte.MinValue) (decimal SByte.MaxValue) decimal sbyte
+
+    let int16Codec : IJsonCodec<int16> =
+        wholeNumberCodec "int16" (decimal Int16.MinValue) (decimal Int16.MaxValue) decimal int16
+
+    let byteCodec : IJsonCodec<byte> =
+        wholeNumberCodec "byte" (decimal Byte.MinValue) (decimal Byte.MaxValue) decimal byte
+
+    let uint16Codec : IJsonCodec<uint16> =
+        wholeNumberCodec "uint16" (decimal UInt16.MinValue) (decimal UInt16.MaxValue) decimal uint16
+
+    let uint32Codec : IJsonCodec<uint32> =
+        wholeNumberCodec "uint32" (decimal UInt32.MinValue) (decimal UInt32.MaxValue) decimal uint32
+
+    let float32Codec : IJsonCodec<float32> =
+        { new IJsonCodec<float32> with
+            member _.Encode v =
+                if Single.IsNaN v || Single.IsInfinity v then
+                    // The writer rejects these with a JSON-specific error.
+                    JsonValue.Float (float v)
+                else
+                    // Widening directly gives the double nearest the float32
+                    // (0.1f -> 0.10000000149011612). Go through the shortest
+                    // text that identifies the float32 so 0.1f is written 0.1.
+                    JsonValue.Float (Double.Parse(v.ToString("R", invariant), invariant))
+            member _.Decode json =
+                let narrow (f: float) =
+                    // Checked after narrowing: the shortest text for
+                    // Single.MaxValue is a double slightly above it that
+                    // still rounds back to Single.MaxValue.
+                    let narrowed = float32 f
+                    if Single.IsInfinity narrowed then
+                        let shown = f.ToString("R", invariant)
+                        failwith $"%s{shown} is out of range for float32"
+                    else narrowed
+                match json with
+                | JsonValue.Number n -> narrow (float n)
+                | JsonValue.Float f -> narrow f
+                | _ -> failwith "Expected JSON number (float32)" }
+
+    let charCodec : IJsonCodec<char> =
+        { new IJsonCodec<char> with
+            member _.Encode v = JsonValue.String (string v)
+            member _.Decode json =
+                match json with
+                | JsonValue.String s when not (isNull s) && s.Length = 1 -> s.[0]
+                | JsonValue.String _ -> failwith "Expected a one-character JSON string (char)"
+                | _ -> failwith "Expected JSON string (char)" }
+
     let floatEncoder : IJsonEncoder<float> =
         { new IJsonEncoder<float> with
             // Not `Number (decimal v)`: that conversion keeps 15 significant
