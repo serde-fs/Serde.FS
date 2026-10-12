@@ -32,17 +32,34 @@ module PrimitiveCodecs =
                 | JsonValue.Null -> null
                 | _ -> failwith "Expected JSON string" }
 
+    // int64, uint64 and decimal are written as JSON strings. A JSON number is
+    // read as a double by JavaScript (and by many other JSON stacks), which
+    // silently corrupts integers past 2^53 and decimals past 15-17 significant
+    // digits. JSON numbers are still accepted on decode.
+
+    let private invariant = Globalization.CultureInfo.InvariantCulture
+
     let decimalEncoder : IJsonEncoder<decimal> =
         { new IJsonEncoder<decimal> with
-            member _.Encode v = JsonValue.Number v }
+            member _.Encode v = JsonValue.String (v.ToString("G", invariant)) }
 
     let decimalDecoder : IJsonDecoder<decimal> =
         { new IJsonDecoder<decimal> with
             member _.Decode json =
                 match json with
+                | JsonValue.String s ->
+                    // Sign, decimal point and exponent only: no whitespace,
+                    // thousands separators, currency symbols or parentheses.
+                    let style =
+                        Globalization.NumberStyles.AllowLeadingSign
+                        ||| Globalization.NumberStyles.AllowDecimalPoint
+                        ||| Globalization.NumberStyles.AllowExponent
+                    match Decimal.TryParse(s, style, invariant) with
+                    | true, n -> n
+                    | _ -> failwith $"Expected a decimal number in a JSON string, got \"%s{s}\""
                 | JsonValue.Number n -> n
                 | JsonValue.Float f -> decimal f
-                | _ -> failwith "Expected JSON number" }
+                | _ -> failwith "Expected JSON string or number (decimal)" }
 
     let intEncoder : IJsonEncoder<int> =
         { new IJsonEncoder<int> with
@@ -58,15 +75,35 @@ module PrimitiveCodecs =
 
     let int64Encoder : IJsonEncoder<int64> =
         { new IJsonEncoder<int64> with
-            member _.Encode v = JsonValue.Number (decimal v) }
+            member _.Encode v = JsonValue.String (v.ToString(invariant)) }
 
     let int64Decoder : IJsonDecoder<int64> =
         { new IJsonDecoder<int64> with
             member _.Decode json =
                 match json with
+                | JsonValue.String s ->
+                    match Int64.TryParse(s, Globalization.NumberStyles.AllowLeadingSign, invariant) with
+                    | true, n -> n
+                    | _ -> failwith $"Expected an int64 in a JSON string, got \"%s{s}\""
                 | JsonValue.Number n -> int64 n
                 | JsonValue.Float f -> int64 (decimal f)
-                | _ -> failwith "Expected JSON number" }
+                | _ -> failwith "Expected JSON string or number (int64)" }
+
+    let uint64Encoder : IJsonEncoder<uint64> =
+        { new IJsonEncoder<uint64> with
+            member _.Encode v = JsonValue.String (v.ToString(invariant)) }
+
+    let uint64Decoder : IJsonDecoder<uint64> =
+        { new IJsonDecoder<uint64> with
+            member _.Decode json =
+                match json with
+                | JsonValue.String s ->
+                    match UInt64.TryParse(s, Globalization.NumberStyles.None, invariant) with
+                    | true, n -> n
+                    | _ -> failwith $"Expected a uint64 in a JSON string, got \"%s{s}\""
+                | JsonValue.Number n -> uint64 n
+                | JsonValue.Float f -> uint64 (decimal f)
+                | _ -> failwith "Expected JSON string or number (uint64)" }
 
     let floatEncoder : IJsonEncoder<float> =
         { new IJsonEncoder<float> with
@@ -172,6 +209,7 @@ module PrimitiveCodecs =
     let decimalCodec = JsonCodec.fromPair decimalEncoder decimalDecoder
     let intCodec = JsonCodec.fromPair intEncoder intDecoder
     let int64Codec = JsonCodec.fromPair int64Encoder int64Decoder
+    let uint64Codec = JsonCodec.fromPair uint64Encoder uint64Decoder
     let floatCodec = JsonCodec.fromPair floatEncoder floatDecoder
     let unitCodec = JsonCodec.fromPair unitEncoder unitDecoder
     let byteArrayCodec = JsonCodec.fromPair byteArrayEncoder byteArrayDecoder

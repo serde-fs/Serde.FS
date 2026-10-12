@@ -20,6 +20,7 @@ let prim (kind: PrimitiveKind) (typeName: string) : TypeInfo =
 
 let int32Ti   = prim Int32 "int"
 let int64Ti   = prim Int64 "int64"
+let uint64Ti  = prim UInt64 "uint64"
 let stringTi  = prim PrimitiveKind.String "string"
 let boolTi    = prim Bool "bool"
 let decimalTi = prim PrimitiveKind.Decimal "decimal"

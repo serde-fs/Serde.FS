@@ -28,11 +28,8 @@ let ``Numbers are written the same in every culture`` () =
     for culture in cultures do
         withCulture culture (fun () ->
             Assert.That(SerdeJson.serialize 1.5, Is.EqualTo("1.5"), culture)
-            Assert.That(SerdeJson.serialize 1234.5m, Is.EqualTo("1234.5"), culture)
             Assert.That(SerdeJson.serialize -5, Is.EqualTo("-5"), culture)
-            Assert.That(SerdeJson.serialize -9000000000L, Is.EqualTo("-9000000000"), culture)
             Assert.That(roundTrip 1.5, Is.EqualTo(1.5), culture)
-            Assert.That(roundTrip 1234.5m, Is.EqualTo(1234.5m), culture)
             Assert.That(roundTrip -5, Is.EqualTo(-5), culture))
 
 [<Test>]
@@ -102,18 +99,83 @@ let ``float NaN and infinities are rejected on encode`` () =
 let ``Number too large for a float is a parse error`` () =
     Assert.Throws<SerdeJsonParseException>(fun () -> SerdeJson.deserialize<float> "1e400" |> ignore) |> ignore
 
-// -- Other numeric types are unaffected by the float representation --
+// -- int --
 
 [<Test>]
-let ``int int64 and decimal keep their wire shape`` () =
+let ``int is a JSON number`` () =
     Assert.That(SerdeJson.serialize 42, Is.EqualTo("42"))
     Assert.That(SerdeJson.serialize Int32.MinValue, Is.EqualTo("-2147483648"))
-    Assert.That(SerdeJson.serialize 1.50m, Is.EqualTo("1.50"))
     Assert.That(roundTrip Int32.MaxValue, Is.EqualTo(Int32.MaxValue))
+
+// -- int64 / uint64 / decimal --
+//
+// Written as JSON strings: a JavaScript client reads JSON numbers as doubles,
+// which silently corrupts anything past 2^53 or 15-17 significant digits.
+// Numbers are still accepted on decode.
+
+[<Test>]
+let ``int64 uint64 and decimal are written as JSON strings`` () =
+    Assert.That(SerdeJson.serialize 42L, Is.EqualTo("\"42\""))
+    Assert.That(SerdeJson.serialize -42L, Is.EqualTo("\"-42\""))
+    Assert.That(SerdeJson.serialize Int64.MaxValue, Is.EqualTo("\"9223372036854775807\""))
+    Assert.That(SerdeJson.serialize Int64.MinValue, Is.EqualTo("\"-9223372036854775808\""))
+    Assert.That(SerdeJson.serialize 42UL, Is.EqualTo("\"42\""))
+    Assert.That(SerdeJson.serialize UInt64.MaxValue, Is.EqualTo("\"18446744073709551615\""))
+    Assert.That(SerdeJson.serialize 1.50m, Is.EqualTo("\"1.50\""))
+    Assert.That(SerdeJson.serialize -0.1m, Is.EqualTo("\"-0.1\""))
+    Assert.That(SerdeJson.serialize Decimal.MaxValue, Is.EqualTo("\"79228162514264337593543950335\""))
+
+[<Test>]
+let ``int64 uint64 and decimal round-trip at their limits`` () =
+    Assert.That(roundTrip 9007199254740993L, Is.EqualTo(9007199254740993L))
     Assert.That(roundTrip Int64.MaxValue, Is.EqualTo(Int64.MaxValue))
     Assert.That(roundTrip Int64.MinValue, Is.EqualTo(Int64.MinValue))
     Assert.That(roundTrip Decimal.MaxValue, Is.EqualTo(Decimal.MaxValue))
     Assert.That(roundTrip 0.0000000000000000000000000001m, Is.EqualTo(0.0000000000000000000000000001m))
+    Assert.That(roundTrip Decimal.MinValue, Is.EqualTo(Decimal.MinValue))
+    Assert.That(roundTrip UInt64.MaxValue, Is.EqualTo(UInt64.MaxValue))
+    Assert.That(roundTrip 0UL, Is.EqualTo(0UL))
+    let nested = [ Some Int64.MaxValue; None; Some 0L ]
+    Assert.That(roundTrip nested, Is.EqualTo(nested))
+    let keyed = Map.ofList [ Int64.MinValue, 1.50m; 7L, Decimal.MaxValue ]
+    Assert.That(roundTrip keyed, Is.EqualTo(keyed))
+
+[<Test>]
+let ``int64 uint64 and decimal still decode JSON numbers`` () =
+    Assert.That(SerdeJson.deserialize<int64> "42", Is.EqualTo(42L))
+    Assert.That(SerdeJson.deserialize<int64> "-9223372036854775808", Is.EqualTo(Int64.MinValue))
+    Assert.That(SerdeJson.deserialize<uint64> "18446744073709551615", Is.EqualTo(UInt64.MaxValue))
+    Assert.That(SerdeJson.deserialize<decimal> "1.50", Is.EqualTo(1.50m))
+    Assert.That(SerdeJson.deserialize<decimal> "-3", Is.EqualTo(-3m))
+
+[<Test>]
+let ``decimal string decodes exponent notation`` () =
+    // A JavaScript decimal library may print very large or small values
+    // this way.
+    Assert.That(SerdeJson.deserialize<decimal> "\"1.5e+3\"", Is.EqualTo(1500m))
+    Assert.That(SerdeJson.deserialize<decimal> "\"1E-7\"", Is.EqualTo(0.0000001m))
+
+let private rejects<'T> (json: string) =
+    Assert.That((fun () -> SerdeJson.deserialize<'T> json |> ignore), Throws.Exception, json)
+
+[<Test>]
+let ``Malformed numeric strings are rejected`` () =
+    for json in [ "\"\""; "\"abc\""; "\" 42\""; "\"42 \""; "\"4 2\""; "\"1,000\""; "\"0x1F\""; "\"1.5\""; "\"1e3\""; "\"9223372036854775808\""; "true"; "null" ] do
+        rejects<int64> json
+    for json in [ "\"\""; "\"abc\""; "\"-1\""; "\" 42\""; "\"1,000\""; "\"1.5\""; "\"18446744073709551616\""; "-1"; "null" ] do
+        rejects<uint64> json
+    for json in [ "\"\""; "\"abc\""; "\" 1.5\""; "\"1,5\""; "\"1,000.5\""; "\"$5\""; "\"(5)\""; "\"NaN\""; "true"; "null" ] do
+        rejects<decimal> json
+
+[<Test>]
+let ``Numeric strings are written and read the same in every culture`` () =
+    for culture in cultures do
+        withCulture culture (fun () ->
+            Assert.That(SerdeJson.serialize -9000000000L, Is.EqualTo("\"-9000000000\""), culture)
+            Assert.That(SerdeJson.serialize 1234.5m, Is.EqualTo("\"1234.5\""), culture)
+            Assert.That(roundTrip -9000000000L, Is.EqualTo(-9000000000L), culture)
+            Assert.That(roundTrip 1234.5m, Is.EqualTo(1234.5m), culture)
+            Assert.That(roundTrip UInt64.MaxValue, Is.EqualTo(UInt64.MaxValue), culture))
 
 [<Test>]
 let ``Integers and decimals still decode exponent notation`` () =

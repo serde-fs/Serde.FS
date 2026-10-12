@@ -50,6 +50,7 @@ module CodecRegistry =
         |> add (typeof<decimal>, PrimitiveCodecs.decimalCodec |> JsonCodec.boxCodec)
         |> add (typeof<int>, PrimitiveCodecs.intCodec |> JsonCodec.boxCodec)
         |> add (typeof<int64>, PrimitiveCodecs.int64Codec |> JsonCodec.boxCodec)
+        |> add (typeof<uint64>, PrimitiveCodecs.uint64Codec |> JsonCodec.boxCodec)
         |> add (typeof<float>, PrimitiveCodecs.floatCodec |> JsonCodec.boxCodec)
         |> add (typeof<unit>, PrimitiveCodecs.unitCodec |> JsonCodec.boxCodec)
         |> add (typeof<byte[]>, PrimitiveCodecs.byteArrayCodec |> JsonCodec.boxCodec)

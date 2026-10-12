@@ -16,6 +16,9 @@ module rec ITagCountsApiFableClient =
         [<Emit("$0 == null")>]
         let isNullish (x: obj) : bool = jsNative
 
+        [<Emit("typeof $0 === 'string'")>]
+        let isString (x: obj) : bool = jsNative
+
         [<Emit("Object.prototype.hasOwnProperty.call($0, $1)")>]
         let hasKey (x: obj) (k: string) : bool = jsNative
 

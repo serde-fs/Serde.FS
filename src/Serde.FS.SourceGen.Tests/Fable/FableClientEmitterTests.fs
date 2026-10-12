@@ -237,6 +237,26 @@ let ``record referencing another record across namespaces`` () =
     SnapshotHarness.assertSnapshot "cross_namespace_record" actual
 
 [<Test>]
+let ``record with int64, uint64 and decimal fields`` () =
+    // These three travel as JSON strings (a JSON number would lose precision
+    // in a JS double); the decoders still accept a number.
+    let ledgerTi =
+        record "Domain" "LedgerEntry" [
+            "Id",       int64Ti
+            "Sequence", uint64Ti
+            "Amount",   decimalTi
+            "Parent",   opt int64Ti
+            "History",  listTi decimalTi
+        ]
+    let methods = [
+        methodOf "Post" ledgerTi int64Ti
+    ]
+    let iface = interfaceOf "Domain" "ILedgerApi" methods true
+    let types = [ toSerde ledgerTi ]
+    let actual = FableClientEmitter.emit iface types
+    SnapshotHarness.assertSnapshot "record_wide_numeric_fields" actual
+
+[<Test>]
 let ``single-case wrapper union (ProductId of int)`` () =
     let productIdTi = wrapperUnion "Domain" "ProductId" "ProductId" int32Ti
     let methods = [

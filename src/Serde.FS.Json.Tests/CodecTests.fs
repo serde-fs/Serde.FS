@@ -112,7 +112,7 @@ let ``PrimitiveCodecs int encodes correctly`` () =
 
 [<Test>]
 let ``PrimitiveCodecs int64 encodes correctly`` () =
-    Assert.AreEqual(Number 123456789m, PrimitiveCodecs.int64Encoder.Encode 123456789L)
+    Assert.AreEqual(String "123456789", PrimitiveCodecs.int64Encoder.Encode 123456789L)
 
 [<Test>]
 let ``PrimitiveCodecs float encodes correctly`` () =
@@ -120,7 +120,7 @@ let ``PrimitiveCodecs float encodes correctly`` () =
 
 [<Test>]
 let ``PrimitiveCodecs decimal encodes correctly`` () =
-    Assert.AreEqual(Number 3.14m, PrimitiveCodecs.decimalEncoder.Encode 3.14m)
+    Assert.AreEqual(String "3.14", PrimitiveCodecs.decimalEncoder.Encode 3.14m)
 
 [<Test>]
 let ``PrimitiveCodecs unit encodes correctly`` () =

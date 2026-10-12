@@ -136,8 +136,13 @@ module FableClientEmitter =
             | "bool" | "string"
             | "float" | "double" ->
                 sprintf "box (%s)" varExpr
-            | "int64" | "uint64" | "float32" | "single" | "decimal" ->
+            | "float32" | "single" ->
                 sprintf "box (float (%s))" varExpr
+            | "int64" | "uint64" | "decimal" ->
+                // JSON strings, matching PrimitiveCodecs on the server: a
+                // JSON number would pass through a JS double on the way in
+                // or out and lose precision past 2^53 / 15-17 digits.
+                sprintf "box (string (%s))" varExpr
             | "Guid" | "System.Guid" ->
                 sprintf "box (string (%s))" varExpr
             | "DateTime" | "System.DateTime"
@@ -194,13 +199,15 @@ module FableClientEmitter =
             | "byte" -> sprintf "(byte (unbox<float> %s))" jsonExpr
             | "uint16" -> sprintf "(uint16 (unbox<float> %s))" jsonExpr
             | "uint32" -> sprintf "(uint32 (unbox<float> %s))" jsonExpr
-            | "uint64" -> sprintf "(uint64 (unbox<float> %s))" jsonExpr
-            | "int64" -> sprintf "(int64 (unbox<float> %s))" jsonExpr
+            // int64 / uint64 / decimal arrive as JSON strings; a JSON number
+            // is still accepted, like the server-side decoders.
+            | "uint64" -> sprintf "(let v = %s in if Interop.isString v then System.UInt64.Parse (unbox<string> v) else uint64 (unbox<float> v))" jsonExpr
+            | "int64" -> sprintf "(let v = %s in if Interop.isString v then System.Int64.Parse (unbox<string> v) else int64 (unbox<float> v))" jsonExpr
             | "string" -> sprintf "(unbox<string> %s)" jsonExpr
             | "bool" -> sprintf "(unbox<bool> %s)" jsonExpr
             | "float" | "double" -> sprintf "(unbox<float> %s)" jsonExpr
             | "float32" | "single" -> sprintf "(float32 (unbox<float> %s))" jsonExpr
-            | "decimal" -> sprintf "(decimal (unbox<float> %s))" jsonExpr
+            | "decimal" -> sprintf "(let v = %s in if Interop.isString v then System.Decimal.Parse (unbox<string> v) else decimal (unbox<float> v))" jsonExpr
             | "Guid" | "System.Guid" -> sprintf "(System.Guid.Parse (unbox<string> %s))" jsonExpr
             | "DateTime" | "System.DateTime" -> sprintf "(System.DateTime.Parse (unbox<string> %s))" jsonExpr
             | "DateTimeOffset" | "System.DateTimeOffset" -> sprintf "(System.DateTimeOffset.Parse (unbox<string> %s))" jsonExpr
@@ -452,6 +459,9 @@ module FableClientEmitter =
         bappend ""
         bappend "    [<Emit(\"$0 == null\")>]"
         bappend "    let isNullish (x: obj) : bool = jsNative"
+        bappend ""
+        bappend "    [<Emit(\"typeof $0 === 'string'\")>]"
+        bappend "    let isString (x: obj) : bool = jsNative"
         bappend ""
         bappend "    [<Emit(\"Object.prototype.hasOwnProperty.call($0, $1)\")>]"
         bappend "    let hasKey (x: obj) (k: string) : bool = jsNative"

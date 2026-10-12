@@ -16,6 +16,9 @@ module rec IOrderApiFableClient =
         [<Emit("$0 == null")>]
         let isNullish (x: obj) : bool = jsNative
 
+        [<Emit("typeof $0 === 'string'")>]
+        let isString (x: obj) : bool = jsNative
+
         [<Emit("Object.prototype.hasOwnProperty.call($0, $1)")>]
         let hasKey (x: obj) (k: string) : bool = jsNative
 
@@ -27,13 +30,13 @@ module rec IOrderApiFableClient =
             createObj [
                 "Id", box (value.Id)
                 "Name", box (value.Name)
-                "Price", box (float (value.Price))
+                "Price", box (string (value.Price))
             ]
         let decode (json: obj) : Domain.Catalog.Product =
             {
                 Id = (unbox<int> (json?("Id")))
                 Name = (unbox<string> (json?("Name")))
-                Price = (decimal (unbox<float> (json?("Price"))))
+                Price = (let v = (json?("Price")) in if Interop.isString v then System.Decimal.Parse (unbox<string> v) else decimal (unbox<float> v))
             }
 
     module private OrderCodec =

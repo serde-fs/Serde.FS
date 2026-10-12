@@ -29,7 +29,7 @@ let ``serialize int round-trips`` () =
 [<Test>]
 let ``serialize int64 round-trips`` () =
     let json = SerdeJson.serialize 9999999999L
-    Assert.AreEqual("9999999999", json)
+    Assert.AreEqual("\"9999999999\"", json)
     Assert.AreEqual(9999999999L, SerdeJson.deserialize<int64> json)
 
 [<Test>]
