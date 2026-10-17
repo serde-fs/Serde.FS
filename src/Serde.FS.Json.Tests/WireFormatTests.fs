@@ -314,3 +314,67 @@ let ``Whole-number errors say what was wrong`` () =
     Assert.That(messageOf (fun () -> SerdeJson.deserialize<int> "1.9" |> ignore), Does.Contain("whole number").And.Contain("1.9"))
     Assert.That(messageOf (fun () -> SerdeJson.deserialize<int> "3000000000" |> ignore), Does.Contain("out of range").And.Contain("3000000000"))
     Assert.That(messageOf (fun () -> SerdeJson.deserialize<int64> "1.5" |> ignore), Does.Contain("whole number"))
+
+// -- Dates: ISO 8601 only --
+
+let private str (s: string) = "\"" + s + "\""
+
+[<Test>]
+let ``DateTime accepts ISO 8601 as written by .NET and Fable`` () =
+    let utc = DateTime(2026, 3, 14, 10, 30, 5, 123, DateTimeKind.Utc)
+    // .NET writes 7 fractional digits; Fable (JS Date) writes 3.
+    for s in [ "2026-03-14T10:30:05.1230000Z"; "2026-03-14T10:30:05.123Z" ] do
+        let v = SerdeJson.deserialize<DateTime> (str s)
+        Assert.That(v, Is.EqualTo(utc), s)
+        Assert.That(v.Kind, Is.EqualTo(DateTimeKind.Utc), s)
+    let unspecified = SerdeJson.deserialize<DateTime> (str "2026-03-14T10:30:05.123")
+    Assert.That(unspecified, Is.EqualTo(DateTime(2026, 3, 14, 10, 30, 5, 123)))
+    Assert.That(unspecified.Kind, Is.EqualTo(DateTimeKind.Unspecified))
+    Assert.That(SerdeJson.deserialize<DateTime> (str "2026-03-14T10:30:05Z"), Is.EqualTo(DateTime(2026, 3, 14, 10, 30, 5, DateTimeKind.Utc)))
+    let withOffset = SerdeJson.deserialize<DateTime> (str "2026-03-14T10:30:05.123-04:00")
+    Assert.That(withOffset.ToUniversalTime(), Is.EqualTo(DateTime(2026, 3, 14, 14, 30, 5, 123, DateTimeKind.Utc)))
+
+[<Test>]
+let ``DateTime rejects non-ISO strings`` () =
+    for s in [ "01/02/2026"; "March 14 2026"; "2026-03-14 10:30:05"; "2026-3-14T10:30:05"; "2026-03-14"
+               "2026-03-14T10:30Z"; "2026-03-14T10:30:05."; "2026-03-14T10:30:05.Z"; "2026-03-14T10:30:05.12345678Z"
+               "2026-03-14T10:30:05+0200"; "2026-03-14T10:30:05+02"; " 2026-03-14T10:30:05Z"; "2026-03-14T10:30:05Z "
+               "2026-13-14T10:30:05Z"; "2026-03-14T24:00:00Z"; "２０２６-03-14T10:30:05Z"; "" ] do
+        rejects<DateTime> (str s)
+
+[<Test>]
+let ``DateTimeOffset accepts ISO 8601 with an offset`` () =
+    let expected = DateTimeOffset(2026, 3, 14, 10, 30, 5, 123, TimeSpan.FromHours 2.0)
+    for s in [ "2026-03-14T10:30:05.1230000+02:00"; "2026-03-14T10:30:05.123+02:00" ] do
+        let v = SerdeJson.deserialize<DateTimeOffset> (str s)
+        Assert.That(v, Is.EqualTo(expected), s)
+        Assert.That(v.Offset, Is.EqualTo(TimeSpan.FromHours 2.0), s)
+    let z = SerdeJson.deserialize<DateTimeOffset> (str "2026-03-14T10:30:05Z")
+    Assert.That(z.Offset, Is.EqualTo(TimeSpan.Zero))
+    Assert.That(z.UtcDateTime, Is.EqualTo(DateTime(2026, 3, 14, 10, 30, 5, DateTimeKind.Utc)))
+
+[<Test>]
+let ``DateTimeOffset rejects strings without an offset or not ISO`` () =
+    // Without an offset the instant would depend on the server's time zone.
+    for s in [ "2026-03-14T10:30:05"; "2026-03-14T10:30:05.123"; "03/14/2026 10:30:05 +02:00"; "2026-03-14T10:30:05+0200"
+               "2026-03-14T10:30:05.+02:00"; "2026-03-14" ] do
+        rejects<DateTimeOffset> (str s)
+
+[<Test>]
+let ``DateOnly accepts only yyyy-MM-dd`` () =
+    Assert.That(SerdeJson.deserialize<DateOnly> (str "2026-03-14"), Is.EqualTo(DateOnly(2026, 3, 14)))
+    for s in [ "03/14/2026"; "14.03.2026"; "2026-3-14"; "20260314"; "2026-03-14T00:00:00"; "2026-02-30"; "March 14, 2026" ] do
+        rejects<DateOnly> (str s)
+
+[<Test>]
+let ``TimeOnly accepts only HH:mm:ss with optional fraction`` () =
+    for s in [ "10:30:05.1230000"; "10:30:05.123" ] do
+        Assert.That(SerdeJson.deserialize<TimeOnly> (str s), Is.EqualTo(TimeOnly(10, 30, 5, 123)), s)
+    Assert.That(SerdeJson.deserialize<TimeOnly> (str "10:30:05"), Is.EqualTo(TimeOnly(10, 30, 5)))
+    for s in [ "10:30"; "10:30 AM"; "1:30:05"; "10:30:05."; "25:00:00"; "10:30:05Z"; "10:30:05.12345678" ] do
+        rejects<TimeOnly> (str s)
+
+[<Test>]
+let ``Date errors name the type and the expected format`` () =
+    let ex = Assert.Catch(fun () -> SerdeJson.deserialize<DateTime> (str "01/02/2026") |> ignore)
+    Assert.That(ex.Message, Does.Contain("DateTime").And.Contain("ISO 8601").And.Contain("01/02/2026"))

@@ -225,6 +225,30 @@ module PrimitiveCodecs =
                 | JsonValue.String s -> Guid.Parse s
                 | _ -> failwith "Expected JSON string (Guid)" }
 
+    // Dates decode from ISO 8601 only. `Parse` would also accept culture-shaped
+    // text like "01/02/2026", whose meaning depends on who wrote it. The shape
+    // check rejects what ParseExact lets through (a trailing '.', "+0200");
+    // ParseExact then validates the values. [0-9] rather than \d, which also
+    // matches non-ASCII digits. Fractions: .NET writes 7 digits, JS Date 3.
+    let private isoShape (pattern: string) =
+        Text.RegularExpressions.Regex("^" + pattern + "$", Text.RegularExpressions.RegexOptions.CultureInvariant)
+    let private datePart = "[0-9]{4}-[0-9]{2}-[0-9]{2}"
+    let private timePart = "[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?"
+    let private offsetPart = "(Z|[+-][0-9]{2}:[0-9]{2})"
+    let private dateTimeShape = isoShape (datePart + "T" + timePart + offsetPart + "?")
+    let private dateTimeOffsetShape = isoShape (datePart + "T" + timePart + offsetPart)
+    let private dateOnlyShape = isoShape datePart
+    let private timeOnlyShape = isoShape timePart
+
+    let private isoString (typeName: string) (example: string) (shape: Text.RegularExpressions.Regex) (json: JsonValue) : string =
+        match json with
+        | JsonValue.String s when shape.IsMatch s -> s
+        | JsonValue.String s -> failwith $"Expected an ISO 8601 %s{typeName} like \"%s{example}\", got \"%s{s}\""
+        | _ -> failwith $"Expected JSON string (%s{typeName})"
+
+    let private invalidDate (typeName: string) (s: string) : 'T =
+        failwith $"\"%s{s}\" is not a valid %s{typeName}"
+
     let dateTimeEncoder : IJsonEncoder<DateTime> =
         { new IJsonEncoder<DateTime> with
             member _.Encode v = JsonValue.String (v.ToString("O", Globalization.CultureInfo.InvariantCulture)) }
@@ -232,9 +256,10 @@ module PrimitiveCodecs =
     let dateTimeDecoder : IJsonDecoder<DateTime> =
         { new IJsonDecoder<DateTime> with
             member _.Decode json =
-                match json with
-                | JsonValue.String s -> DateTime.Parse(s, Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.RoundtripKind)
-                | _ -> failwith "Expected JSON string (DateTime)" }
+                let s = isoString "DateTime" "2026-03-14T10:30:05.1230000Z" dateTimeShape json
+                match DateTime.TryParseExact(s, "yyyy-MM-dd'T'HH:mm:ss.FFFFFFFK", invariant, Globalization.DateTimeStyles.RoundtripKind) with
+                | true, v -> v
+                | _ -> invalidDate "DateTime" s }
 
     let dateTimeOffsetEncoder : IJsonEncoder<DateTimeOffset> =
         { new IJsonEncoder<DateTimeOffset> with
@@ -243,9 +268,11 @@ module PrimitiveCodecs =
     let dateTimeOffsetDecoder : IJsonDecoder<DateTimeOffset> =
         { new IJsonDecoder<DateTimeOffset> with
             member _.Decode json =
-                match json with
-                | JsonValue.String s -> DateTimeOffset.Parse(s, Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.RoundtripKind)
-                | _ -> failwith "Expected JSON string (DateTimeOffset)" }
+                let s = isoString "DateTimeOffset" "2026-03-14T10:30:05.1230000+02:00" dateTimeOffsetShape json
+                let formats = [| "yyyy-MM-dd'T'HH:mm:ss.FFFFFFFzzz"; "yyyy-MM-dd'T'HH:mm:ss.FFFFFFF'Z'" |]
+                match DateTimeOffset.TryParseExact(s, formats, invariant, Globalization.DateTimeStyles.AssumeUniversal) with
+                | true, v -> v
+                | _ -> invalidDate "DateTimeOffset" s }
 
     let dateOnlyEncoder : IJsonEncoder<DateOnly> =
         { new IJsonEncoder<DateOnly> with
@@ -254,9 +281,10 @@ module PrimitiveCodecs =
     let dateOnlyDecoder : IJsonDecoder<DateOnly> =
         { new IJsonDecoder<DateOnly> with
             member _.Decode json =
-                match json with
-                | JsonValue.String s -> DateOnly.Parse(s, Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.None)
-                | _ -> failwith "Expected JSON string (DateOnly)" }
+                let s = isoString "DateOnly" "2026-03-14" dateOnlyShape json
+                match DateOnly.TryParseExact(s, "yyyy-MM-dd", invariant, Globalization.DateTimeStyles.None) with
+                | true, v -> v
+                | _ -> invalidDate "DateOnly" s }
 
     let timeOnlyEncoder : IJsonEncoder<TimeOnly> =
         { new IJsonEncoder<TimeOnly> with
@@ -265,9 +293,10 @@ module PrimitiveCodecs =
     let timeOnlyDecoder : IJsonDecoder<TimeOnly> =
         { new IJsonDecoder<TimeOnly> with
             member _.Decode json =
-                match json with
-                | JsonValue.String s -> TimeOnly.Parse(s, Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.None)
-                | _ -> failwith "Expected JSON string (TimeOnly)" }
+                let s = isoString "TimeOnly" "10:30:05.1230000" timeOnlyShape json
+                match TimeOnly.TryParseExact(s, "HH:mm:ss.FFFFFFF", invariant, Globalization.DateTimeStyles.None) with
+                | true, v -> v
+                | _ -> invalidDate "TimeOnly" s }
 
     // -- Combined codecs --
 
