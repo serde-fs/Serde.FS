@@ -284,3 +284,33 @@ let ``Unpaired surrogates survive both the string and the UTF-8 path`` () =
     let paired = string high + string low
     Assert.That(SerdeJson.serialize paired, Is.EqualTo("\"" + paired + "\""))
     Assert.That(SerdeJson.deserializeFromUtf8<string> (SerdeJson.serializeToUtf8 paired), Is.EqualTo(paired))
+
+// -- Whole-number strictness for int / int64 / uint64 number input --
+
+[<Test>]
+let ``int rejects fractional out-of-range and non-numeric input`` () =
+    for json in [ "1.9"; "-0.5"; "1e-1"; "1e-30"; "2147483648"; "-2147483649"; "3000000000"; "1e40"; "\"5\""; "null"; "true" ] do
+        rejects<int> json
+
+[<Test>]
+let ``int accepts whole numbers in any number form`` () =
+    Assert.That(SerdeJson.deserialize<int> "2147483647", Is.EqualTo(Int32.MaxValue))
+    Assert.That(SerdeJson.deserialize<int> "-2147483648", Is.EqualTo(Int32.MinValue))
+    Assert.That(SerdeJson.deserialize<int> "2.0", Is.EqualTo(2))
+    Assert.That(SerdeJson.deserialize<int> "1e2", Is.EqualTo(100))
+    Assert.That(SerdeJson.deserialize<int> "-0", Is.EqualTo(0))
+
+[<Test>]
+let ``int64 and uint64 number input must be whole and in range`` () =
+    for json in [ "1.5"; "9223372036854775808"; "-9223372036854775809"; "1e40" ] do rejects<int64> json
+    for json in [ "1.5"; "-1"; "18446744073709551616"; "1e40" ] do rejects<uint64> json
+    Assert.That(SerdeJson.deserialize<int64> "9223372036854775807", Is.EqualTo(Int64.MaxValue))
+    Assert.That(SerdeJson.deserialize<int64> "3.0", Is.EqualTo(3L))
+    Assert.That(SerdeJson.deserialize<uint64> "1e3", Is.EqualTo(1000UL))
+
+[<Test>]
+let ``Whole-number errors say what was wrong`` () =
+    let messageOf (f: unit -> unit) = (Assert.Catch(fun () -> f ())).Message
+    Assert.That(messageOf (fun () -> SerdeJson.deserialize<int> "1.9" |> ignore), Does.Contain("whole number").And.Contain("1.9"))
+    Assert.That(messageOf (fun () -> SerdeJson.deserialize<int> "3000000000" |> ignore), Does.Contain("out of range").And.Contain("3000000000"))
+    Assert.That(messageOf (fun () -> SerdeJson.deserialize<int64> "1.5" |> ignore), Does.Contain("whole number"))

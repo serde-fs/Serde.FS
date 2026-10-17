@@ -39,6 +39,25 @@ module PrimitiveCodecs =
 
     let private invariant = Globalization.CultureInfo.InvariantCulture
 
+    /// Reads a JSON number as a whole number within [min, max]. Fractions and
+    /// out-of-range values are errors rather than being truncated or wrapped.
+    let private wholeNumber (typeName: string) (min: decimal) (max: decimal) (json: JsonValue) : decimal =
+        let outOfRange (shown: string) = failwith $"%s{shown} is out of range for %s{typeName}"
+        let notWhole (shown: string) = failwith $"Expected a whole number for %s{typeName}, got %s{shown}"
+        let n =
+            match json with
+            | JsonValue.Number n -> n
+            // Checked on the double: converting 1e-30 to decimal gives 0.
+            | JsonValue.Float f when f <> Math.Truncate f -> notWhole (f.ToString("R", invariant))
+            // Guard before converting: a double past decimal's range would
+            // overflow, and no supported integer type is anywhere near it.
+            | JsonValue.Float f when abs f < 1e20 -> decimal f
+            | JsonValue.Float f -> outOfRange (f.ToString("R", invariant))
+            | _ -> failwith $"Expected JSON number (%s{typeName})"
+        if n <> Math.Truncate n then notWhole (n.ToString(invariant))
+        elif n < min || n > max then outOfRange (n.ToString(invariant))
+        else n
+
     let decimalEncoder : IJsonEncoder<decimal> =
         { new IJsonEncoder<decimal> with
             member _.Encode v = JsonValue.String (v.ToString("G", invariant)) }
@@ -68,10 +87,7 @@ module PrimitiveCodecs =
     let intDecoder : IJsonDecoder<int> =
         { new IJsonDecoder<int> with
             member _.Decode json =
-                match json with
-                | JsonValue.Number n -> int n
-                | JsonValue.Float f -> int (decimal f)
-                | _ -> failwith "Expected JSON number" }
+                int (wholeNumber "int" (decimal Int32.MinValue) (decimal Int32.MaxValue) json) }
 
     let int64Encoder : IJsonEncoder<int64> =
         { new IJsonEncoder<int64> with
@@ -85,9 +101,7 @@ module PrimitiveCodecs =
                     match Int64.TryParse(s, Globalization.NumberStyles.AllowLeadingSign, invariant) with
                     | true, n -> n
                     | _ -> failwith $"Expected an int64 in a JSON string, got \"%s{s}\""
-                | JsonValue.Number n -> int64 n
-                | JsonValue.Float f -> int64 (decimal f)
-                | _ -> failwith "Expected JSON string or number (int64)" }
+                | _ -> int64 (wholeNumber "int64" (decimal Int64.MinValue) (decimal Int64.MaxValue) json) }
 
     let uint64Encoder : IJsonEncoder<uint64> =
         { new IJsonEncoder<uint64> with
@@ -101,26 +115,7 @@ module PrimitiveCodecs =
                     match UInt64.TryParse(s, Globalization.NumberStyles.None, invariant) with
                     | true, n -> n
                     | _ -> failwith $"Expected a uint64 in a JSON string, got \"%s{s}\""
-                | JsonValue.Number n -> uint64 n
-                | JsonValue.Float f -> uint64 (decimal f)
-                | _ -> failwith "Expected JSON string or number (uint64)" }
-
-    /// Reads a JSON number as a whole number within [min, max]. Fractions and
-    /// out-of-range values are errors rather than being truncated or wrapped.
-    let private wholeNumber (typeName: string) (min: decimal) (max: decimal) (json: JsonValue) : decimal =
-        let outOfRange (shown: string) = failwith $"%s{shown} is out of range for %s{typeName}"
-        let n =
-            match json with
-            | JsonValue.Number n -> n
-            // Guard before converting: a double past decimal's range would
-            // overflow, and no supported integer type is anywhere near it.
-            | JsonValue.Float f when abs f < 1e20 -> decimal f
-            | JsonValue.Float f -> outOfRange (f.ToString("R", invariant))
-            | _ -> failwith $"Expected JSON number (%s{typeName})"
-        if n <> Math.Truncate n then
-            failwith $"Expected a whole number for %s{typeName}, got %s{n.ToString(invariant)}"
-        elif n < min || n > max then outOfRange (n.ToString(invariant))
-        else n
+                | _ -> uint64 (wholeNumber "uint64" (decimal UInt64.MinValue) (decimal UInt64.MaxValue) json) }
 
     let private wholeNumberCodec<'T> (typeName: string) (min: decimal) (max: decimal) (toDecimal: 'T -> decimal) (ofDecimal: decimal -> 'T) : IJsonCodec<'T> =
         { new IJsonCodec<'T> with
