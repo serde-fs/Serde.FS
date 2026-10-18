@@ -22,6 +22,20 @@ module rec ICacheApiFableClient =
         [<Emit("Object.prototype.hasOwnProperty.call($0, $1)")>]
         let hasKey (x: obj) (k: string) : bool = jsNative
 
+        let parseDateTime (s: string) : System.DateTime =
+            let d = System.DateTime.Parse s
+            if s.EndsWith "Z" then d.ToUniversalTime()
+            elif s.Length > 19 && (s.[s.Length - 6] = '+' || s.[s.Length - 6] = '-') then System.DateTime.SpecifyKind(d, System.DateTimeKind.Local)
+            else d
+
+        let parseDateTimeOffset (s: string) : System.DateTimeOffset =
+            let offset =
+                if s.EndsWith "Z" then System.TimeSpan.Zero
+                else
+                    let sign = if s.[s.Length - 6] = '-' then -1.0 else 1.0
+                    System.TimeSpan.FromMinutes(sign * (float (int (s.Substring(s.Length - 5, 2))) * 60.0 + float (int (s.Substring(s.Length - 2, 2)))))
+            System.DateTimeOffset((System.DateTime.Parse s).ToUniversalTime()).ToOffset(offset)
+
         [<Emit("fetch($0, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: $1 }).then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status + ' at ' + $0); } return r.text(); })")>]
         let postJson (url: string) (body: string) : JS.Promise<string> = jsNative
 

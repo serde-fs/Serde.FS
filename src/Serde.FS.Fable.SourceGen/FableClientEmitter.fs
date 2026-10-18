@@ -211,8 +211,8 @@ module FableClientEmitter =
             | "float32" | "single" -> sprintf "(float32 (unbox<float> %s))" jsonExpr
             | "decimal" -> sprintf "(let v = %s in if Interop.isString v then System.Decimal.Parse (unbox<string> v) else decimal (unbox<float> v))" jsonExpr
             | "Guid" | "System.Guid" -> sprintf "(System.Guid.Parse (unbox<string> %s))" jsonExpr
-            | "DateTime" | "System.DateTime" -> sprintf "(System.DateTime.Parse (unbox<string> %s))" jsonExpr
-            | "DateTimeOffset" | "System.DateTimeOffset" -> sprintf "(System.DateTimeOffset.Parse (unbox<string> %s))" jsonExpr
+            | "DateTime" | "System.DateTime" -> sprintf "(Interop.parseDateTime (unbox<string> %s))" jsonExpr
+            | "DateTimeOffset" | "System.DateTimeOffset" -> sprintf "(Interop.parseDateTimeOffset (unbox<string> %s))" jsonExpr
             | "DateOnly" | "System.DateOnly" -> sprintf "(System.DateOnly.Parse (unbox<string> %s))" jsonExpr
             | "TimeOnly" | "System.TimeOnly" -> sprintf "(System.TimeOnly.Parse (unbox<string> %s))" jsonExpr
             | _ -> sprintf "(unbox %s)" jsonExpr
@@ -467,6 +467,27 @@ module FableClientEmitter =
         bappend ""
         bappend "    [<Emit(\"Object.prototype.hasOwnProperty.call($0, $1)\")>]"
         bappend "    let hasKey (x: obj) (k: string) : bool = jsNative"
+        bappend ""
+        // Fable's DateTime.Parse returns local wall-clock time with Kind
+        // Unspecified whatever the input says, so a UTC value echoed back to the
+        // server would shift by the browser's offset. Restore the kind the way
+        // .NET's RoundtripKind does: Z -> Utc, offset -> Local, none -> as written.
+        bappend "    let parseDateTime (s: string) : System.DateTime ="
+        bappend "        let d = System.DateTime.Parse s"
+        bappend "        if s.EndsWith \"Z\" then d.ToUniversalTime()"
+        bappend "        elif s.Length > 19 && (s.[s.Length - 6] = '+' || s.[s.Length - 6] = '-') then System.DateTime.SpecifyKind(d, System.DateTimeKind.Local)"
+        bappend "        else d"
+        bappend ""
+        // Fable's DateTimeOffset.Parse keeps the instant but replaces the offset
+        // with the browser's. Read the offset from the string (Z or +HH:mm, the
+        // only forms the server accepts) and reapply it.
+        bappend "    let parseDateTimeOffset (s: string) : System.DateTimeOffset ="
+        bappend "        let offset ="
+        bappend "            if s.EndsWith \"Z\" then System.TimeSpan.Zero"
+        bappend "            else"
+        bappend "                let sign = if s.[s.Length - 6] = '-' then -1.0 else 1.0"
+        bappend "                System.TimeSpan.FromMinutes(sign * (float (int (s.Substring(s.Length - 5, 2))) * 60.0 + float (int (s.Substring(s.Length - 2, 2)))))"
+        bappend "        System.DateTimeOffset((System.DateTime.Parse s).ToUniversalTime()).ToOffset(offset)"
         bappend ""
         bappend "    [<Emit(\"fetch($0, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: $1 }).then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status + ' at ' + $0); } return r.text(); })\")>]"
         bappend "    let postJson (url: string) (body: string) : JS.Promise<string> = jsNative"

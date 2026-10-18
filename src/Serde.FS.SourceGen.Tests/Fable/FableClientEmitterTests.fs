@@ -278,6 +278,26 @@ let ``record with small numeric and char fields`` () =
     SnapshotHarness.assertSnapshot "record_small_numeric_and_char_fields" actual
 
 [<Test>]
+let ``record with date and time fields decodes via kind-preserving helpers`` () =
+    let sampleTi =
+        record "Domain" "Sample" [
+            "CreatedAt", dateTimeTi
+            "Scheduled", dateTimeOffsetTi
+            "Day",       dateOnlyTi
+            "At",        timeOnlyTi
+            "DeletedAt", opt dateTimeTi
+        ]
+    let methods = [
+        methodOf "Echo" sampleTi dateTimeTi
+    ]
+    let iface = interfaceOf "Domain" "ISampleApi" methods true
+    let types = [ toSerde sampleTi ]
+    let actual = FableClientEmitter.emit iface types
+    Assert.That(actual, Does.Not.Contain("System.DateTime.Parse (unbox"))
+    Assert.That(actual, Does.Not.Contain("System.DateTimeOffset.Parse"))
+    SnapshotHarness.assertSnapshot "record_date_time_fields" actual
+
+[<Test>]
 let ``single-case wrapper union (ProductId of int)`` () =
     let productIdTi = wrapperUnion "Domain" "ProductId" "ProductId" int32Ti
     let methods = [

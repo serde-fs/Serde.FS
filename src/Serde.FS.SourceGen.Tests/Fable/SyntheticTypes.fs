@@ -34,6 +34,10 @@ let uint16Ti  = prim UInt16 "uint16"
 let uint32Ti  = prim UInt32 "uint32"
 let float32Ti = prim Float32 "float32"
 let charTi    = prim PrimitiveKind.Char "char"
+let dateTimeTi       = prim PrimitiveKind.DateTime "DateTime"
+let dateTimeOffsetTi = prim PrimitiveKind.DateTimeOffset "DateTimeOffset"
+let dateOnlyTi       = prim PrimitiveKind.DateOnly "DateOnly"
+let timeOnlyTi       = prim PrimitiveKind.TimeOnly "TimeOnly"
 
 // ── Structural wrappers ────────────────────────────────────────────────────
 
