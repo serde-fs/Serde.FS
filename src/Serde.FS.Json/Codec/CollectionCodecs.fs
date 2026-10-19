@@ -62,6 +62,9 @@ module CollectionCodecs =
     let arrayCodecOf<'T> (resolveElement: unit -> IJsonCodec) : IJsonCodec<'T[]> =
         { new IJsonCodec<'T[]> with
             member _.Encode value =
+                // Arrays and seqs can be null at interop boundaries; written
+                // as JSON null, like a null string (see PrimitiveCodecs).
+                if isNull value then JsonValue.Null else
                 let elemCodec = resolveElement ()
                 JsonValue.Array [ for v in value -> elemCodec.Encode(box v) ]
             member _.Decode json =
@@ -69,6 +72,7 @@ module CollectionCodecs =
                 | JsonValue.Array items ->
                     let elemCodec = resolveElement ()
                     [| for item in items -> elemCodec.Decode item :?> 'T |]
+                | JsonValue.Null -> null
                 | _ -> failwith $"Expected JSON array for %s{typeof<'T[]>.Name}" }
 
     /// Typed codec for `seq<'T>`. JSON array of elements; decodes to an array
@@ -76,6 +80,9 @@ module CollectionCodecs =
     let seqCodecOf<'T> (resolveElement: unit -> IJsonCodec) : IJsonCodec<seq<'T>> =
         { new IJsonCodec<seq<'T>> with
             member _.Encode value =
+                // Arrays and seqs can be null at interop boundaries; written
+                // as JSON null, like a null string (see PrimitiveCodecs).
+                if isNull value then JsonValue.Null else
                 let elemCodec = resolveElement ()
                 JsonValue.Array [ for v in value -> elemCodec.Encode(box v) ]
             member _.Decode json =
@@ -83,6 +90,7 @@ module CollectionCodecs =
                 | JsonValue.Array items ->
                     let elemCodec = resolveElement ()
                     [| for item in items -> elemCodec.Decode item :?> 'T |] :> seq<'T>
+                | JsonValue.Null -> null
                 | _ -> failwith $"Expected JSON array for %s{typeof<seq<'T>>.Name}" }
 
     /// Typed codec for `Set<'T>`. JSON array of elements.
@@ -261,6 +269,7 @@ module CollectionCodecs =
             { new IJsonCodec with
                 member _.Type = arrayType
                 member _.Encode obj =
+                    if isNull obj then JsonValue.Null else
                     let items =
                         [ for elem in (obj :?> IEnumerable) -> elemCodec.Encode elem ]
                     JsonValue.Array items
@@ -269,6 +278,7 @@ module CollectionCodecs =
                     | JsonValue.Array items ->
                         let decoded = items |> List.map elemCodec.Decode
                         Dyn.toTypedArray elemType decoded :> obj
+                    | JsonValue.Null -> null
                     | _ -> failwith $"Expected JSON array for %s{arrayType.Name}" }
 
     /// Factory for constructing seq<'T> (IEnumerable<'T>) codecs dynamically from the registry.
@@ -283,6 +293,7 @@ module CollectionCodecs =
             { new IJsonCodec with
                 member _.Type = seqType
                 member _.Encode obj =
+                    if isNull obj then JsonValue.Null else
                     let items =
                         [ for elem in (obj :?> IEnumerable) -> elemCodec.Encode elem ]
                     JsonValue.Array items
@@ -291,6 +302,7 @@ module CollectionCodecs =
                     | JsonValue.Array items ->
                         let decoded = items |> List.map elemCodec.Decode
                         Dyn.toTypedArray elemType decoded :> obj
+                    | JsonValue.Null -> null
                     | _ -> failwith $"Expected JSON array for %s{seqType.Name}" }
 
     /// Factory for constructing List<'T> codecs dynamically from the registry.

@@ -205,13 +205,17 @@ module PrimitiveCodecs =
 
     let byteArrayEncoder : IJsonEncoder<byte[]> =
         { new IJsonEncoder<byte[]> with
-            member _.Encode bytes = JsonValue.String (Convert.ToBase64String bytes) }
+            // Null at interop boundaries (SQL nullable VARBINARY): JSON null,
+            // matching stringEncoder.
+            member _.Encode bytes =
+                if isNull bytes then JsonValue.Null else JsonValue.String (Convert.ToBase64String bytes) }
 
     let byteArrayDecoder : IJsonDecoder<byte[]> =
         { new IJsonDecoder<byte[]> with
             member _.Decode json =
                 match json with
                 | JsonValue.String base64 -> Convert.FromBase64String base64
+                | JsonValue.Null -> null
                 | _ -> failwith "Expected JSON string (Base64)" }
 
     let guidEncoder : IJsonEncoder<Guid> =

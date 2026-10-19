@@ -101,6 +101,14 @@ type Patch = {
     Deep: int option option option
 }
 
+[<Serde>]
+type Blob = {
+    Name: string option
+    Payload: byte[]
+    Thumb: byte[] option
+    Ids: int[]
+}
+
 // -----------------------------
 // Entry Point
 // -----------------------------
@@ -227,5 +235,16 @@ let run _argv =
     let patches = [ patch; { Nickname = Some (Some "x"); Ack = None; Age = None; Deep = Some (Some (Some 7)) } ]
     let patchesJson = SerdeJson.serialize patches
     roundtrip "Patch list" patches patchesJson (SerdeJson.deserialize<Patch list> patchesJson)
+
+    // -----------------------------------------
+    // 6. Null references from interop: Some null is sent as None
+    // -----------------------------------------
+    let blob = { Name = Some null; Payload = null; Thumb = Some null; Ids = null }
+    let blobJson = SerdeJson.serialize blob
+    let expectedBlobJson = """{"Name":null,"Payload":null,"Thumb":null,"Ids":null}"""
+    if blobJson <> expectedBlobJson then
+        eprintfn "Blob JSON: MISMATCH\n  expected %s\n  got      %s" expectedBlobJson blobJson
+        exit 1
+    roundtrip "Blob" { blob with Name = None; Thumb = None } blobJson (SerdeJson.deserialize<Blob> blobJson)
 
     0

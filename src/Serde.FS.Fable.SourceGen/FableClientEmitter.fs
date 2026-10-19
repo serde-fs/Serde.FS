@@ -168,9 +168,14 @@ module FableClientEmitter =
         // (PrimitiveCodecs.byteArrayEncoder); the Fable client must mirror it
         // or the round-trip breaks. Specific case has to come before the
         // generic FArray branch below.
+        //
+        // byte[], arrays and seqs can be null (JS interop, or values the server
+        // sent as null); they go out as null, matching the server codecs.
         | FArray (FPrim "byte") ->
-            sprintf "(box (System.Convert.ToBase64String (%s)))" varExpr
-        | FList inner | FArray inner | FSet inner | FSeq inner ->
+            sprintf "(let b = %s in if Interop.isNullish (box b) then null else box (System.Convert.ToBase64String b))" varExpr
+        | FArray inner | FSeq inner ->
+            sprintf "(let xs = %s in if Interop.isNullish (box xs) then null else xs |> Seq.map (fun x -> %s) |> Array.ofSeq |> box)" varExpr (encodeExpr "x" inner)
+        | FList inner | FSet inner ->
             sprintf "(%s |> Seq.map (fun x -> %s) |> Array.ofSeq |> box)" varExpr (encodeExpr "x" inner)
         | FMap (k, v) ->
             // Wire shape: [[k, v], [k, v], ...] — matches CollectionCodecs.MapCodecFactory
@@ -230,14 +235,15 @@ module FableClientEmitter =
             // Wire shape is identical to FList, but the consuming F# context
             // expects a seq<T>, not a list<T>. F# doesn't auto-coerce list to
             // seq in record-field init / interface member overrides.
-            sprintf "(unbox<obj[]> %s |> Array.map (fun x -> %s) :> seq<_>)" jsonExpr (decodeExpr "x" inner)
+            sprintf "(let v = %s in if Interop.isNullish v then null else unbox<obj[]> v |> Array.map (fun x -> %s) :> seq<_>)" jsonExpr (decodeExpr "x" inner)
         // byte[] is base64-encoded on the wire (server-side PrimitiveCodecs).
         // Decode via System.Convert.FromBase64String, which Fable implements
         // against the runtime's atob — yielding a Uint8Array F# sees as byte[].
+        // A null byte[] / array / seq from the server decodes to null.
         | FArray (FPrim "byte") ->
-            sprintf "(System.Convert.FromBase64String (unbox<string> %s))" jsonExpr
+            sprintf "(let v = %s in if Interop.isNullish v then null else System.Convert.FromBase64String (unbox<string> v))" jsonExpr
         | FArray inner ->
-            sprintf "(unbox<obj[]> %s |> Array.map (fun x -> %s))" jsonExpr (decodeExpr "x" inner)
+            sprintf "(let v = %s in if Interop.isNullish v then null else unbox<obj[]> v |> Array.map (fun x -> %s))" jsonExpr (decodeExpr "x" inner)
         | FSet inner ->
             sprintf "(unbox<obj[]> %s |> Array.map (fun x -> %s) |> Set.ofArray)" jsonExpr (decodeExpr "x" inner)
         | FMap (k, v) ->

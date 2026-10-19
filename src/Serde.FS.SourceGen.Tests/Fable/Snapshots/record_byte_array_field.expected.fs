@@ -42,11 +42,11 @@ module rec IExportApiFableClient =
     module private ExportCodec =
         let encode (value: Domain.Export) : obj =
             createObj [
-                "Payload", (box (System.Convert.ToBase64String (value.Payload)))
+                "Payload", (let b = value.Payload in if Interop.isNullish (box b) then null else box (System.Convert.ToBase64String b))
             ]
         let decode (json: obj) : Domain.Export =
             {
-                Payload = (System.Convert.FromBase64String (unbox<string> (json?("Payload"))))
+                Payload = (let v = (json?("Payload")) in if Interop.isNullish v then null else System.Convert.FromBase64String (unbox<string> v))
             }
 
     let create (baseUrl: string) : Domain.IExportApi =

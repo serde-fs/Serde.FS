@@ -42,11 +42,11 @@ module rec ICacheApiFableClient =
     module private CacheCodec =
         let encode (value: Domain.Cache) : obj =
             createObj [
-                "Tags", (value.Tags |> Seq.map (fun x -> box (x)) |> Array.ofSeq |> box)
+                "Tags", (let xs = value.Tags in if Interop.isNullish (box xs) then null else xs |> Seq.map (fun x -> box (x)) |> Array.ofSeq |> box)
             ]
         let decode (json: obj) : Domain.Cache =
             {
-                Tags = (unbox<obj[]> (json?("Tags")) |> Array.map (fun x -> (unbox<string> x)) :> seq<_>)
+                Tags = (let v = (json?("Tags")) in if Interop.isNullish v then null else unbox<obj[]> v |> Array.map (fun x -> (unbox<string> x)) :> seq<_>)
             }
 
     let create (baseUrl: string) : Domain.ICacheApi =

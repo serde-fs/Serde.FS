@@ -362,6 +362,26 @@ This mirrors Rust Serde:
 
 ---
 
+## 🔌 Wire format
+
+The JSON shapes below are part of the 1.x contract: the .NET codecs and the Fable client write and read them identically.
+
+### Null values
+
+F# types can't be `null`, but values that come from SQL, C# libraries, or JavaScript can be. Serde.FS handles them without throwing:
+
+| Value | JSON | Reads back as |
+|---|---|---|
+| `None` | `null` | `None` |
+| `Some null` (`string option`, `byte[] option`, `int[] option`, …) | `null` | `None` |
+| `null` for a `string`, `byte[]`, array, or `seq` | `null` | `null` |
+
+`Some null` usually means a nullable value was wrapped with `Some` instead of `Option.ofObj`. It is sent as `None`, which is what `Option.ofObj` would have produced, so the receiver never sees a `Some` holding `null`.
+
+A nested option keeps its structure: `Some None : string option option` is written as `{"Some":null}` and reads back as `Some None`.
+
+---
+
 ## 🧩 Custom Converters
 
 Serde.FS supports attribute‑level codecs that override serialization for specific types.

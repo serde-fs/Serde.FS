@@ -278,6 +278,24 @@ let ``record with small numeric and char fields`` () =
     SnapshotHarness.assertSnapshot "record_small_numeric_and_char_fields" actual
 
 [<Test>]
+let ``record with nullable reference fields guards against null`` () =
+    let sampleTi =
+        record "Domain" "Blob" [
+            "Name",    opt stringTi
+            "Payload", arrTi byteTi
+            "Thumb",   opt (arrTi byteTi)
+            "Ids",     arrTi int32Ti
+            "Tags",    seqTi stringTi
+        ]
+    let methods = [
+        methodOf "Store" sampleTi (opt (arrTi int32Ti))
+    ]
+    let iface = interfaceOf "Domain" "IBlobApi" methods true
+    let types = [ toSerde sampleTi ]
+    let actual = FableClientEmitter.emit iface types
+    SnapshotHarness.assertSnapshot "record_nullable_reference_fields" actual
+
+[<Test>]
 let ``record with nested option fields wraps Some`` () =
     let sampleTi =
         record "Domain" "Patch" [

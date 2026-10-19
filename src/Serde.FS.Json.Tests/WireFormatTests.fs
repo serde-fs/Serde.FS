@@ -418,3 +418,38 @@ let ``Nested option decode requires null or the Some wrapper`` () =
         rejects<int option option> json
     let ex = Assert.Catch(fun () -> SerdeJson.deserialize<int option option> "5" |> ignore)
     Assert.That(ex.Message, Does.Contain("Some"))
+
+// -- Null references: Some null is sent as None; bare null stays null --
+// Values from SQL / C# interop can be null where F# says they cannot. A
+// `Some null` (Some instead of Option.ofObj) is normalised to None, exactly
+// as Option.ofObj would have; a bare null round-trips as null, like string.
+
+[<Test>]
+let ``Some null string is sent as None`` () =
+    Assert.That(SerdeJson.serialize (Some (null: string)), Is.EqualTo("null"))
+    Assert.That(roundTrip (Some (null: string)), Is.EqualTo(None: string option))
+    Assert.That(roundTrip (Some (Some (null: string))), Is.EqualTo(Some (None: string option)))
+    Assert.That(roundTrip [ Some "a"; Some null; None ], Is.EqualTo([ Some "a"; None; None ]))
+
+[<Test>]
+let ``Null byte array, array and seq encode as null`` () =
+    Assert.That(SerdeJson.serialize (null: byte[]), Is.EqualTo("null"))
+    Assert.That(SerdeJson.serialize (null: int[]), Is.EqualTo("null"))
+    Assert.That(SerdeJson.serialize (null: string[]), Is.EqualTo("null"))
+    Assert.That(SerdeJson.serialize (null: seq<int>), Is.EqualTo("null"))
+    Assert.That(SerdeJson.deserialize<byte[]> "null", Is.Null)
+    Assert.That(SerdeJson.deserialize<int[]> "null", Is.Null)
+    Assert.That(SerdeJson.deserialize<seq<int>> "null", Is.Null)
+
+[<Test>]
+let ``Some null byte array, array and seq are sent as None`` () =
+    Assert.That(roundTrip (Some (null: byte[])), Is.EqualTo(None: byte[] option))
+    Assert.That(roundTrip (Some (null: int[])), Is.EqualTo(None: int[] option))
+    Assert.That(roundTrip (Some (null: seq<int>)) |> Option.isNone, Is.True)
+    Assert.That(roundTrip (Some [| 1uy; 2uy |]), Is.EqualTo(Some [| 1uy; 2uy |]))
+
+[<Test>]
+let ``Null elements inside arrays and maps round-trip`` () =
+    Assert.That(roundTrip [| null; [| 1uy |] |], Is.EqualTo([| null; [| 1uy |] |]))
+    let m = Map [ "a", (null: int[]); "b", [| 1 |] ]
+    Assert.That(roundTrip m, Is.EqualTo(m))
