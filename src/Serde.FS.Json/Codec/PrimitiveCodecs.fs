@@ -302,6 +302,27 @@ module PrimitiveCodecs =
                 | true, v -> v
                 | _ -> invalidDate "TimeOnly" s }
 
+    // TimeSpan uses the .NET constant ("c") format, [-][d.]hh:mm:ss[.fffffff],
+    // as System.Text.Json and Newtonsoft do. ISO 8601 durations ("PT1H") are
+    // not accepted. The shape check rejects the shorter forms ParseExact "c"
+    // also allows ("1", "10:30").
+    let private timeSpanShape = isoShape ("-?([0-9]+\\.)?" + timePart)
+
+    let timeSpanEncoder : IJsonEncoder<TimeSpan> =
+        { new IJsonEncoder<TimeSpan> with
+            member _.Encode v = JsonValue.String (v.ToString("c", invariant)) }
+
+    let timeSpanDecoder : IJsonDecoder<TimeSpan> =
+        { new IJsonDecoder<TimeSpan> with
+            member _.Decode json =
+                match json with
+                | JsonValue.String s when timeSpanShape.IsMatch s ->
+                    match TimeSpan.TryParseExact(s, "c", invariant) with
+                    | true, v -> v
+                    | _ -> invalidDate "TimeSpan" s
+                | JsonValue.String s -> failwith $"Expected a TimeSpan like \"1.02:03:04.5000000\", got \"%s{s}\""
+                | _ -> failwith "Expected JSON string (TimeSpan)" }
+
     // -- Combined codecs --
 
     let boolCodec = JsonCodec.fromPair boolEncoder boolDecoder
@@ -318,3 +339,4 @@ module PrimitiveCodecs =
     let dateTimeOffsetCodec = JsonCodec.fromPair dateTimeOffsetEncoder dateTimeOffsetDecoder
     let dateOnlyCodec = JsonCodec.fromPair dateOnlyEncoder dateOnlyDecoder
     let timeOnlyCodec = JsonCodec.fromPair timeOnlyEncoder timeOnlyDecoder
+    let timeSpanCodec = JsonCodec.fromPair timeSpanEncoder timeSpanDecoder

@@ -38,16 +38,19 @@ let ``Dates and times round-trip in every culture`` () =
     let dateTimeOffset = DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.FromHours 2.)
     let dateOnly = DateOnly(2026, 1, 2)
     let timeOnly = TimeOnly(3, 4, 5, 678)
+    let timeSpan = TimeSpan(-1, -2, -3, -4, -500)
     for culture in cultures do
         withCulture culture (fun () ->
             Assert.That(SerdeJson.serialize dateTime, Is.EqualTo("\"2026-01-02T03:04:05.6780000Z\""), culture)
             Assert.That(SerdeJson.serialize dateTimeOffset, Is.EqualTo("\"2026-01-02T03:04:05.0000000+02:00\""), culture)
             Assert.That(SerdeJson.serialize dateOnly, Is.EqualTo("\"2026-01-02\""), culture)
             Assert.That(SerdeJson.serialize timeOnly, Is.EqualTo("\"03:04:05.6780000\""), culture)
+            Assert.That(SerdeJson.serialize timeSpan, Is.EqualTo("\"-1.02:03:04.5000000\""), culture)
             Assert.That(roundTrip dateTime, Is.EqualTo(dateTime), culture)
             Assert.That(roundTrip dateTimeOffset, Is.EqualTo(dateTimeOffset), culture)
             Assert.That(roundTrip dateOnly, Is.EqualTo(dateOnly), culture)
-            Assert.That(roundTrip timeOnly, Is.EqualTo(timeOnly), culture))
+            Assert.That(roundTrip timeOnly, Is.EqualTo(timeOnly), culture)
+            Assert.That(roundTrip timeSpan, Is.EqualTo(timeSpan), culture))
 
 // -- float --
 
@@ -373,6 +376,34 @@ let ``TimeOnly accepts only HH:mm:ss with optional fraction`` () =
     Assert.That(SerdeJson.deserialize<TimeOnly> (str "10:30:05"), Is.EqualTo(TimeOnly(10, 30, 5)))
     for s in [ "10:30"; "10:30 AM"; "1:30:05"; "10:30:05."; "25:00:00"; "10:30:05Z"; "10:30:05.12345678" ] do
         rejects<TimeOnly> (str s)
+
+[<Test>]
+let ``TimeSpan is written in the constant format`` () =
+    Assert.That(SerdeJson.serialize TimeSpan.Zero, Is.EqualTo(str "00:00:00"))
+    Assert.That(SerdeJson.serialize (TimeSpan.FromMinutes 90.0), Is.EqualTo(str "01:30:00"))
+    Assert.That(SerdeJson.serialize (TimeSpan(1, 2, 3, 4, 500)), Is.EqualTo(str "1.02:03:04.5000000"))
+    Assert.That(SerdeJson.serialize (TimeSpan.FromTicks 1L), Is.EqualTo(str "00:00:00.0000001"))
+    for v in [ TimeSpan.Zero; TimeSpan.FromTicks 1L; TimeSpan.FromHours -1.5; TimeSpan(10000, 23, 59, 59, 999)
+               TimeSpan.MaxValue; TimeSpan.MinValue ] do
+        Assert.That(roundTrip v, Is.EqualTo(v), string v)
+
+[<Test>]
+let ``TimeSpan accepts the constant format as written by .NET and Fable`` () =
+    Assert.That(SerdeJson.deserialize<TimeSpan> (str "1.02:03:04.5000000"), Is.EqualTo(TimeSpan(1, 2, 3, 4, 500)))
+    Assert.That(SerdeJson.deserialize<TimeSpan> (str "1.02:03:04.5"), Is.EqualTo(TimeSpan(1, 2, 3, 4, 500)))
+    Assert.That(SerdeJson.deserialize<TimeSpan> (str "-01:30:00"), Is.EqualTo(TimeSpan.FromHours -1.5))
+    Assert.That(SerdeJson.deserialize<TimeSpan> (str "00:00:00"), Is.EqualTo(TimeSpan.Zero))
+
+[<Test>]
+let ``TimeSpan rejects other formats`` () =
+    // "1" and "10:30" are valid for ParseExact "c" but not what we write;
+    // "1:02:03:04" is the general ("g") format; ISO 8601 durations are not accepted.
+    for s in [ "1"; "10:30"; "1:02:03:04"; "1.2:03:04"; "PT1H30M"; "P1D"; "24:00:00"; "00:60:00"; "00:00:60"
+               "00:00:00."; "00:00:00.12345678"; "+01:00:00"; " 01:00:00"; "01:00:00 "; "1.02:03:04,5"; "" ] do
+        rejects<TimeSpan> (str s)
+    rejects<TimeSpan> "5400000"
+    let ex = Assert.Catch(fun () -> SerdeJson.deserialize<TimeSpan> (str "PT1H") |> ignore)
+    Assert.That(ex.Message, Does.Contain("TimeSpan").And.Contain("PT1H"))
 
 [<Test>]
 let ``Date errors name the type and the expected format`` () =

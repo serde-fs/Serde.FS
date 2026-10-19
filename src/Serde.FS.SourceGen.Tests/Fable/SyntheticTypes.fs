@@ -38,6 +38,7 @@ let dateTimeTi       = prim PrimitiveKind.DateTime "DateTime"
 let dateTimeOffsetTi = prim PrimitiveKind.DateTimeOffset "DateTimeOffset"
 let dateOnlyTi       = prim PrimitiveKind.DateOnly "DateOnly"
 let timeOnlyTi       = prim PrimitiveKind.TimeOnly "TimeOnly"
+let timeSpanTi       = prim PrimitiveKind.TimeSpan "TimeSpan"
 
 // ── Structural wrappers ────────────────────────────────────────────────────
 

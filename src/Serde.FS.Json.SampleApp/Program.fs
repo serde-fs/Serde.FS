@@ -109,6 +109,12 @@ type Blob = {
     Ids: int[]
 }
 
+[<Serde>]
+type Timer = {
+    Duration: System.TimeSpan
+    Timeout: System.TimeSpan option
+}
+
 // -----------------------------
 // Entry Point
 // -----------------------------
@@ -246,5 +252,16 @@ let run _argv =
         eprintfn "Blob JSON: MISMATCH\n  expected %s\n  got      %s" expectedBlobJson blobJson
         exit 1
     roundtrip "Blob" { blob with Name = None; Thumb = None } blobJson (SerdeJson.deserialize<Blob> blobJson)
+
+    // -----------------------------------------
+    // 7. TimeSpan: .NET constant ("c") format
+    // -----------------------------------------
+    let timer = { Duration = System.TimeSpan(-1, -2, -3, -4, -500); Timeout = Some (System.TimeSpan.FromMinutes 90.0) }
+    let timerJson = SerdeJson.serialize timer
+    let expectedTimerJson = """{"Duration":"-1.02:03:04.5000000","Timeout":"01:30:00"}"""
+    if timerJson <> expectedTimerJson then
+        eprintfn "Timer JSON: MISMATCH\n  expected %s\n  got      %s" expectedTimerJson timerJson
+        exit 1
+    roundtrip "Timer" timer timerJson (SerdeJson.deserialize<Timer> timerJson)
 
     0

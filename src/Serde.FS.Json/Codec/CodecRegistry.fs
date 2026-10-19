@@ -66,3 +66,4 @@ module CodecRegistry =
         |> add (typeof<DateTimeOffset>, PrimitiveCodecs.dateTimeOffsetCodec |> JsonCodec.boxCodec)
         |> add (typeof<DateOnly>, PrimitiveCodecs.dateOnlyCodec |> JsonCodec.boxCodec)
         |> add (typeof<TimeOnly>, PrimitiveCodecs.timeOnlyCodec |> JsonCodec.boxCodec)
+        |> add (typeof<TimeSpan>, PrimitiveCodecs.timeSpanCodec |> JsonCodec.boxCodec)

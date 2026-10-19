@@ -157,6 +157,11 @@ module FableClientEmitter =
                 // .NET (the call is dead code there since the generated
                 // module is only invoked from Fable-compiled JS).
                 sprintf "box ((%s).ToString(\"O\", System.Globalization.CultureInfo.InvariantCulture))" varExpr
+            | "TimeSpan" | "System.TimeSpan" ->
+                // .NET constant format, [-][d.]hh:mm:ss[.fffffff], matching
+                // PrimitiveCodecs.timeSpanEncoder. Without this a Fable
+                // TimeSpan goes out as its raw millisecond number.
+                sprintf "box ((%s).ToString(\"c\", System.Globalization.CultureInfo.InvariantCulture))" varExpr
             | _ -> sprintf "box (%s)" varExpr
         // Some wraps as {"Some": x} when the inner value can itself be null,
         // matching OptionWire on the server; otherwise Some None == None.
@@ -224,6 +229,7 @@ module FableClientEmitter =
             | "DateTimeOffset" | "System.DateTimeOffset" -> sprintf "(Interop.parseDateTimeOffset (unbox<string> %s))" jsonExpr
             | "DateOnly" | "System.DateOnly" -> sprintf "(System.DateOnly.Parse (unbox<string> %s))" jsonExpr
             | "TimeOnly" | "System.TimeOnly" -> sprintf "(System.TimeOnly.Parse (unbox<string> %s))" jsonExpr
+            | "TimeSpan" | "System.TimeSpan" -> sprintf "(System.TimeSpan.Parse (unbox<string> %s))" jsonExpr
             | _ -> sprintf "(unbox %s)" jsonExpr
         | FOption ((FOption _ | FUnit) as inner) ->
             sprintf "(let v = %s in if Interop.isNullish v then None elif Interop.hasKey v \"Some\" then Some (%s) else failwith \"Expected null or {\\\"Some\\\": ...}\")" jsonExpr (decodeExpr "(v?Some)" inner)

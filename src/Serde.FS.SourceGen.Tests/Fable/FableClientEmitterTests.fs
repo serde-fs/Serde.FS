@@ -333,6 +333,24 @@ let ``record with date and time fields decodes via kind-preserving helpers`` () 
     SnapshotHarness.assertSnapshot "record_date_time_fields" actual
 
 [<Test>]
+let ``record with TimeSpan fields uses the constant format`` () =
+    let timerTi =
+        record "Domain" "Timer" [
+            "Duration", timeSpanTi
+            "Timeout",  opt timeSpanTi
+        ]
+    let methods = [
+        methodOf "Extend" timeSpanTi timerTi
+    ]
+    let iface = interfaceOf "Domain" "ITimerApi" methods true
+    let types = [ toSerde timerTi ]
+    let actual = FableClientEmitter.emit iface types
+    // A bare `box` would send Fable's TimeSpan as its millisecond number.
+    Assert.That(actual, Does.Contain("ToString(\"c\", System.Globalization.CultureInfo.InvariantCulture)"))
+    Assert.That(actual, Does.Contain("System.TimeSpan.Parse (unbox<string>"))
+    SnapshotHarness.assertSnapshot "record_time_span_fields" actual
+
+[<Test>]
 let ``single-case wrapper union (ProductId of int)`` () =
     let productIdTi = wrapperUnion "Domain" "ProductId" "ProductId" int32Ti
     let methods = [
