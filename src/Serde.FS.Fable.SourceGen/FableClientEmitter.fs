@@ -158,6 +158,10 @@ module FableClientEmitter =
                 // module is only invoked from Fable-compiled JS).
                 sprintf "box ((%s).ToString(\"O\", System.Globalization.CultureInfo.InvariantCulture))" varExpr
             | _ -> sprintf "box (%s)" varExpr
+        // Some wraps as {"Some": x} when the inner value can itself be null,
+        // matching OptionWire on the server; otherwise Some None == None.
+        | FOption ((FOption _ | FUnit) as inner) ->
+            sprintf "(match %s with | Some x -> createObj [ \"Some\", %s ] | None -> null)" varExpr (encodeExpr "x" inner)
         | FOption inner ->
             sprintf "(match %s with | Some x -> %s | None -> null)" varExpr (encodeExpr "x" inner)
         // byte[] gets a dedicated base64 wire format on the server side
@@ -216,6 +220,8 @@ module FableClientEmitter =
             | "DateOnly" | "System.DateOnly" -> sprintf "(System.DateOnly.Parse (unbox<string> %s))" jsonExpr
             | "TimeOnly" | "System.TimeOnly" -> sprintf "(System.TimeOnly.Parse (unbox<string> %s))" jsonExpr
             | _ -> sprintf "(unbox %s)" jsonExpr
+        | FOption ((FOption _ | FUnit) as inner) ->
+            sprintf "(let v = %s in if Interop.isNullish v then None elif Interop.hasKey v \"Some\" then Some (%s) else failwith \"Expected null or {\\\"Some\\\": ...}\")" jsonExpr (decodeExpr "(v?Some)" inner)
         | FOption inner ->
             sprintf "(let v = %s in if Interop.isNullish v then None else Some (%s))" jsonExpr (decodeExpr "v" inner)
         | FList inner ->

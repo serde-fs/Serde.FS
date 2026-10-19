@@ -278,6 +278,23 @@ let ``record with small numeric and char fields`` () =
     SnapshotHarness.assertSnapshot "record_small_numeric_and_char_fields" actual
 
 [<Test>]
+let ``record with nested option fields wraps Some`` () =
+    let sampleTi =
+        record "Domain" "Patch" [
+            "Nickname", opt (opt stringTi)
+            "Ack",      opt unitTi
+            "Age",      opt int32Ti
+            "Deep",     opt (opt (opt int32Ti))
+        ]
+    let methods = [
+        methodOf "Apply" sampleTi (opt (opt int32Ti))
+    ]
+    let iface = interfaceOf "Domain" "IPatchApi" methods true
+    let types = [ toSerde sampleTi ]
+    let actual = FableClientEmitter.emit iface types
+    SnapshotHarness.assertSnapshot "record_nested_option_fields" actual
+
+[<Test>]
 let ``record with date and time fields decodes via kind-preserving helpers`` () =
     let sampleTi =
         record "Domain" "Sample" [

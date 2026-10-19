@@ -61,8 +61,21 @@ module internal JsonCodeEmitterImpl =
             $"%s{baseName}<%s{argNames}>"
         | None -> fullyQualifiedName info
 
+    /// Whether `Some x` with this inner type is written as {"Some": x}: the
+    /// inner value can itself be null, so plain `x` would read back as None.
+    /// Matches OptionWire.wrapsInner at runtime.
+    let private wrapsSome (inner: Types.TypeInfo) : bool =
+        match inner.Kind with
+        | Types.Option _ | Types.Primitive Types.PrimitiveKind.Unit -> true
+        | _ -> false
+
+    let private fieldWrapsSome (fieldType: Types.TypeInfo) : bool =
+        match fieldType.Kind with
+        | Types.Option inner -> wrapsSome inner
+        | _ -> false
+
     /// Generates the encode expression for a single field value.
-    let private encodeFieldExpr (fieldName: string) (rawFieldName: string) (fsharpType: string) (normalizedType: string) (isOption: bool) (innerType: string) (indent: string) : string =
+    let private encodeFieldExpr (fieldName: string) (rawFieldName: string) (fsharpType: string) (normalizedType: string) (isOption: bool) (wrap: bool) (innerType: string) (indent: string) : string =
         // The record-field access must backtick reserved names (e.g. ``type``);
         // the fieldCodec_ suffix is synthetic and always a legal identifier.
         let rawAccess = IdentifierNaming.backtick rawFieldName
@@ -70,7 +83,10 @@ module internal JsonCodeEmitterImpl =
             let innerIndent = indent + "    "
             let encodeInner =
                 $"%s{innerIndent}let fieldCodec = Serde.FS.Json.Codec.CodecResolver.resolve typeof<%s{innerType}> Serde.FS.Json.Codec.GlobalCodecRegistry.Current\n" +
-                $"%s{innerIndent}(\"%s{fieldName}\", fieldCodec.Encode(box v))"
+                if wrap then
+                    $"%s{innerIndent}(\"%s{fieldName}\", Serde.FS.Json.Codec.OptionWire.wrapSome (fieldCodec.Encode(box v)))"
+                else
+                    $"%s{innerIndent}(\"%s{fieldName}\", fieldCodec.Encode(box v))"
             $"%s{indent}match value.%s{rawAccess} with\n" +
             $"%s{indent}| Some v ->\n%s{encodeInner}\n" +
             $"%s{indent}| None ->\n" +
@@ -120,7 +136,7 @@ module internal JsonCodeEmitterImpl =
             let isOption, innerType = parseOptionType fsharpType
             let normalizedType = fsharpType.Trim().ToLowerInvariant()
             let indent = "                    "
-            let expr = encodeFieldExpr field.Name field.RawName fsharpType normalizedType isOption innerType indent
+            let expr = encodeFieldExpr field.Name field.RawName fsharpType normalizedType isOption (fieldWrapsSome field.Type) innerType indent
             append expr
         append "                ]"
 
@@ -142,7 +158,10 @@ module internal JsonCodeEmitterImpl =
                 append $"                        | true, JsonValue.Null -> None"
                 append $"                        | true, v ->"
                 append $"                            let fieldCodec = CodecResolver.resolve typeof<%s{innerType}> GlobalCodecRegistry.Current"
-                append $"                            Some(fieldCodec.Decode(v) :?> %s{innerType})"
+                if fieldWrapsSome field.Type then
+                    append $"                            Some(fieldCodec.Decode(OptionWire.unwrapSome \"%s{fsharpType}\" v) :?> %s{innerType})"
+                else
+                    append $"                            Some(fieldCodec.Decode(v) :?> %s{innerType})"
                 append $"                        | false, _ -> None"
             else
                 append $"                    let fieldCodec_%s{field.RawName} = CodecResolver.resolve typeof<%s{fsharpType}> GlobalCodecRegistry.Current"
@@ -199,13 +218,19 @@ module internal JsonCodeEmitterImpl =
         append "                | None -> JsonValue.Null"
         append "                | Some v ->"
         append $"                    let innerCodec = CodecResolver.resolve typeof<%s{innerFqType}> GlobalCodecRegistry.Current"
-        append "                    innerCodec.Encode(box v)"
+        if wrapsSome inner then
+            append "                    OptionWire.wrapSome (innerCodec.Encode(box v))"
+        else
+            append "                    innerCodec.Encode(box v)"
         append "            member _.Decode(json) ="
         append "                match json with"
         append "                | JsonValue.Null -> None"
         append "                | v ->"
         append $"                    let innerCodec = CodecResolver.resolve typeof<%s{innerFqType}> GlobalCodecRegistry.Current"
-        append $"                    Some(innerCodec.Decode(v) :?> %s{innerFqType})"
+        if wrapsSome inner then
+            append $"                    Some(innerCodec.Decode(OptionWire.unwrapSome \"%s{fqType}\" v) :?> %s{innerFqType})"
+        else
+            append $"                    Some(innerCodec.Decode(v) :?> %s{innerFqType})"
         append "        }"
 
         sb.ToString()

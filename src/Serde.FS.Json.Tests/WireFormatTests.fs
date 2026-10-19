@@ -378,3 +378,43 @@ let ``TimeOnly accepts only HH:mm:ss with optional fraction`` () =
 let ``Date errors name the type and the expected format`` () =
     let ex = Assert.Catch(fun () -> SerdeJson.deserialize<DateTime> (str "01/02/2026") |> ignore)
     Assert.That(ex.Message, Does.Contain("DateTime").And.Contain("ISO 8601").And.Contain("01/02/2026"))
+
+// -- Nested options: Some wraps only when the inner value can itself be null --
+
+[<Test>]
+let ``Single option is unchanged on the wire`` () =
+    Assert.That(SerdeJson.serialize (Some 5), Is.EqualTo("5"))
+    Assert.That(SerdeJson.serialize (None: int option), Is.EqualTo("null"))
+    Assert.That(SerdeJson.deserialize<int option> "5", Is.EqualTo(Some 5))
+
+[<Test>]
+let ``Nested option wraps Some so Some None survives`` () =
+    Assert.That(SerdeJson.serialize (Some (None: int option)), Is.EqualTo("""{"Some":null}"""))
+    Assert.That(SerdeJson.serialize (Some (Some 5)), Is.EqualTo("""{"Some":5}"""))
+    Assert.That(SerdeJson.serialize (None: int option option), Is.EqualTo("null"))
+    Assert.That(SerdeJson.serialize (Some (Some (None: int option))), Is.EqualTo("""{"Some":{"Some":null}}"""))
+    for v in [ None; Some None; Some (Some 5) ] do
+        Assert.That(roundTrip v, Is.EqualTo(v), sprintf "%A" v)
+    for v in [ None; Some None; Some (Some None); Some (Some (Some "x")) ] do
+        Assert.That(roundTrip v, Is.EqualTo(v), sprintf "%A" v)
+
+[<Test>]
+let ``unit option wraps Some because unit is null on the wire`` () =
+    Assert.That(SerdeJson.serialize (Some ()), Is.EqualTo("""{"Some":null}"""))
+    Assert.That(roundTrip (Some ()), Is.EqualTo(Some ()))
+    Assert.That(roundTrip (None: unit option), Is.EqualTo(None: unit option))
+
+[<Test>]
+let ``Nested options round-trip inside collections`` () =
+    let values = [ Some None; None; Some (Some 1) ]
+    Assert.That(SerdeJson.serialize values, Is.EqualTo("""[{"Some":null},null,{"Some":1}]"""))
+    Assert.That(roundTrip values, Is.EqualTo(values))
+    let m = Map [ "a", Some (None: string option); "b", None ]
+    Assert.That(roundTrip m, Is.EqualTo(m))
+
+[<Test>]
+let ``Nested option decode requires null or the Some wrapper`` () =
+    for json in [ "5"; "\"x\""; "[5]"; """{"Other":5}"""; """{"Some":5,"Extra":1}"""; "{}" ] do
+        rejects<int option option> json
+    let ex = Assert.Catch(fun () -> SerdeJson.deserialize<int option option> "5" |> ignore)
+    Assert.That(ex.Message, Does.Contain("Some"))

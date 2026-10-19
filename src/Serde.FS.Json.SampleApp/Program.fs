@@ -93,6 +93,14 @@ type Person = {
     WrappedGuid: Wrapper<System.Guid>
 }
 
+[<Serde>]
+type Patch = {
+    Nickname: string option option
+    Ack: unit option
+    Age: int option
+    Deep: int option option option
+}
+
 // -----------------------------
 // Entry Point
 // -----------------------------
@@ -203,5 +211,21 @@ let run _argv =
     let userIdJson = SerdeJson.serialize userId
     let userIdRoundtrip : UserId = SerdeJson.deserialize userIdJson
     roundtrip "UserId" userId userIdJson userIdRoundtrip
+
+    // -----------------------------------------
+    // 5. Nested options: Some None must survive
+    // -----------------------------------------
+    let patch = { Nickname = Some None; Ack = Some (); Age = Some 3; Deep = Some (Some None) }
+    let patchJson = SerdeJson.serialize patch
+    // Same JSON the Fable client writes for this value.
+    let expectedPatchJson = """{"Nickname":{"Some":null},"Ack":{"Some":null},"Age":3,"Deep":{"Some":{"Some":null}}}"""
+    if patchJson <> expectedPatchJson then
+        eprintfn "Patch JSON: MISMATCH\n  expected %s\n  got      %s" expectedPatchJson patchJson
+        exit 1
+    roundtrip "Patch" patch patchJson (SerdeJson.deserialize<Patch> patchJson)
+
+    let patches = [ patch; { Nickname = Some (Some "x"); Ack = None; Age = None; Deep = Some (Some (Some 7)) } ]
+    let patchesJson = SerdeJson.serialize patches
+    roundtrip "Patch list" patches patchesJson (SerdeJson.deserialize<Patch list> patchesJson)
 
     0

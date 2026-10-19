@@ -3,6 +3,26 @@ namespace Serde.FS.Json.Codec
 open System
 open System.Collections
 
+/// Wire shape for `Some` when the inner value can itself be JSON null
+/// (`'T option option`, `unit option`). Plain `Some x` encodes as `x`, which
+/// would make `Some None` and `Some ()` indistinguishable from `None`; those
+/// are written as `{"Some": x}` instead. `None` is always `null`. Called by
+/// generated codecs, so it is public.
+module OptionWire =
+    /// Whether `Some x` of this inner type must be wrapped. Matches the
+    /// generator's check on the type model.
+    let wrapsInner (innerType: Type) : bool =
+        innerType = typeof<unit>
+        || (innerType.IsGenericType && innerType.GetGenericTypeDefinition() = typedefof<Option<_>>)
+
+    let wrapSome (encoded: JsonValue) : JsonValue =
+        JsonValue.Object [ "Some", encoded ]
+
+    let unwrapSome (typeName: string) (json: JsonValue) : JsonValue =
+        match json with
+        | JsonValue.Object [ "Some", inner ] -> inner
+        | _ -> failwith $"Expected null or {{\"Some\": ...}} for %s{typeName}"
+
 module CollectionCodecs =
 
     // ------------------------------------------------------------------
@@ -298,7 +318,8 @@ module CollectionCodecs =
                     | _ -> failwith $"Expected JSON array for %s{listType.Name}" }
 
     /// Factory for constructing Option<'T> codecs dynamically from the registry.
-    /// Wire shape: Some x → encode inner x; None → JSON null. Matches the
+    /// Wire shape: Some x → encode inner x; None → JSON null; Some is wrapped
+    /// when the inner value can be null (see OptionWire). Matches the
     /// record-field option handling in JsonCodeEmitter, but kicks in for any
     /// non-field-level context where Option<T> needs runtime resolution
     /// (list element, Result payload, Map value, tuple element, union case
@@ -312,6 +333,8 @@ module CollectionCodecs =
             let cases = Dyn.getUnionCases optionType
             let noneCase = cases |> Array.find (fun c -> c.Name = "None")
             let someCase = cases |> Array.find (fun c -> c.Name = "Some")
+            let wraps = OptionWire.wrapsInner innerType
+            let typeName = $"%s{innerType.Name} option"
 
             { new IJsonCodec with
                 member _.Type = optionType
@@ -322,11 +345,13 @@ module CollectionCodecs =
                         JsonValue.Null
                     else
                         let case, fields = Dyn.getUnionFields obj optionType
-                        if case.Name = "Some" then innerCodec.Encode fields.[0]
-                        else JsonValue.Null
+                        if case.Name <> "Some" then JsonValue.Null
+                        elif wraps then OptionWire.wrapSome (innerCodec.Encode fields.[0])
+                        else innerCodec.Encode fields.[0]
                 member _.Decode json =
                     match json with
                     | JsonValue.Null -> Dyn.makeUnion noneCase [||]
+                    | _ when wraps -> Dyn.makeUnion someCase [| innerCodec.Decode (OptionWire.unwrapSome typeName json) |]
                     | _ -> Dyn.makeUnion someCase [| innerCodec.Decode json |] }
 
     /// Factory for constructing Result<'Ok,'Error> codecs dynamically from the registry.

@@ -1070,3 +1070,35 @@ let ``EmitResolver registers collection codecs alongside record codecs`` () =
     Assert.That(code, Does.Contain("let private petListJsonCodec : IJsonCodec<MyApp.Pet list> ="))
     Assert.That(code, Does.Contain("|> CodecRegistry.add (typeof<MyApp.Pet list>, JsonCodec.boxCodec petListJsonCodec)"))
     Assert.That(code, Does.Contain("|> CodecRegistry.add (typeof<MyApp.Owner>, JsonCodec.boxCodec ownerJsonCodec)"))
+
+[<Test>]
+let ``Nested option codec wraps Some`` () =
+    let info = mkOptionInfo (mkOptionType (mkPrimType "int" Int32))
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("OptionWire.wrapSome (innerCodec.Encode(box v))"))
+    Assert.That(code, Does.Contain("OptionWire.unwrapSome \"int option option\" v"))
+
+[<Test>]
+let ``unit option codec wraps Some`` () =
+    let code = emitter.Emit(mkOptionInfo (mkPrimType "unit" Unit))
+    Assert.That(code, Does.Contain("OptionWire.wrapSome"))
+    Assert.That(code, Does.Contain("OptionWire.unwrapSome"))
+
+[<Test>]
+let ``Single option codec does not wrap Some`` () =
+    let code = emitter.Emit(mkOptionInfo (mkPrimType "int" Int32))
+    Assert.That(code, Does.Not.Contain("OptionWire"))
+
+[<Test>]
+let ``Nested option record field wraps Some, single option field does not`` () =
+    let info = mkRecordInfo (Some "MyApp") "Patch" Both [
+        mkFieldWithType "Nickname" (mkOptionType (mkOptionType (mkPrimType "string" String)))
+        mkFieldWithType "Age" (mkOptionType (mkPrimType "int" Int32))
+    ]
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("(\"Nickname\", Serde.FS.Json.Codec.OptionWire.wrapSome (fieldCodec.Encode(box v)))"))
+    Assert.That(code, Does.Contain("OptionWire.unwrapSome \"string option option\" v"))
+    Assert.That(code, Does.Contain("(\"Age\", fieldCodec.Encode(box v))"))
+    let occurrences (needle: string) = (code.Length - code.Replace(needle, "").Length) / needle.Length
+    Assert.That(occurrences "OptionWire.wrapSome", Is.EqualTo(1))
+    Assert.That(occurrences "OptionWire.unwrapSome", Is.EqualTo(1))
