@@ -121,7 +121,9 @@ module Types =
     /// e.g. int option -> "IntOption", int option option -> "IntOptionOption", MyApp.Person option -> "PersonOption"
     let rec typeInfoToPascalName (ti: TypeInfo) : string =
         match ti.Kind with
-        | Primitive _ -> upperFirst ti.TypeName
+        // Short name: a field written as `System.TimeSpan option` must not
+        // produce the identifier `system.TimeSpanOptionJsonCodec`.
+        | Primitive _ -> upperFirst (shortTypeName ti)
         | GenericParameter name -> upperFirst name
         | GenericTypeDefinition _ ->
             let baseName = upperFirst (shortTypeName ti)

@@ -340,6 +340,17 @@ let ``Emits codec for option string`` () =
     Assert.That(code, Does.Contain("stringOptionJsonCodec"))
 
 [<Test>]
+let ``Option of a qualified primitive gets a valid codec name`` () =
+    // A field written as `System.TimeSpan option` used to produce the
+    // identifier `system.TimeSpanOptionJsonCodec`, which does not compile.
+    for written in [ "System.TimeSpan"; "TimeSpan" ] do
+        let ti = mkOptionType (mkPrimType written PrimitiveKind.TimeSpan)
+        Assert.That(Types.typeInfoToPascalName ti, Is.EqualTo("TimeSpanOption"), written)
+        let code = emitter.Emit(mkOptionInfo (mkPrimType written PrimitiveKind.TimeSpan))
+        Assert.That(code, Does.Contain("let timeSpanOptionJsonCodec"), written)
+        Assert.That(code, Does.Contain($"IJsonCodec<%s{written} option>"), written)
+
+[<Test>]
 let ``Emits codec for option record`` () =
     let personType : TypeInfo = {
         Namespace = Some "MyApp"; EnclosingModules = []; TypeName = "Person"
@@ -508,6 +519,11 @@ let ``typeInfoToPascalName produces IntStringTuple`` () =
     let ti = mkTupleType [ mkPrimType "int" Int32; mkPrimType "string" String ]
     let name = Types.typeInfoToPascalName ti
     Assert.That(name, Is.EqualTo("IntStringTuple"))
+
+[<Test>]
+let ``typeInfoToPascalName uses the short name of a qualified primitive`` () =
+    let ti = mkTupleType [ mkPrimType "System.Guid" PrimitiveKind.Guid; mkPrimType "int" Int32 ]
+    Assert.That(Types.typeInfoToPascalName ti, Is.EqualTo("GuidIntTuple"))
 
 [<Test>]
 let ``typeInfoToFqFSharpType produces parenthesized tuple`` () =
