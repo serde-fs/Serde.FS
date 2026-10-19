@@ -364,7 +364,84 @@ This mirrors Rust Serde:
 
 ## 🔌 Wire format
 
-The JSON shapes below are part of the 1.x contract: the .NET codecs and the Fable client write and read them identically.
+The JSON shapes below are part of the 1.x contract: the .NET codecs and the Fable client write and read them identically. Decoding is strict: input of the wrong JSON type, or a number or date that would have to be guessed at, is rejected rather than coerced.
+
+### Records
+
+```fsharp
+{ Name = "John"; Age = 30; Nickname = None }
+```
+```json
+{"Name":"John","Age":30,"Nickname":null}
+```
+
+- Field names are written exactly as declared and matched case-sensitively.
+- Every field is written; `None` is `null`.
+- On decode, a missing `option` field reads as `None`, a missing field of any other type is an error, and unknown fields are ignored. You can add an `option` field, or stop sending one, without breaking older clients.
+
+### Unions, enums, `Option` and `Result`
+
+| Type | Value | JSON |
+|---|---|---|
+| Union | `Circle 2.5` | `{"Case":"Circle","Fields":[2.5]}` |
+| Union, case without fields | `Point` | `{"Case":"Point","Fields":[]}` |
+| Single-case union with one field | `UserId "user-7"` | `{"UserId":"user-7"}` |
+| Enum | `Color.Red` | `"Red"` |
+| `Result` | `Ok 5` / `Error "nope"` | `{"Ok":5}` / `{"Error":"nope"}` |
+| `Option` | `Some 5` / `None` | `5` / `null` |
+| Nested `Option` | `Some None : int option option` | `{"Some":null}` |
+
+A single-case union with one field (a "newtype" such as `UserId`) is an object keyed by its case name. Enums are written by name; a value with no named case is an error.
+
+`Some` is written as its value, except when the value inside can itself be `null` (a nested `Option`, or `unit`). Then it is wrapped as `{"Some": ...}` so that `Some None` does not collapse into `None`.
+
+### Collections and tuples
+
+| Type | JSON |
+|---|---|
+| `list`, array, `seq`, `Set` | `[1,2,3]` |
+| `Map<'K, 'V>` | `[["gadget",0],["widget",3]]` |
+| Tuple `(10.5, "x")` | `[10.5,"x"]` |
+| `byte[]` | `"AQI="` (Base64) |
+| `unit` | `null` |
+
+A `Map` is always an array of `[key, value]` pairs, even with `string` keys, so keys of any type work the same way. Only `byte[]` is Base64: a `byte list` is `[1,2]`.
+
+### Numbers
+
+| Type | JSON |
+|---|---|
+| `int`, `int16`, `sbyte`, `byte`, `uint16`, `uint32` | `42` |
+| `float`, `float32` | `1.5` |
+| `int64`, `uint64`, `decimal` | `"9223372036854775807"`, `"1.50"` |
+
+`int64`, `uint64` and `decimal` are written as strings because JavaScript reads every JSON number as a double, which silently corrupts integers past 2^53 and decimals past 15–17 digits. A JSON number is still accepted when decoding them. `decimal` keeps its scale: `1.50m` is `"1.50"`.
+
+Integer types reject a fractional or out-of-range value instead of truncating it; `3.0` and `1e3` are accepted. `NaN` and infinity have no JSON form, so serializing them is an error. Numbers are written the same in every culture.
+
+### Text and identifiers
+
+| Type | JSON |
+|---|---|
+| `string` | `"text"` |
+| `char` | `"c"` (exactly one character) |
+| `Guid` | `"12345678-1234-1234-1234-123456789abc"` |
+
+### Dates and times
+
+| Type | JSON |
+|---|---|
+| `DateTime` | `"2026-03-14T10:30:05.1230000Z"` |
+| `DateTimeOffset` | `"2026-03-14T10:30:05.1230000+02:00"` |
+| `DateOnly` | `"2026-03-14"` |
+| `TimeOnly` | `"10:30:05.1230000"` |
+| `TimeSpan` | `"1.02:03:04.5000000"` (`[-][d.]hh:mm:ss[.fffffff]`) |
+
+- Dates are ISO 8601 only. Culture-shaped text such as `"03/14/2026"` is rejected, because its meaning depends on who wrote it.
+- `DateTime` keeps its kind: `Z` reads back as UTC, an offset as local time, and no suffix as unspecified.
+- `DateTimeOffset` requires an offset; without one, the instant would depend on the server's time zone.
+- `TimeSpan` uses .NET's constant (`"c"`) format, which is what System.Text.Json and Newtonsoft write. ISO 8601 durations such as `"PT1H"` are not accepted.
+- The fraction may have 1 to 7 digits. .NET writes 7; the Fable client writes 3, because a JavaScript `Date` keeps only milliseconds. Sub-millisecond precision is lost on the client.
 
 ### Null values
 
@@ -377,8 +454,6 @@ F# types can't be `null`, but values that come from SQL, C# libraries, or JavaSc
 | `null` for a `string`, `byte[]`, array, or `seq` | `null` | `null` |
 
 `Some null` usually means a nullable value was wrapped with `Some` instead of `Option.ofObj`. It is sent as `None`, which is what `Option.ofObj` would have produced, so the receiver never sees a `Some` holding `null`.
-
-A nested option keeps its structure: `Some None : string option option` is written as `{"Some":null}` and reads back as `Some None`.
 
 ---
 
