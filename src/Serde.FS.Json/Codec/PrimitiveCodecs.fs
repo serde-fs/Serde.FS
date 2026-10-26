@@ -222,11 +222,20 @@ module PrimitiveCodecs =
         { new IJsonEncoder<Guid> with
             member _.Encode v = JsonValue.String (v.ToString("D")) }
 
+    // Only the hyphenated form we write ("D"). Guid.Parse would also accept
+    // braces, parentheses, no hyphens and surrounding whitespace. Either hex
+    // case is fine.
+    let private guidShape =
+        Text.RegularExpressions.Regex(
+            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            Text.RegularExpressions.RegexOptions.CultureInvariant)
+
     let guidDecoder : IJsonDecoder<Guid> =
         { new IJsonDecoder<Guid> with
             member _.Decode json =
                 match json with
-                | JsonValue.String s -> Guid.Parse s
+                | JsonValue.String s when guidShape.IsMatch s -> Guid.ParseExact(s, "D")
+                | JsonValue.String s -> failwith $"Expected a Guid like \"12345678-1234-1234-1234-123456789abc\", got \"%s{s}\""
                 | _ -> failwith "Expected JSON string (Guid)" }
 
     // Dates decode from ISO 8601 only. `Parse` would also accept culture-shaped

@@ -168,6 +168,27 @@ let enumTi (namespacePath: string) (name: string) (cases: string list) : TypeInf
 
 // ── SerdeTypeInfo ──────────────────────────────────────────────────────────
 
+/// The AttributeInfo the parser produces for `[<SerdeRename("name")>]`.
+let renameAttr (name: string) : AttributeInfo =
+    { Name = "SerdeRename"; ConstructorArgs = [ box name ]; NamedArgs = [] }
+
+/// Applies `[<SerdeRename>]` to the named record fields, union cases or enum
+/// cases (keyed by their declared F# name).
+let withRenames (renames: (string * string) list) (ti: TypeInfo) : TypeInfo =
+    let renames = Map.ofList renames
+    let attrsFor name existing =
+        match renames.TryFind name with
+        | Some n -> renameAttr n :: existing
+        | None -> existing
+    match ti.Kind with
+    | Record fields ->
+        { ti with Kind = Record (fields |> List.map (fun f -> { f with Attributes = attrsFor f.Name f.Attributes })) }
+    | Union cases ->
+        { ti with Kind = Union (cases |> List.map (fun c -> { c with Attributes = attrsFor c.CaseName c.Attributes })) }
+    | Enum cases ->
+        { ti with Kind = Enum (cases |> List.map (fun c -> { c with Attributes = attrsFor c.CaseName c.Attributes })) }
+    | _ -> failwith "withRenames: not a record, union or enum"
+
 let toSerde (ti: TypeInfo) : SerdeTypeInfo =
     SerdeMetadataBuilder.buildSerdeTypeInfo ti
 

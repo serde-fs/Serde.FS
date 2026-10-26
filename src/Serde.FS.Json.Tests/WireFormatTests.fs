@@ -405,6 +405,26 @@ let ``TimeSpan rejects other formats`` () =
     let ex = Assert.Catch(fun () -> SerdeJson.deserialize<TimeSpan> (str "PT1H") |> ignore)
     Assert.That(ex.Message, Does.Contain("TimeSpan").And.Contain("PT1H"))
 
+// -- Guid --
+
+[<Test>]
+let ``Guid is the lower-case hyphenated form`` () =
+    let g = Guid.Parse "12345678-1234-1234-1234-123456789ABC"
+    Assert.That(SerdeJson.serialize g, Is.EqualTo(str "12345678-1234-1234-1234-123456789abc"))
+    for s in [ "12345678-1234-1234-1234-123456789abc"; "12345678-1234-1234-1234-123456789ABC" ] do
+        Assert.That(SerdeJson.deserialize<Guid> (str s), Is.EqualTo(g), s)
+
+[<Test>]
+let ``Guid rejects every other form`` () =
+    for s in [ "{12345678-1234-1234-1234-123456789abc}"; "(12345678-1234-1234-1234-123456789abc)"
+               "12345678123412341234123456789abc"; " 12345678-1234-1234-1234-123456789abc"
+               "12345678-1234-1234-1234-123456789abc "; "12345678-1234-1234-1234-123456789ab"
+               "{0x12345678,0x1234,0x1234,{0x12,0x34,0x12,0x34,0x56,0x78,0x9a,0xbc}}"
+               "1234567g-1234-1234-1234-123456789abc"; "" ] do
+        rejects<Guid> (str s)
+    let ex = Assert.Catch(fun () -> SerdeJson.deserialize<Guid> (str "{12345678-1234-1234-1234-123456789abc}") |> ignore)
+    Assert.That(ex.Message, Does.Contain("Guid").And.Contain("{12345678"))
+
 [<Test>]
 let ``Date errors name the type and the expected format`` () =
     let ex = Assert.Catch(fun () -> SerdeJson.deserialize<DateTime> (str "01/02/2026") |> ignore)

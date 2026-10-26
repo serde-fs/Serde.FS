@@ -375,7 +375,7 @@ The JSON shapes below are part of the 1.x contract: the .NET codecs and the Fabl
 {"Name":"John","Age":30,"Nickname":null}
 ```
 
-- Field names are written exactly as declared and matched case-sensitively.
+- Field names are written exactly as declared and matched case-sensitively. `[<SerdeRename("account_id")>]` on a field, union case or enum case changes the name used on the wire.
 - Every field is written; `None` is `null`.
 - On decode, a missing `option` field reads as `None`, a missing field of any other type is an error, and unknown fields are ignored. You can add an `option` field, or stop sending one, without breaking older clients.
 
@@ -425,7 +425,7 @@ Integer types reject a fractional or out-of-range value instead of truncating it
 |---|---|
 | `string` | `"text"` |
 | `char` | `"c"` (exactly one character) |
-| `Guid` | `"12345678-1234-1234-1234-123456789abc"` |
+| `Guid` | `"12345678-1234-1234-1234-123456789abc"` (decoding accepts only this hyphenated form, in either case) |
 
 ### Dates and times
 

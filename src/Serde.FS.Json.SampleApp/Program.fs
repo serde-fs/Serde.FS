@@ -110,6 +110,22 @@ type Blob = {
 }
 
 [<Serde>]
+type Status =
+    | [<SerdeRename("active")>] Active
+    | [<SerdeRename("on_hold")>] OnHold of reason: string
+
+[<Serde>]
+type Level = | [<SerdeRename("lo")>] Low = 1 | High = 2
+
+[<Serde>]
+type Account = {
+    [<SerdeRename("account_id")>] Id: int
+    [<SerdeRename("display_name")>] Name: string option
+    Status: Status
+    Level: Level
+}
+
+[<Serde>]
 type Timer = {
     Duration: System.TimeSpan
     Timeout: System.TimeSpan option
@@ -263,5 +279,21 @@ let run _argv =
         eprintfn "Timer JSON: MISMATCH\n  expected %s\n  got      %s" expectedTimerJson timerJson
         exit 1
     roundtrip "Timer" timer timerJson (SerdeJson.deserialize<Timer> timerJson)
+
+    // -----------------------------------------
+    // 8. SerdeRename on record fields, union cases and enum cases
+    // -----------------------------------------
+    let accounts = [
+        { Id = 7; Name = Some "Ada"; Status = OnHold "audit"; Level = Level.Low }
+        { Id = 8; Name = None; Status = Active; Level = Level.High }
+    ]
+    let accountsJson = SerdeJson.serialize accounts
+    let expectedAccountsJson =
+        """[{"account_id":7,"display_name":"Ada","Status":{"Case":"on_hold","Fields":["audit"]},"Level":"lo"},"""
+        + """{"account_id":8,"display_name":null,"Status":{"Case":"active","Fields":[]},"Level":"High"}]"""
+    if accountsJson <> expectedAccountsJson then
+        eprintfn "Account JSON: MISMATCH\n  expected %s\n  got      %s" expectedAccountsJson accountsJson
+        exit 1
+    roundtrip "Account list" accounts accountsJson (SerdeJson.deserialize<Account list> accountsJson)
 
     0

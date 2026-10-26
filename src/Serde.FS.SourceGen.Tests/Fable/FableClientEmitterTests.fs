@@ -333,6 +333,27 @@ let ``record with date and time fields decodes via kind-preserving helpers`` () 
     SnapshotHarness.assertSnapshot "record_date_time_fields" actual
 
 [<Test>]
+let ``SerdeRename on fields, union cases and enum cases is used on the wire`` () =
+    let statusTi =
+        multiUnion "Domain" "Status" [ "Active", []; "OnHold", [ stringTi ] ]
+        |> withRenames [ "Active", "active"; "OnHold", "on_hold" ]
+    let levelTi = enumTi "Domain" "Level" [ "Low"; "High" ] |> withRenames [ "Low", "lo" ]
+    let accountTi =
+        record "Domain" "Account" [ "Id", int32Ti; "Name", opt stringTi; "Status", statusTi; "Level", levelTi ]
+        |> withRenames [ "Id", "account_id"; "Name", "display_name" ]
+    let methods = [ methodOf "Save" accountTi int32Ti ]
+    let iface = interfaceOf "Domain" "IAccountApi" methods true
+    let actual = FableClientEmitter.emit iface [ toSerde statusTi; toSerde levelTi; toSerde accountTi ]
+    // Same names the .NET codecs use (see the SampleApp Account check).
+    for s in [ "\"account_id\", "; "json?(\"account_id\")"; "\"display_name\", "; "json?(\"display_name\")"
+               "box \"on_hold\""; "caseName = \"on_hold\""; "box \"active\""; "caseName = \"active\""
+               "box \"lo\""; "s = \"lo\"" ] do
+        Assert.That(actual, Does.Contain(s))
+    Assert.That(actual, Does.Contain("value.Id").And.Contain("Id = "), "record construction keeps the F# field name")
+    Assert.That(actual, Does.Not.Contain("\"Id\""))
+    SnapshotHarness.assertSnapshot "renamed_fields_and_cases" actual
+
+[<Test>]
 let ``record with TimeSpan fields uses the constant format`` () =
     let timerTi =
         record "Domain" "Timer" [
