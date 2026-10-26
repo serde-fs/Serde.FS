@@ -2,7 +2,7 @@ namespace Serde.FS
 
 open System
 
-/// Marks a type for both serialization and deserialization code generation.
+/// Marks a type for codec generation (serialization and deserialization).
 [<AttributeUsage(AttributeTargets.Class ||| AttributeTargets.Struct ||| AttributeTargets.Interface ||| AttributeTargets.Enum, AllowMultiple = false)>]
 type SerdeAttribute() =
     inherit Attribute()
@@ -15,31 +15,16 @@ type SerdeAttribute() =
         System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)>]
     member val Codec : Type = null with get, set
 
-/// Marks a type for serialization code generation only.
-[<AttributeUsage(AttributeTargets.Class ||| AttributeTargets.Struct ||| AttributeTargets.Interface ||| AttributeTargets.Enum, AllowMultiple = false)>]
-type SerdeSerializeAttribute() = inherit Attribute()
-
-/// Marks a type for deserialization code generation only.
-[<AttributeUsage(AttributeTargets.Class ||| AttributeTargets.Struct ||| AttributeTargets.Interface ||| AttributeTargets.Enum, AllowMultiple = false)>]
-type SerdeDeserializeAttribute() = inherit Attribute()
-
 /// Renames the target element in serialized output.
 [<AttributeUsage(AttributeTargets.All, AllowMultiple = false)>]
 type SerdeRenameAttribute(name: string) =
     inherit Attribute()
     member _.Name = name
 
-/// Skips the target element for both serialization and deserialization.
+/// Leaves a union case or enum case out of the generated codec. Using it on a
+/// record field is a build error.
 [<AttributeUsage(AttributeTargets.All, AllowMultiple = false)>]
 type SerdeSkipAttribute() = inherit Attribute()
-
-/// Skips the target element for serialization only.
-[<AttributeUsage(AttributeTargets.All, AllowMultiple = false)>]
-type SerdeSkipSerializeAttribute() = inherit Attribute()
-
-/// Skips the target element for deserialization only.
-[<AttributeUsage(AttributeTargets.All, AllowMultiple = false)>]
-type SerdeSkipDeserializeAttribute() = inherit Attribute()
 
 /// Specifies field-level codec overrides for serialization and deserialization.
 [<AttributeUsage(AttributeTargets.Field ||| AttributeTargets.Property, AllowMultiple = false)>]

@@ -22,7 +22,6 @@ type Person = { FName: string; LName: string; Age: int }
     Assert.That(t.Raw.Namespace, Is.EqualTo(Some "MyApp"))
     Assert.That(t.Raw.EnclosingModules, Is.EqualTo(List.empty<string>))
     Assert.That(t.Raw.TypeName, Is.EqualTo("Person"))
-    Assert.That(t.Capability, Is.EqualTo(Both))
 
     let fields = t.Fields.Value
     Assert.That(fields.Length, Is.EqualTo(3))
@@ -35,36 +34,6 @@ type Person = { FName: string; LName: string; Age: int }
 
     Assert.That(fields.[2].Name, Is.EqualTo("Age"))
     Assert.That(typeInfoToFSharpString fields.[2].Type, Is.EqualTo("int"))
-
-[<Test>]
-let ``Parses record with SerdeSerialize attribute`` () =
-    let source = """
-namespace MyApp
-
-[<Serde.FS.SerdeSerialize>]
-type Point = { X: float; Y: float }
-"""
-    let types = SerdeAstParser.parseSource "/test.fs" source
-    Assert.That(types.Length, Is.EqualTo(1))
-
-    let t = types.[0]
-    Assert.That(t.Raw.TypeName, Is.EqualTo("Point"))
-    Assert.That(t.Capability, Is.EqualTo(Serialize))
-
-[<Test>]
-let ``Parses record with SerdeDeserialize attribute`` () =
-    let source = """
-namespace MyApp
-
-[<SerdeDeserialize>]
-type Config = { Host: string; Port: int }
-"""
-    let types = SerdeAstParser.parseSource "/test.fs" source
-    Assert.That(types.Length, Is.EqualTo(1))
-
-    let t = types.[0]
-    Assert.That(t.Raw.TypeName, Is.EqualTo("Config"))
-    Assert.That(t.Capability, Is.EqualTo(Deserialize))
 
 [<Test>]
 let ``Ignores types without Serde attributes`` () =

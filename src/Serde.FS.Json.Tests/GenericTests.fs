@@ -15,7 +15,7 @@ let private mkPrimType name kind : TypeInfo =
       GenericParameters = []; GenericArguments = [] }
 
 let private mkField name typeName kind : SerdeFieldInfo =
-    { Name = name; RawName = name; Type = mkPrimType typeName kind; Attributes = SerdeAttributes.empty; Capability = Both; CodecType = None }
+    { Name = name; RawName = name; Type = mkPrimType typeName kind; Attributes = SerdeAttributes.empty; CodecType = None }
 
 /// Build a generic union definition: Wrapper<'T> = Wrapper of 'T
 let private mkWrapperDef ns : SerdeTypeInfo =
@@ -111,7 +111,6 @@ let ``Generic record Box of int emits correct code`` () =
 let ``EmitResolver includes constructed generic types`` () =
     let personInfo : SerdeTypeInfo = {
         Raw = mkPersonTi (Some "MyApp")
-        Capability = Both
         Attributes = SerdeAttributes.empty
         ConverterType = None
         CodecType = None

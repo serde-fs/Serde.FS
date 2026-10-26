@@ -1013,7 +1013,6 @@ module RpcApiDiscovery =
             |> List.distinctBy typeInfoToPascalName
             |> List.map (fun ti ->
                 { Raw = ti
-                  Capability = SerdeCapability.Both
                   Attributes = SerdeAttributes.empty
                   ConverterType = None
                   CodecType = None

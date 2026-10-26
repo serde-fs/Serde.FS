@@ -29,7 +29,6 @@ module private DiscoveryRoots =
     let mkSyntheticSerdeTypeInfo (ti: TypeInfo) : SerdeTypeInfo =
         {
             Raw = ti
-            Capability = Both
             Attributes = SerdeAttributes.empty
             ConverterType = None
             CodecType = None
@@ -632,6 +631,22 @@ module SerdeGeneratorEngine =
         for msg in violations do
             errors.Add(msg)
         if not (List.isEmpty violations) then
+            success <- false
+
+        // [<SerdeSkip>] leaves out union and enum cases. On a record field there
+        // is no defined wire behaviour (what would decode put there?), so it is
+        // an error rather than silently ignored. (F# rejects attributes on
+        // union case fields itself.)
+        let skippedFields =
+            [ for t in resolvedTypes do
+                for f in t.Fields |> Option.defaultValue [] do
+                    if f.Attributes.Skip then yield typeInfoToFqFSharpType t.Raw, f.RawName ]
+            |> List.distinct
+        for (owner, field) in skippedFields do
+            errors.Add(
+                $"Serde.FS error: [<SerdeSkip>] on field '%s{field}' of '%s{owner}' is not supported. "
+                + "It applies to union cases and enum cases only.")
+        if not (List.isEmpty skippedFields) then
             success <- false
 
         if success then

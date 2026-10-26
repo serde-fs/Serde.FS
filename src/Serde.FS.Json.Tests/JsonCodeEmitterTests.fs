@@ -16,11 +16,11 @@ let private mkPrimType name kind : TypeInfo =
 
 /// Helper to build a SerdeFieldInfo from a name and a simple primitive type.
 let private mkField name typeName kind : SerdeFieldInfo =
-    { Name = name; RawName = name; Type = mkPrimType typeName kind; Attributes = SerdeAttributes.empty; Capability = Both; CodecType = None }
+    { Name = name; RawName = name; Type = mkPrimType typeName kind; Attributes = SerdeAttributes.empty; CodecType = None }
 
 /// Helper to build a SerdeFieldInfo with a full TypeInfo.
 let private mkFieldWithType name (typeInfo: TypeInfo) : SerdeFieldInfo =
-    { Name = name; RawName = name; Type = typeInfo; Attributes = SerdeAttributes.empty; Capability = Both; CodecType = None }
+    { Name = name; RawName = name; Type = typeInfo; Attributes = SerdeAttributes.empty; CodecType = None }
 
 /// Helper to build an option TypeInfo wrapping an inner TypeInfo.
 let private mkOptionType (inner: TypeInfo) : TypeInfo =
@@ -31,7 +31,6 @@ let private mkOptionInfo (inner: TypeInfo) : SerdeTypeInfo =
     let optType = mkOptionType inner
     {
         Raw = optType
-        Capability = Both
         Attributes = SerdeAttributes.empty
         ConverterType = None
         CodecType = None
@@ -42,7 +41,7 @@ let private mkOptionInfo (inner: TypeInfo) : SerdeTypeInfo =
     }
 
 /// Helper to build a SerdeTypeInfo for a simple record.
-let private mkRecordInfo ns typeName cap (fields: SerdeFieldInfo list) : SerdeTypeInfo =
+let private mkRecordInfo ns typeName (fields: SerdeFieldInfo list) : SerdeTypeInfo =
     let rawFields =
         fields |> List.map (fun f -> { Name = f.RawName; Type = f.Type; Attributes = [] } : Types.FieldInfo)
     {
@@ -55,7 +54,6 @@ let private mkRecordInfo ns typeName cap (fields: SerdeFieldInfo list) : SerdeTy
             GenericParameters = []
             GenericArguments = []
         }
-        Capability = cap
         Attributes = SerdeAttributes.empty
         ConverterType = None
         CodecType = None
@@ -67,7 +65,7 @@ let private mkRecordInfo ns typeName cap (fields: SerdeFieldInfo list) : SerdeTy
 
 [<Test>]
 let ``Emits valid F# for simple record`` () =
-    let info = mkRecordInfo (Some "MyApp") "Person" Both [
+    let info = mkRecordInfo (Some "MyApp") "Person" [
         mkField "FName" "string" String
         mkField "LName" "string" String
         mkField "Age" "int" Int32
@@ -89,7 +87,7 @@ let ``Backticks reserved-keyword field name in decode binding`` () =
     // Regression (reported issue): a field named `Namespace` lowercases to
     // `namespace`, a reserved keyword, producing `let namespace = ...` which is
     // a syntax error (FS0010: Unexpected keyword 'namespace' in binding).
-    let info = mkRecordInfo (Some "Testing") "MySchema" Both [
+    let info = mkRecordInfo (Some "Testing") "MySchema" [
         mkField "Namespace" "string" String
     ]
 
@@ -107,7 +105,7 @@ let ``Backticks reserved-keyword field name in decode binding`` () =
 let ``Backticks field whose raw name is itself a reserved keyword`` () =
     // A field defined in source as ``type`` has RawName "type", reserved at every
     // emission site: the field access, the local binding, and the record label.
-    let info = mkRecordInfo (Some "Testing") "MySchema" Both [
+    let info = mkRecordInfo (Some "Testing") "MySchema" [
         mkField "type" "string" String
     ]
 
@@ -124,7 +122,7 @@ let ``Backticks field whose raw name is itself a reserved keyword`` () =
 
 [<Test>]
 let ``Emits codec encode for bool fields`` () =
-    let info = mkRecordInfo (Some "MyApp") "Config" Serialize [
+    let info = mkRecordInfo (Some "MyApp") "Config" [
         mkField "IsEnabled" "bool" Bool
     ]
 
@@ -134,7 +132,7 @@ let ``Emits codec encode for bool fields`` () =
 
 [<Test>]
 let ``Emits codec encode for numeric types`` () =
-    let info = mkRecordInfo (Some "MyApp") "Numbers" Serialize [
+    let info = mkRecordInfo (Some "MyApp") "Numbers" [
         mkField "I" "int" Int32
         mkField "I64" "int64" Int64
         mkField "F" "float" Float64
@@ -155,7 +153,7 @@ let ``Emits option handling for optional fields`` () =
         Kind = Option (mkPrimType "string" String); Attributes = []
         GenericParameters = []; GenericArguments = []
     }
-    let info = mkRecordInfo (Some "MyApp") "Person" Serialize [
+    let info = mkRecordInfo (Some "MyApp") "Person" [
         mkFieldWithType "MiddleName" optionType
     ]
 
@@ -167,7 +165,7 @@ let ``Emits option handling for optional fields`` () =
 
 [<Test>]
 let ``Emits auto-generated header`` () =
-    let info = mkRecordInfo (Some "MyApp") "Foo" Both [
+    let info = mkRecordInfo (Some "MyApp") "Foo" [
         mkField "X" "int" Int32
     ]
 
@@ -176,7 +174,7 @@ let ``Emits auto-generated header`` () =
 
 [<Test>]
 let ``Emits DateTime field via CodecResolver`` () =
-    let info = mkRecordInfo (Some "MyApp") "Event" Serialize [
+    let info = mkRecordInfo (Some "MyApp") "Event" [
         mkField "CreatedAt" "System.DateTime" DateTime
     ]
 
@@ -186,7 +184,7 @@ let ``Emits DateTime field via CodecResolver`` () =
 
 [<Test>]
 let ``Emits Guid field via CodecResolver`` () =
-    let info = mkRecordInfo (Some "MyApp") "Entity" Serialize [
+    let info = mkRecordInfo (Some "MyApp") "Entity" [
         mkField "Id" "System.Guid" Guid
     ]
 
@@ -216,11 +214,11 @@ type Person = { FName: string; LName: string; Age: int }
 [<Test>]
 let ``EmitResolver produces valid consolidated file for multiple types`` () =
     let types = [
-        mkRecordInfo (Some "MyApp") "Person" Both [
+        mkRecordInfo (Some "MyApp") "Person" [
             mkField "FName" "string" String
             mkField "LName" "string" String
         ]
-        mkRecordInfo (Some "MyApp") "Address" Serialize [
+        mkRecordInfo (Some "MyApp") "Address" [
             mkField "Street" "string" String
         ]
     ]
@@ -250,7 +248,7 @@ let ``EmitResolver emits assembly-level SerdeBootstrap attribute for the JsonBoo
     // The attribute lets Bootstrap discover the generated bootstrap from
     // assembly metadata instead of a full type scan (Native AOT / trimming
     // safe - issue #13).
-    let types = [ mkRecordInfo (Some "MyApp") "Person" Both [ mkField "Name" "string" String ] ]
+    let types = [ mkRecordInfo (Some "MyApp") "Person" [ mkField "Name" "string" String ] ]
     let code = (resolverEmitter.EmitResolver types).Value
     Assert.That(code, Does.Contain("[<assembly: Serde.FS.SerdeBootstrap(typeof<Serde.Generated.JsonBootstrap>)>]"))
 
@@ -275,7 +273,6 @@ let ``EmitResolver disambiguates colliding short type names`` () =
                 GenericParameters = []
                 GenericArguments = []
             }
-            Capability = Both
             Attributes = SerdeAttributes.empty
             ConverterType = None
             CodecType = None
@@ -372,7 +369,7 @@ let ``Emits codec for nested option option int`` () =
 
 [<Test>]
 let ``EmitResolver with mixed record and option types`` () =
-    let recordType = mkRecordInfo (Some "MyApp") "Person" Both [
+    let recordType = mkRecordInfo (Some "MyApp") "Person" [
         mkField "FName" "string" String
     ]
     let optionType = mkOptionInfo (mkPrimType "string" String)
@@ -397,7 +394,7 @@ let ``Emits fully-qualified type for nested record field`` () =
         Kind = Record []; Attributes = []
         GenericParameters = []; GenericArguments = []
     }
-    let info = mkRecordInfo (Some "My.App") "User" Both [
+    let info = mkRecordInfo (Some "My.App") "User" [
         mkField "Name" "string" String
         mkFieldWithType "Address" addressType
     ]
@@ -413,7 +410,7 @@ let ``Emits fully-qualified type for nested record from another module`` () =
         Kind = Record []; Attributes = []
         GenericParameters = []; GenericArguments = []
     }
-    let info = mkRecordInfo (Some "My.App") "User" Both [
+    let info = mkRecordInfo (Some "My.App") "User" [
         mkFieldWithType "Address" addressType
     ]
 
@@ -432,7 +429,7 @@ let ``Emits option handling for nested record option field`` () =
         Kind = Option addressType; Attributes = []
         GenericParameters = []; GenericArguments = []
     }
-    let info = mkRecordInfo (Some "My.App") "User" Both [
+    let info = mkRecordInfo (Some "My.App") "User" [
         mkFieldWithType "Address" optionType
     ]
 
@@ -451,7 +448,6 @@ let private mkTupleInfo (elements: TypeInfo list) : SerdeTypeInfo =
     let tupType = mkTupleType elements
     {
         Raw = tupType
-        Capability = Both
         Attributes = SerdeAttributes.empty
         ConverterType = None
         CodecType = None
@@ -493,7 +489,7 @@ let ``Emits codec for tuple containing record`` () =
 
 [<Test>]
 let ``EmitResolver with mixed record option and tuple types`` () =
-    let recordType = mkRecordInfo (Some "MyApp") "Person" Both [
+    let recordType = mkRecordInfo (Some "MyApp") "Person" [
         mkField "FName" "string" String
     ]
     let optionType = mkOptionInfo (mkPrimType "string" String)
@@ -555,7 +551,6 @@ let private mkEnumInfo ns typeName (cases: SerdeEnumCaseInfo list) : SerdeTypeIn
             GenericParameters = []
             GenericArguments = []
         }
-        Capability = Both
         Attributes = SerdeAttributes.empty
         ConverterType = None
         CodecType = None
@@ -567,12 +562,12 @@ let private mkEnumInfo ns typeName (cases: SerdeEnumCaseInfo list) : SerdeTypeIn
 
 /// Helper to build a SerdeEnumCaseInfo.
 let private mkEnumCase name value : SerdeEnumCaseInfo =
-    { CaseName = name; RawCaseName = name; Value = value; Attributes = SerdeAttributes.empty; Capability = Both }
+    { CaseName = name; RawCaseName = name; Value = value; Attributes = SerdeAttributes.empty }
 
 /// Helper to build a SerdeEnumCaseInfo with a rename.
 let private mkEnumCaseRenamed rawName effectiveName value : SerdeEnumCaseInfo =
     { CaseName = effectiveName; RawCaseName = rawName; Value = value
-      Attributes = { SerdeAttributes.empty with Rename = Some effectiveName }; Capability = Both }
+      Attributes = { SerdeAttributes.empty with Rename = Some effectiveName } }
 
 [<Test>]
 let ``Emits codec for basic enum`` () =
@@ -609,7 +604,7 @@ let ``EmitResolver includes enum type`` () =
         mkEnumCase "Red" 1
         mkEnumCase "Blue" 2
     ]
-    let recordInfo = mkRecordInfo (Some "TestNs") "Person" Both [
+    let recordInfo = mkRecordInfo (Some "TestNs") "Person" [
         mkField "Name" "string" String
     ]
     let types = [ recordInfo; enumInfo ]
@@ -660,7 +655,7 @@ let private mkUnionCaseSkipped name (fields: SerdeFieldInfo list) : SerdeUnionCa
 
 /// Helper to build an unnamed (tuple-like) field for a union case.
 let private mkUnnamedField (typeInfo: TypeInfo) : SerdeFieldInfo =
-    { Name = "Item"; RawName = "Item"; Type = typeInfo; Attributes = SerdeAttributes.empty; Capability = Both; CodecType = None }
+    { Name = "Item"; RawName = "Item"; Type = typeInfo; Attributes = SerdeAttributes.empty; CodecType = None }
 
 /// Helper to build a SerdeTypeInfo for a union type.
 let private mkUnionInfo ns typeName (cases: SerdeUnionCaseInfo list) : SerdeTypeInfo =
@@ -680,7 +675,6 @@ let private mkUnionInfo ns typeName (cases: SerdeUnionCaseInfo list) : SerdeType
             GenericParameters = []
             GenericArguments = []
         }
-        Capability = Both
         Attributes = SerdeAttributes.empty
         ConverterType = None
         CodecType = None
@@ -818,7 +812,7 @@ let ``EmitResolver includes union type`` () =
         mkUnionCase "Circle" [ mkField "Radius" "float" Float64 ]
         mkUnionCase "Point" []
     ]
-    let recordInfo = mkRecordInfo (Some "TestNs") "Person" Both [
+    let recordInfo = mkRecordInfo (Some "TestNs") "Person" [
         mkField "Name" "string" String
     ]
     let types = [ recordInfo; unionInfo ]
@@ -957,7 +951,6 @@ let private mkCodecInfo ns typeName codecFqn : SerdeTypeInfo =
             GenericParameters = []
             GenericArguments = []
         }
-        Capability = Both
         Attributes = SerdeAttributes.empty
         ConverterType = None
         CodecType = Some codecFqn
@@ -1022,7 +1015,7 @@ type FancyName = { Value: string }
 // -- Collection codecs (issue #14: statically-typed, AOT-safe) --
 
 let private mkSynthetic (raw: TypeInfo) : SerdeTypeInfo =
-    { Raw = raw; Capability = Both; Attributes = SerdeAttributes.empty; ConverterType = None
+    { Raw = raw; Attributes = SerdeAttributes.empty; ConverterType = None
       CodecType = None; Fields = None; UnionCases = None; EnumCases = None; GenericContext = None }
 
 let private mkShape name kind : TypeInfo =
@@ -1080,7 +1073,7 @@ let ``Nested collection codec resolves the inner collection type, not its elemen
 
 [<Test>]
 let ``EmitResolver registers collection codecs alongside record codecs`` () =
-    let record = mkRecordInfo (Some "MyApp") "Owner" Both [ mkField "Name" "string" String ]
+    let record = mkRecordInfo (Some "MyApp") "Owner" [ mkField "Name" "string" String ]
     let listInfo = mkSynthetic (mkShape "list" (List petType))
     let code = (resolverEmitter.EmitResolver [ record; listInfo ]).Value
     Assert.That(code, Does.Contain("let private petListJsonCodec : IJsonCodec<MyApp.Pet list> ="))
@@ -1107,7 +1100,7 @@ let ``Single option codec does not wrap Some`` () =
 
 [<Test>]
 let ``Nested option record field wraps Some, single option field does not`` () =
-    let info = mkRecordInfo (Some "MyApp") "Patch" Both [
+    let info = mkRecordInfo (Some "MyApp") "Patch" [
         mkFieldWithType "Nickname" (mkOptionType (mkOptionType (mkPrimType "string" String)))
         mkFieldWithType "Age" (mkOptionType (mkPrimType "int" Int32))
     ]

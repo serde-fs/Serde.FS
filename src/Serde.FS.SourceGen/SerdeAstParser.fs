@@ -9,8 +9,6 @@ module SerdeAstParser =
     let private serdeAttributeNames =
         set [
             "Serde"; "SerdeAttribute"
-            "SerdeSerialize"; "SerdeSerializeAttribute"
-            "SerdeDeserialize"; "SerdeDeserializeAttribute"
         ]
 
     /// Parse F# source text and return all Serde-annotated types found.

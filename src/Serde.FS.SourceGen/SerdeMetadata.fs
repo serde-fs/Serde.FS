@@ -3,24 +3,15 @@ namespace Serde.FS
 open FSharp.SourceDjinn
 open FSharp.SourceDjinn.TypeModel.Types
 
-type SerdeCapability =
-    | Serialize
-    | Deserialize
-    | Both
-
 type SerdeAttributes = {
     Rename: string option
     Skip: bool
-    SkipSerialize: bool
-    SkipDeserialize: bool
 }
 
 module SerdeAttributes =
     let empty = {
         Rename = None
         Skip = false
-        SkipSerialize = false
-        SkipDeserialize = false
     }
 
 type SerdeFieldInfo = {
@@ -28,7 +19,6 @@ type SerdeFieldInfo = {
     RawName: string
     Type: TypeInfo
     Attributes: SerdeAttributes
-    Capability: SerdeCapability
     CodecType: string option
 }
 
@@ -37,7 +27,6 @@ type SerdeEnumCaseInfo = {
     RawCaseName: string
     Value: int
     Attributes: SerdeAttributes
-    Capability: SerdeCapability
 }
 
 type SerdeUnionCaseInfo = {
@@ -56,7 +45,6 @@ type SerdeGenericContext = {
 
 type SerdeTypeInfo = {
     Raw: TypeInfo
-    Capability: SerdeCapability
     Attributes: SerdeAttributes
     ConverterType: string option
     CodecType: string option
@@ -73,22 +61,6 @@ module SerdeMetadataBuilder =
         | -1 -> name
         | i -> name.Substring(i + 1)
 
-    let private resolveCapability (attrs: AttributeInfo list) : SerdeCapability =
-        let names = attrs |> List.map (fun a -> shortName a.Name)
-        let hasSer =
-            names |> List.exists (fun n ->
-                n = "Serde" || n = "SerdeAttribute" ||
-                n = "SerdeSerialize" || n = "SerdeSerializeAttribute")
-        let hasDeser =
-            names |> List.exists (fun n ->
-                n = "Serde" || n = "SerdeAttribute" ||
-                n = "SerdeDeserialize" || n = "SerdeDeserializeAttribute")
-        match hasSer, hasDeser with
-        | true, true -> Both
-        | true, false -> Serialize
-        | false, true -> Deserialize
-        | false, false -> Both
-
     let private buildSerdeAttributes (attrs: AttributeInfo list) : SerdeAttributes =
         let shortNames = attrs |> List.map (fun a -> shortName a.Name)
         let rename =
@@ -100,23 +72,7 @@ module SerdeMetadataBuilder =
         {
             Rename = rename
             Skip = shortNames |> List.exists (fun n -> n = "SerdeSkip" || n = "SerdeSkipAttribute")
-            SkipSerialize = shortNames |> List.exists (fun n -> n = "SerdeSkipSerialize" || n = "SerdeSkipSerializeAttribute")
-            SkipDeserialize = shortNames |> List.exists (fun n -> n = "SerdeSkipDeserialize" || n = "SerdeSkipDeserializeAttribute")
         }
-
-    let private resolveFieldCapability (typeCap: SerdeCapability) (attrs: SerdeAttributes) : SerdeCapability =
-        if attrs.Skip then typeCap
-        elif attrs.SkipSerialize then
-            match typeCap with
-            | Both -> Deserialize
-            | Serialize -> Serialize
-            | Deserialize -> Deserialize
-        elif attrs.SkipDeserialize then
-            match typeCap with
-            | Both -> Serialize
-            | Deserialize -> Deserialize
-            | Serialize -> Serialize
-        else typeCap
 
     let private extractCodecType (attrs: AttributeInfo list) : string option =
         attrs |> List.tryPick (fun a ->
@@ -132,7 +88,7 @@ module SerdeMetadataBuilder =
                     else None)
             else None)
 
-    let private buildSerdeFieldInfo (typeCap: SerdeCapability) (fi: FieldInfo) : SerdeFieldInfo =
+    let private buildSerdeFieldInfo (fi: FieldInfo) : SerdeFieldInfo =
         let attrs = buildSerdeAttributes fi.Attributes
         let effectiveName = attrs.Rename |> Option.defaultValue fi.Name
         let codecType = extractCodecType fi.Attributes
@@ -141,22 +97,21 @@ module SerdeMetadataBuilder =
             RawName = fi.Name
             Type = fi.Type
             Attributes = attrs
-            Capability = resolveFieldCapability typeCap attrs
             CodecType = codecType
         }
 
-    let private buildSerdeUnionCaseInfo (typeCap: SerdeCapability) (uc: UnionCase) : SerdeUnionCaseInfo =
+    let private buildSerdeUnionCaseInfo (uc: UnionCase) : SerdeUnionCaseInfo =
         let attrs = buildSerdeAttributes uc.Attributes
         let effectiveName = attrs.Rename |> Option.defaultValue uc.CaseName
         {
             CaseName = effectiveName
             RawCaseName = uc.CaseName
-            Fields = uc.Fields |> List.map (buildSerdeFieldInfo typeCap)
+            Fields = uc.Fields |> List.map buildSerdeFieldInfo
             Tag = uc.Tag
             Attributes = attrs
         }
 
-    let private buildSerdeEnumCaseInfo (typeCap: SerdeCapability) (ec: EnumCase) : SerdeEnumCaseInfo =
+    let private buildSerdeEnumCaseInfo (ec: EnumCase) : SerdeEnumCaseInfo =
         let attrs = buildSerdeAttributes ec.Attributes
         let effectiveName = attrs.Rename |> Option.defaultValue ec.CaseName
         {
@@ -164,7 +119,6 @@ module SerdeMetadataBuilder =
             RawCaseName = ec.CaseName
             Value = ec.Value
             Attributes = attrs
-            Capability = resolveFieldCapability typeCap attrs
         }
 
     let private extractSerdeNamedArg (argName: string) (attrs: AttributeInfo list) : string option =
@@ -182,23 +136,21 @@ module SerdeMetadataBuilder =
             else None)
 
     let buildSerdeTypeInfo (ti: TypeInfo) : SerdeTypeInfo =
-        let capability = resolveCapability ti.Attributes
         let typeAttrs = buildSerdeAttributes ti.Attributes
         let converterType = extractSerdeNamedArg "Converter" ti.Attributes
         let codecType = extractSerdeNamedArg "Codec" ti.Attributes
         let fields, unionCases, enumCases =
             match ti.Kind with
             | Record fields | AnonymousRecord fields ->
-                Some (fields |> List.map (buildSerdeFieldInfo capability)), None, None
+                Some (fields |> List.map buildSerdeFieldInfo), None, None
             | Union cases ->
-                None, Some (cases |> List.map (buildSerdeUnionCaseInfo capability)), None
+                None, Some (cases |> List.map buildSerdeUnionCaseInfo), None
             | Enum cases ->
-                None, None, Some (cases |> List.map (buildSerdeEnumCaseInfo capability))
+                None, None, Some (cases |> List.map buildSerdeEnumCaseInfo)
             | _ ->
                 None, None, None
         {
             Raw = ti
-            Capability = capability
             Attributes = typeAttrs
             ConverterType = converterType
             CodecType = codecType

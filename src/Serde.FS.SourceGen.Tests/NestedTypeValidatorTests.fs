@@ -21,7 +21,7 @@ let private mkEnumRef ns modules name : TypeInfo =
     mkTypeInfo ns modules name (Enum [])
 
 let private mkField name ty : SerdeFieldInfo =
-    { Name = name; RawName = name; Type = ty; Attributes = SerdeAttributes.empty; Capability = Both; CodecType = None }
+    { Name = name; RawName = name; Type = ty; Attributes = SerdeAttributes.empty; CodecType = None }
 
 let private mkUnionCase caseName fields : SerdeUnionCaseInfo =
     { CaseName = caseName; RawCaseName = caseName; Fields = fields; Tag = None; Attributes = SerdeAttributes.empty }
@@ -29,7 +29,6 @@ let private mkUnionCase caseName fields : SerdeUnionCaseInfo =
 let private mkSerdeType ns modules name fields unionCases : SerdeTypeInfo =
     {
         Raw = mkTypeInfo ns modules name (Record [])
-        Capability = Both
         Attributes = SerdeAttributes.empty
         ConverterType = None
         CodecType = None
@@ -53,7 +52,6 @@ let ``Union case with unmarked record payload produces error`` () =
     let nameTi = mkRecordRef None [ "Program" ] "Name"
     let petType =
         { Raw = mkTypeInfo None [ "Program" ] "Pet" (Union [])
-          Capability = Both
           Attributes = SerdeAttributes.empty
           ConverterType = None
           CodecType = None
@@ -159,3 +157,42 @@ let ``Unmarked enum field produces error`` () =
     let errors = NestedTypeValidator.validate serdeNames [ shapeType ]
     Assert.That(errors.Length, Is.EqualTo(1))
     Assert.That(errors.[0], Does.Contain("App.Color"))
+
+// -- [<SerdeSkip>] is for union and enum cases only --
+
+let private generate (source: string) =
+    let emitter = Serde.FS.Json.SourceGen.JsonCodeEmitter() :> ISerdeCodeEmitter
+    SerdeGeneratorEngine.generate [ "/Domain.fs", source ] emitter
+
+[<Test>]
+let ``SerdeSkip on a record field is a build error`` () =
+    let result = generate """
+namespace App
+
+open Serde.FS
+
+[<Serde>]
+type Account = { Id: int; [<SerdeSkip>] Secret: string }
+"""
+    Assert.That(result.Errors.Length, Is.EqualTo(1), sprintf "%A" result.Errors)
+    Assert.That(result.Errors.[0], Does.Contain("'Secret' of 'App.Account'").And.Contain("union cases and enum cases only"))
+
+[<Test>]
+let ``SerdeSkip on union and enum cases is allowed`` () =
+    let result = generate """
+namespace App
+
+open Serde.FS
+
+[<Serde>]
+type Shape =
+    | Circle of radius: float
+    | [<SerdeSkip>] Internal of int
+
+[<Serde>]
+type Color = | Red = 1 | [<SerdeSkip>] Debug = 2
+"""
+    Assert.That(result.Errors, Is.Empty, sprintf "%A" result.Errors)
+    // A source that fails to parse yields no errors either; make sure the
+    // types were really generated.
+    Assert.That(result.Sources, Is.Not.Empty)

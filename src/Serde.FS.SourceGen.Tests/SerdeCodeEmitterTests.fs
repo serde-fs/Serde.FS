@@ -25,12 +25,11 @@ let ``CodeEmitter delegates to ISerdeCodeEmitter`` () =
             GenericParameters = []
             GenericArguments = []
         }
-        Capability = Both
         Attributes = SerdeAttributes.empty
         ConverterType = None
         CodecType = None
         Fields = Some [
-            { Name = "FName"; RawName = "FName"; Type = { Namespace = None; EnclosingModules = []; TypeName = "string"; Kind = Primitive String; Attributes = []; GenericParameters = []; GenericArguments = [] }; Attributes = SerdeAttributes.empty; Capability = Both; CodecType = None }
+            { Name = "FName"; RawName = "FName"; Type = { Namespace = None; EnclosingModules = []; TypeName = "string"; Kind = Primitive String; Attributes = []; GenericParameters = []; GenericArguments = [] }; Attributes = SerdeAttributes.empty; CodecType = None }
         ]
         UnionCases = None
         EnumCases = None
@@ -55,12 +54,11 @@ let ``DebugEmitter emits debug comment`` () =
             GenericParameters = []
             GenericArguments = []
         }
-        Capability = Both
         Attributes = SerdeAttributes.empty
         ConverterType = None
         CodecType = None
         Fields = Some [
-            { Name = "FName"; RawName = "FName"; Type = { Namespace = None; EnclosingModules = []; TypeName = "string"; Kind = Primitive String; Attributes = []; GenericParameters = []; GenericArguments = [] }; Attributes = SerdeAttributes.empty; Capability = Both; CodecType = None }
+            { Name = "FName"; RawName = "FName"; Type = { Namespace = None; EnclosingModules = []; TypeName = "string"; Kind = Primitive String; Attributes = []; GenericParameters = []; GenericArguments = [] }; Attributes = SerdeAttributes.empty; CodecType = None }
         ]
         UnionCases = None
         EnumCases = None
