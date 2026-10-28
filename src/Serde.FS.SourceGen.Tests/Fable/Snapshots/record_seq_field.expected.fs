@@ -19,8 +19,31 @@ module rec ICacheApiFableClient =
         [<Emit("typeof $0 === 'string'")>]
         let isString (x: obj) : bool = jsNative
 
+        [<Emit("Math.fround($0)")>]
+        let fround (x: float) : float32 = jsNative
+
         [<Emit("Object.prototype.hasOwnProperty.call($0, $1)")>]
         let hasKey (x: obj) (k: string) : bool = jsNative
+
+        let field (typeName: string) (json: obj) (name: string) : obj =
+            if isNullish json then failwith ("Expected a JSON object for " + typeName + ", got null")
+            elif hasKey json name then json?(name)
+            else failwith ("Missing field \"" + name + "\" for " + typeName)
+
+        let caseFields (typeName: string) (caseName: string) (arity: int) (json: obj) : obj[] =
+            let values = unbox<obj[]> json
+            if values.Length <> arity then
+                failwith ("Union case " + typeName + "." + caseName + " expects " + string arity + " field(s), got " + string values.Length)
+            values
+
+        let tupleItems (arity: int) (json: obj) : obj[] =
+            let values = unbox<obj[]> json
+            if values.Length <> arity then
+                failwith ("Expected " + string arity + " elements for a tuple, got " + string values.Length)
+            values
+
+        let unknownCase (typeName: string) (caseName: string) : 'T =
+            failwith ("Unknown case \"" + caseName + "\" for " + typeName)
 
         let parseDateTime (s: string) : System.DateTime =
             let d = System.DateTime.Parse s
@@ -46,7 +69,7 @@ module rec ICacheApiFableClient =
             ]
         let decode (json: obj) : Domain.Cache =
             {
-                Tags = (let v = (json?("Tags")) in if Interop.isNullish v then null else unbox<obj[]> v |> Array.map (fun x -> (unbox<string> x)) :> seq<_>)
+                Tags = (let v = (Interop.field "Domain.Cache" json "Tags") in if Interop.isNullish v then null else unbox<obj[]> v |> Array.map (fun x -> (unbox<string> x)) :> seq<_>)
             }
 
     let create (baseUrl: string) : Domain.ICacheApi =

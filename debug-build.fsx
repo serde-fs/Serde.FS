@@ -18,6 +18,11 @@ let sampleRpcServerProj = "src/Serde.FS.Json.SampleRpc.Server/Serde.FS.Json.Samp
 let sampleRpcClientProj = "src/Serde.FS.Json.SampleRpc.Client/Serde.FS.Json.SampleRpc.Client.fsproj"
 let sampleRpcFableClientProj = "src/Serde.FS.Json.SampleRpc.FableClient/Serde.FS.Json.SampleRpc.FableClient.fsproj"
 let sampleAppProj     = "src/Serde.FS.Json.SampleApp/Serde.FS.Json.SampleApp.fsproj"
+let roundTripSharedProj = "src/Serde.FS.Json.RoundTrip.Shared/Serde.FS.Json.RoundTrip.Shared.fsproj"
+let roundTripNetProj    = "src/Serde.FS.Json.RoundTrip.Net/Serde.FS.Json.RoundTrip.Net.fsproj"
+let roundTripFableDir   = "src/Serde.FS.Json.RoundTrip.Fable"
+let roundTripFableProj  = $"{roundTripFableDir}/Serde.FS.Json.RoundTrip.Fable.fsproj"
+let roundTripOutDir     = Path.GetFullPath(Path.Combine(roundTripFableDir, "bin", "roundtrip"))
 let sourceGenTestProj = "src/Serde.FS.SourceGen.Tests/Serde.FS.SourceGen.Tests.fsproj"
 let jsonTestProj      = "src/Serde.FS.Json.Tests/Serde.FS.Json.Tests.fsproj"
 let nugetLocalDir     = ".nuget-local"
@@ -138,6 +143,9 @@ pipeline "debug" {
             writeVersionProps sampleRpcClientProj [ "SerdeVersion", debugVersion ]
             writeVersionProps sampleRpcFableClientProj [ "SerdeVersion", debugVersion ]
             writeVersionProps sampleAppProj [ "SerdeVersion", debugVersion ]
+            writeVersionProps roundTripSharedProj [ "SerdeVersion", debugVersion ]
+            writeVersionProps roundTripNetProj [ "SerdeVersion", debugVersion ]
+            writeVersionProps roundTripFableProj [ "SerdeVersion", debugVersion ]
         )
     }
 
@@ -147,6 +155,8 @@ pipeline "debug" {
         run $"dotnet restore {sampleRpcClientProj} --no-cache"
         run $"dotnet restore {sampleRpcFableClientProj} --no-cache"
         run $"dotnet restore {sampleAppProj} --no-cache"
+        run $"dotnet restore {roundTripNetProj} --no-cache"
+        run $"dotnet restore {roundTripFableProj} --no-cache"
     }
 
     stage "Build and run SampleApp" {
@@ -171,6 +181,33 @@ pipeline "debug" {
         run $"dotnet build {sampleRpcFableClientProj} --no-restore"
     }
 
+    // The same values (RoundTrip.Cases) go through the .NET codecs and the
+    // generated Fable client under Node, each decoding what the other wrote:
+    //   1. .NET writes its encoding of every case.
+    //   2. The Fable client decodes those (through its proxy, with fetch
+    //      faked) and writes the request bodies it encoded.
+    //   3. .NET decodes the Fable request bodies.
+    // Each step exits non-zero if a value comes back different. Needs Node.
+    stage "Round-trip .NET <-> Fable: .NET encodes" {
+        run (fun _ -> Directory.CreateDirectory(roundTripOutDir) |> ignore)
+        run $"dotnet build {roundTripNetProj} --no-restore"
+        run $"dotnet run --project {roundTripNetProj} --no-build -- write \"{roundTripOutDir}/dotnet.json\""
+    }
+
+    stage "Round-trip .NET <-> Fable: Fable decodes and encodes" {
+        workingDir roundTripFableDir
+        run "dotnet build --no-restore"
+        run "dotnet tool restore"
+        run $"dotnet fable . -o \"{roundTripOutDir}/js\" --silent"
+        // Fable emits ES modules; Node needs to be told.
+        run (fun _ -> File.WriteAllText(Path.Combine(roundTripOutDir, "js", "package.json"), """{"type":"module"}"""))
+        run $"node \"{roundTripOutDir}/js/Program.js\" \"{roundTripOutDir}/dotnet.json\" \"{roundTripOutDir}/fable.json\""
+    }
+
+    stage "Round-trip .NET <-> Fable: .NET decodes" {
+        run $"dotnet run --project {roundTripNetProj} --no-build -- verify \"{roundTripOutDir}/fable.json\""
+    }
+
     stage "Summary" {
         run (fun _ ->
             printfn ""
@@ -187,6 +224,7 @@ pipeline "debug" {
             printfn $"    SampleRpc.Server          OK"
             printfn $"    SampleRpc.Client          OK"
             printfn $"    SampleRpc.FableClient     OK"
+            printfn $"    RoundTrip .NET <-> Fable  OK"
             printfn "========================================"
             printfn ""
         )

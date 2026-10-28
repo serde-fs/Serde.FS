@@ -12,6 +12,7 @@
 ## Local debug build
 
 * Run `dotnet fsi debug-build.fsx` to build, pack, and test the Json backend against the SampleApp.
+* The debug pipeline ends with the .NET / Fable round-trip suite (`src/Serde.FS.Json.RoundTrip.*`, needs Node): every value in `RoundTrip.Cases` is encoded by each side and decoded by the other. Add a case there when a wire shape changes.
 * Run `dotnet fsi debug-build.fsx -- -p clean` to delete debug packages and SampleApp build artifacts.
 * Run `dotnet fsi debug-build.fsx -- -p aot` (after a `debug` run) to publish the SampleApp trimmed + self-contained and run it — the Native AOT / trimming regression gate for the codec pipeline (issue #14). A real `PublishAot=true` publish additionally needs the VS C++ toolchain.
 

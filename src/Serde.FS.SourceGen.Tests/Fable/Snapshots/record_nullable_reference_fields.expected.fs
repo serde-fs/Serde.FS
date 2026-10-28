@@ -19,8 +19,31 @@ module rec IBlobApiFableClient =
         [<Emit("typeof $0 === 'string'")>]
         let isString (x: obj) : bool = jsNative
 
+        [<Emit("Math.fround($0)")>]
+        let fround (x: float) : float32 = jsNative
+
         [<Emit("Object.prototype.hasOwnProperty.call($0, $1)")>]
         let hasKey (x: obj) (k: string) : bool = jsNative
+
+        let field (typeName: string) (json: obj) (name: string) : obj =
+            if isNullish json then failwith ("Expected a JSON object for " + typeName + ", got null")
+            elif hasKey json name then json?(name)
+            else failwith ("Missing field \"" + name + "\" for " + typeName)
+
+        let caseFields (typeName: string) (caseName: string) (arity: int) (json: obj) : obj[] =
+            let values = unbox<obj[]> json
+            if values.Length <> arity then
+                failwith ("Union case " + typeName + "." + caseName + " expects " + string arity + " field(s), got " + string values.Length)
+            values
+
+        let tupleItems (arity: int) (json: obj) : obj[] =
+            let values = unbox<obj[]> json
+            if values.Length <> arity then
+                failwith ("Expected " + string arity + " elements for a tuple, got " + string values.Length)
+            values
+
+        let unknownCase (typeName: string) (caseName: string) : 'T =
+            failwith ("Unknown case \"" + caseName + "\" for " + typeName)
 
         let parseDateTime (s: string) : System.DateTime =
             let d = System.DateTime.Parse s
@@ -51,10 +74,10 @@ module rec IBlobApiFableClient =
         let decode (json: obj) : Domain.Blob =
             {
                 Name = (let v = (json?("Name")) in if Interop.isNullish v then None else Some ((unbox<string> v)))
-                Payload = (let v = (json?("Payload")) in if Interop.isNullish v then null else System.Convert.FromBase64String (unbox<string> v))
+                Payload = (let v = (Interop.field "Domain.Blob" json "Payload") in if Interop.isNullish v then null else System.Convert.FromBase64String (unbox<string> v))
                 Thumb = (let v = (json?("Thumb")) in if Interop.isNullish v then None else Some ((let v = v in if Interop.isNullish v then null else System.Convert.FromBase64String (unbox<string> v))))
-                Ids = (let v = (json?("Ids")) in if Interop.isNullish v then null else unbox<obj[]> v |> Array.map (fun x -> (unbox<int> x)))
-                Tags = (let v = (json?("Tags")) in if Interop.isNullish v then null else unbox<obj[]> v |> Array.map (fun x -> (unbox<string> x)) :> seq<_>)
+                Ids = (let v = (Interop.field "Domain.Blob" json "Ids") in if Interop.isNullish v then null else unbox<obj[]> v |> Array.map (fun x -> (unbox<int> x)))
+                Tags = (let v = (Interop.field "Domain.Blob" json "Tags") in if Interop.isNullish v then null else unbox<obj[]> v |> Array.map (fun x -> (unbox<string> x)) :> seq<_>)
             }
 
     let create (baseUrl: string) : Domain.IBlobApi =

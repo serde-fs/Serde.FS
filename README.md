@@ -391,7 +391,7 @@ The JSON shapes below are part of the 1.x contract: the .NET codecs and the Fabl
 | `Option` | `Some 5` / `None` | `5` / `null` |
 | Nested `Option` | `Some None : int option option` | `{"Some":null}` |
 
-A single-case union with one field (a "newtype" such as `UserId`) is an object keyed by its case name. Enums are written by name; a value with no named case is an error.
+A single-case union with one field (a "newtype" such as `UserId`) is an object keyed by its case name. Enums are written by name; a value with no named case is an error. On decode, a union's `Fields` must hold exactly as many values as the case has, and an unknown case name is an error.
 
 `Some` is written as its value, except when the value inside can itself be `null` (a nested `Option`, or `unit`). Then it is wrapped as `{"Some": ...}` so that `Some None` does not collapse into `None`.
 
@@ -405,7 +405,7 @@ A single-case union with one field (a "newtype" such as `UserId`) is an object k
 | `byte[]` | `"AQI="` (Base64) |
 | `unit` | `null` |
 
-A `Map` is always an array of `[key, value]` pairs, even with `string` keys, so keys of any type work the same way. Only `byte[]` is Base64: a `byte list` is `[1,2]`.
+A `Map` is always an array of `[key, value]` pairs, even with `string` keys, so keys of any type work the same way. Only `byte[]` is Base64: a `byte list` is `[1,2]`. A tuple must have exactly as many elements as its type.
 
 ### Numbers
 

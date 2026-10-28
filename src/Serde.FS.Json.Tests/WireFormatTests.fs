@@ -504,3 +504,35 @@ let ``Null elements inside arrays and maps round-trip`` () =
     Assert.That(roundTrip [| null; [| 1uy |] |], Is.EqualTo([| null; [| 1uy |] |]))
     let m = Map [ "a", (null: int[]); "b", [| 1 |] ]
     Assert.That(roundTrip m, Is.EqualTo(m))
+
+// -- Decode errors name the type and field --
+// The messages are not part of the wire format, but they must say what was
+// wrong instead of surfacing a KeyNotFoundException or IndexOutOfRangeException.
+
+[<Test>]
+let ``A missing field names the field and type`` () =
+    let fieldMap = dict [ "Name", JsonValue.String "x" ]
+    let ex = Assert.Catch(fun () -> DecodeWire.field "App.Person" fieldMap "Age" |> ignore)
+    Assert.That(ex.Message, Is.EqualTo("Missing field \"Age\" for App.Person"))
+    Assert.That(DecodeWire.field "App.Person" fieldMap "Name", Is.EqualTo(JsonValue.String "x"))
+
+[<Test>]
+let ``A union case with the wrong number of fields is rejected`` () =
+    let one = [ JsonValue.Number 1m ]
+    Assert.That(DecodeWire.caseFields "App.Shape" "Circle" 1 one, Is.EqualTo([| JsonValue.Number 1m |]))
+    let ex = Assert.Catch(fun () -> DecodeWire.caseFields "App.Shape" "Rect" 2 one |> ignore)
+    Assert.That(ex.Message, Is.EqualTo("Union case App.Shape.Rect expects 2 field(s), got 1"))
+    Assert.Catch(fun () -> DecodeWire.caseFields "App.Shape" "Point" 0 one |> ignore) |> ignore
+
+[<Test>]
+let ``A tuple with the wrong number of elements is rejected`` () =
+    let ex = Assert.Catch(fun () -> DecodeWire.tupleItems "(int * string)" 2 [ JsonValue.Number 1m ] |> ignore)
+    Assert.That(ex.Message, Is.EqualTo("Expected 2 elements for (int * string), got 1"))
+    Assert.Catch(fun () -> DecodeWire.tupleItems "(int * string)" 2 [ JsonValue.Number 1m; JsonValue.String "a"; JsonValue.Null ] |> ignore) |> ignore
+
+[<Test>]
+let ``Unknown cases and wrong JSON kinds name the type`` () =
+    let ex = Assert.Catch(fun () -> DecodeWire.unknownCase<int> "App.Shape" "Hexagon" |> ignore)
+    Assert.That(ex.Message, Is.EqualTo("Unknown case \"Hexagon\" for App.Shape"))
+    let ex = Assert.Catch(fun () -> DecodeWire.expected<int> "a JSON object" "App.Person" (JsonValue.Array []) |> ignore)
+    Assert.That(ex.Message, Is.EqualTo("Expected a JSON object for App.Person, got an array"))

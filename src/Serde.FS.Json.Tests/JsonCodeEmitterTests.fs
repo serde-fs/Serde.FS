@@ -1111,3 +1111,42 @@ let ``Nested option record field wraps Some, single option field does not`` () =
     let occurrences (needle: string) = (code.Length - code.Replace(needle, "").Length) / needle.Length
     Assert.That(occurrences "OptionWire.wrapSome", Is.EqualTo(1))
     Assert.That(occurrences "OptionWire.unwrapSome", Is.EqualTo(1))
+
+// -- Decode errors name the type and field --
+
+[<Test>]
+let ``Record decode looks fields up through DecodeWire`` () =
+    let info = mkRecordInfo (Some "MyApp") "Person" [ mkField "Name" "string" String; mkField "Age" "int" Int32 ]
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("DecodeWire.field \"MyApp.Person\" fieldMap \"Name\""))
+    Assert.That(code, Does.Contain("DecodeWire.field \"MyApp.Person\" fieldMap \"Age\""))
+    Assert.That(code, Does.Contain("DecodeWire.expected \"a JSON object\" \"MyApp.Person\" json"))
+    Assert.That(code, Does.Not.Contain("fieldMap.["))
+
+[<Test>]
+let ``Union decode checks the field count of every case`` () =
+    let info = mkUnionInfo (Some "TestNs") "Shape" [
+        mkUnionCase "Point" []
+        mkUnionCase "Circle" [ mkField "radius" "float" Float64 ]
+        mkUnionCase "Rect" [ mkUnnamedField (mkPrimType "float" Float64); mkUnnamedField (mkPrimType "float" Float64) ]
+    ]
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("DecodeWire.caseFields \"TestNs.Shape\" \"Point\" 0 fieldItems |> ignore"))
+    Assert.That(code, Does.Contain("let fieldsArr = DecodeWire.caseFields \"TestNs.Shape\" \"Circle\" 1 fieldItems"))
+    Assert.That(code, Does.Contain("let fieldsArr = DecodeWire.caseFields \"TestNs.Shape\" \"Rect\" 2 fieldItems"))
+    Assert.That(code, Does.Contain("DecodeWire.field \"TestNs.Shape\" fieldMap \"Case\""))
+    Assert.That(code, Does.Contain("DecodeWire.field \"TestNs.Shape\" fieldMap \"Fields\""))
+    Assert.That(code, Does.Contain("DecodeWire.unknownCase \"TestNs.Shape\" caseName"))
+    Assert.That(code, Does.Not.Contain("fieldMap.["))
+
+[<Test>]
+let ``Tuple decode checks the element count`` () =
+    let info = mkTupleInfo [ mkPrimType "int" Int32; mkPrimType "string" String ]
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("let items = DecodeWire.tupleItems \"(int * string)\" 2 items"))
+
+[<Test>]
+let ``Enum decode names the type of an unknown case`` () =
+    let info = mkEnumInfo (Some "TestNs") "Color" [ mkEnumCase "Red" 1 ]
+    let code = emitter.Emit(info)
+    Assert.That(code, Does.Contain("DecodeWire.unknownCase \"TestNs.Color\" s"))

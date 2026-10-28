@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <!-- Compiled by Fable and run under Node, not by .NET. -->
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Fable.Core" Version="5.0.0" />
+        <PackageReference Include="Serde.FS.Fable" Version="$(SerdeVersion)" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Serde.FS.Json.RoundTrip.Shared\Serde.FS.Json.RoundTrip.Shared.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Update="FSharp.Core" Version="10.0.103" />
+    </ItemGroup>
+
+</Project>

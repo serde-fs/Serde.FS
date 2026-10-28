@@ -23,6 +23,43 @@ module OptionWire =
         | JsonValue.Object [ "Some", inner ] -> inner
         | _ -> failwith $"Expected null or {{\"Some\": ...}} for %s{typeName}"
 
+/// Lookups for generated record, union and tuple decoders, so a missing field
+/// or a wrong number of values fails with a message naming the type and field
+/// instead of a bare KeyNotFoundException or IndexOutOfRangeException. Called
+/// by generated codecs, so it is public.
+module DecodeWire =
+    let field (typeName: string) (fieldMap: Collections.Generic.IDictionary<string, JsonValue>) (name: string) : JsonValue =
+        match fieldMap.TryGetValue name with
+        | true, v -> v
+        | _ -> failwith $"Missing field \"%s{name}\" for %s{typeName}"
+
+    /// The `Fields` array of a union case, checked against the case's arity.
+    let caseFields (typeName: string) (caseName: string) (arity: int) (items: JsonValue list) : JsonValue[] =
+        let values = List.toArray items
+        if values.Length <> arity then
+            failwith $"Union case %s{typeName}.%s{caseName} expects %d{arity} field(s), got %d{values.Length}"
+        values
+
+    let tupleItems (typeName: string) (arity: int) (items: JsonValue list) : JsonValue[] =
+        let values = List.toArray items
+        if values.Length <> arity then
+            failwith $"Expected %d{arity} elements for %s{typeName}, got %d{values.Length}"
+        values
+
+    let unknownCase (typeName: string) (caseName: string) : 'T =
+        failwith $"Unknown case \"%s{caseName}\" for %s{typeName}"
+
+    let expected (what: string) (typeName: string) (json: JsonValue) : 'T =
+        let actual =
+            match json with
+            | JsonValue.Null -> "null"
+            | JsonValue.Bool _ -> "a bool"
+            | JsonValue.Number _ | JsonValue.Float _ -> "a number"
+            | JsonValue.String _ -> "a string"
+            | JsonValue.Array _ -> "an array"
+            | JsonValue.Object _ -> "an object"
+        failwith $"Expected %s{what} for %s{typeName}, got %s{actual}"
+
 module CollectionCodecs =
 
     // ------------------------------------------------------------------

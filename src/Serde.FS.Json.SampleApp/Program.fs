@@ -296,4 +296,32 @@ let run _argv =
         exit 1
     roundtrip "Account list" accounts accountsJson (SerdeJson.deserialize<Account list> accountsJson)
 
+    // -----------------------------------------
+    // 9. Decode errors name the type and field
+    // -----------------------------------------
+    let expectError (label: string) (expected: string) (decode: unit -> unit) =
+        let message =
+            try decode (); None
+            with ex -> Some ex.Message
+        match message with
+        | Some m when m = expected -> printfn "%s error: OK (%s)" label m
+        | other ->
+            eprintfn "%s error: MISMATCH\n  expected %s\n  got      %s" label expected (defaultArg other "no error")
+            exit 1
+
+    expectError "Missing field" "Missing field \"Zip\" for SampleApp.Address" (fun () ->
+        SerdeJson.deserialize<Address> """{"Street":"1 Main","City":"Springfield"}""" |> ignore)
+    expectError "Union arity" "Union case SampleApp.Shape.Rectangle expects 2 field(s), got 1" (fun () ->
+        SerdeJson.deserialize<Shape> """{"Case":"Rectangle","Fields":[1]}""" |> ignore)
+    expectError "Nullary arity" "Union case SampleApp.Shape.Point expects 0 field(s), got 1" (fun () ->
+        SerdeJson.deserialize<Shape> """{"Case":"Point","Fields":[1]}""" |> ignore)
+    expectError "Missing Fields" "Missing field \"Fields\" for SampleApp.Shape" (fun () ->
+        SerdeJson.deserialize<Shape> """{"Case":"Point"}""" |> ignore)
+    expectError "Unknown case" "Unknown case \"Hexagon\" for SampleApp.Shape" (fun () ->
+        SerdeJson.deserialize<Shape> """{"Case":"Hexagon","Fields":[]}""" |> ignore)
+    expectError "Unknown enum case" "Unknown case \"Purple\" for SampleApp.Color" (fun () ->
+        SerdeJson.deserialize<Color> "\"Purple\"" |> ignore)
+    expectError "Wrong JSON kind" "Expected a JSON object for SampleApp.Address, got an array" (fun () ->
+        SerdeJson.deserialize<Address> "[]" |> ignore)
+
     0

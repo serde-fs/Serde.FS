@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!-- The shared half of the .NET / Fable round-trip suite: the [<RpcApi>]
+	     and the values every case sends. Compiled by .NET for
+	     RoundTrip.Net and by Fable for RoundTrip.Fable. -->
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Serde.FS" Version="$(SerdeVersion)" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Compile Include="Domain.fs" />
+		<Compile Include="Cases.fs" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <PackageReference Update="FSharp.Core" Version="10.0.103" />
+	</ItemGroup>
+
+</Project>

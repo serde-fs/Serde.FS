@@ -165,14 +165,14 @@ module internal JsonCodeEmitterImpl =
                 append $"                        | false, _ -> None"
             else
                 append $"                    let fieldCodec_%s{field.RawName} = CodecResolver.resolve typeof<%s{fsharpType}> GlobalCodecRegistry.Current"
-                append $"                    let %s{local} = fieldCodec_%s{field.RawName}.Decode(fieldMap.[\"%s{field.Name}\"]) :?> %s{fsharpType}"
+                append $"                    let %s{local} = fieldCodec_%s{field.RawName}.Decode(DecodeWire.field \"%s{fqn}\" fieldMap \"%s{field.Name}\") :?> %s{fsharpType}"
 
         let fieldAssignments =
             fields
             |> List.map (fun f -> $"%s{IdentifierNaming.backtick f.RawName} = %s{IdentifierNaming.backtick (lowerFirst f.RawName)}")
             |> String.concat "; "
         append $"                    {{ %s{fieldAssignments} }} : %s{fqn}"
-        append "                | _ -> failwith \"Expected JSON object\""
+        append $"                | json -> DecodeWire.expected \"a JSON object\" \"%s{fqn}\" json"
         append "        }"
 
         // Field-level codec overrides (register in GlobalCodecRegistry)
@@ -270,13 +270,14 @@ module internal JsonCodeEmitterImpl =
         append "            member _.Decode(json) ="
         append "                match json with"
         append "                | JsonValue.Array items ->"
+        append $"                    let items = DecodeWire.tupleItems \"%s{fqType}\" %d{elements.Length} items"
         for i, elem in elements |> List.mapi (fun i x -> i, x) do
             let elemFqType = Types.typeInfoToFqFSharpType elem.Type
             append $"                    let elemCodec_%d{i} = CodecResolver.resolve typeof<%s{elemFqType}> GlobalCodecRegistry.Current"
             append $"                    let e%d{i} = elemCodec_%d{i}.Decode(items.[%d{i}]) :?> %s{elemFqType}"
         let tupleExpr = elements |> List.mapi (fun i _ -> $"e%d{i}") |> String.concat ", "
         append $"                    (%s{tupleExpr})"
-        append "                | _ -> failwith \"Expected JSON array for tuple\""
+        append $"                | json -> DecodeWire.expected \"a JSON array\" \"%s{fqType}\" json"
         append "        }"
 
         sb.ToString()
@@ -403,8 +404,8 @@ module internal JsonCodeEmitterImpl =
             append $"                    if caseName = \"%s{case.CaseName}\" then"
             append $"                        let innerCodec = CodecResolver.resolve typeof<%s{fsharpType}> GlobalCodecRegistry.Current"
             append $"                        %s{caseRef case}(innerCodec.Decode(payload) :?> %s{fsharpType})"
-            append "                    else failwith (sprintf \"Unknown union case: %s\" caseName)"
-            append "                | _ -> failwith \"Expected JSON object for wrapper union\""
+            append $"                    else DecodeWire.unknownCase \"%s{fqn}\" caseName"
+            append $"                | json -> DecodeWire.expected \"a JSON object with one property\" \"%s{fqn}\" json"
 
         | MultiCaseUnion ->
             // Encode
@@ -453,18 +454,23 @@ module internal JsonCodeEmitterImpl =
             append "                | JsonValue.Object fields ->"
             append "                    let fieldMap = dict fields"
             append "                    let caseName ="
-            append "                        match fieldMap.[\"Case\"] with"
+            append $"                        match DecodeWire.field \"%s{fqn}\" fieldMap \"Case\" with"
             append "                        | JsonValue.String s -> s"
-            append "                        | _ -> failwith \"Expected string for 'Case'\""
-            append "                    let fieldsArr ="
-            append "                        match fieldMap.[\"Fields\"] with"
+            append $"                        | v -> DecodeWire.expected \"a string 'Case'\" \"%s{fqn}\" v"
+            append "                    let fieldItems ="
+            append $"                        match DecodeWire.field \"%s{fqn}\" fieldMap \"Fields\" with"
             append "                        | JsonValue.Array items -> items"
-            append "                        | _ -> failwith \"Expected array for 'Fields'\""
+            append $"                        | v -> DecodeWire.expected \"an array 'Fields'\" \"%s{fqn}\" v"
 
             for i, case in activeCases |> List.mapi (fun i x -> i, x) do
                 let keyword = if i = 0 then "if" else "elif"
                 let shape = classifyCaseShape case
                 append $"                    %s{keyword} caseName = \"%s{case.CaseName}\" then"
+                let arityCheck = $"DecodeWire.caseFields \"%s{fqn}\" \"%s{case.CaseName}\" %d{case.Fields.Length} fieldItems"
+                if shape = Nullary then
+                    append $"                        %s{arityCheck} |> ignore"
+                else
+                    append $"                        let fieldsArr = %s{arityCheck}"
                 match shape with
                 | Nullary ->
                     append $"                        %s{caseRef case}"
@@ -488,8 +494,8 @@ module internal JsonCodeEmitterImpl =
                     let args = case.Fields |> List.mapi (fun j _ -> $"e%d{j}") |> String.concat ", "
                     append $"                        %s{caseRef case}(%s{args})"
 
-            append "                    else failwith (sprintf \"Unknown union case: %s\" caseName)"
-            append "                | _ -> failwith \"Expected JSON object for union\""
+            append $"                    else DecodeWire.unknownCase \"%s{fqn}\" caseName"
+            append $"                | json -> DecodeWire.expected \"a JSON object\" \"%s{fqn}\" json"
 
         append "        }"
 
@@ -531,8 +537,8 @@ module internal JsonCodeEmitterImpl =
         for i, c in activeCases |> List.mapi (fun i x -> i, x) do
             let keyword = if i = 0 then "if" else "elif"
             append $"                    %s{keyword} s = \"%s{c.CaseName}\" then %s{fqn}.%s{c.RawCaseName}"
-        append "                    else failwith (sprintf \"Unknown enum value: %s\" s)"
-        append "                | _ -> failwith \"Expected JSON string for enum\""
+        append $"                    else DecodeWire.unknownCase \"%s{fqn}\" s"
+        append $"                | json -> DecodeWire.expected \"a JSON string\" \"%s{fqn}\" json"
         append "        }"
 
         sb.ToString()

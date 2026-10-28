@@ -19,8 +19,31 @@ module rec IAccountApiFableClient =
         [<Emit("typeof $0 === 'string'")>]
         let isString (x: obj) : bool = jsNative
 
+        [<Emit("Math.fround($0)")>]
+        let fround (x: float) : float32 = jsNative
+
         [<Emit("Object.prototype.hasOwnProperty.call($0, $1)")>]
         let hasKey (x: obj) (k: string) : bool = jsNative
+
+        let field (typeName: string) (json: obj) (name: string) : obj =
+            if isNullish json then failwith ("Expected a JSON object for " + typeName + ", got null")
+            elif hasKey json name then json?(name)
+            else failwith ("Missing field \"" + name + "\" for " + typeName)
+
+        let caseFields (typeName: string) (caseName: string) (arity: int) (json: obj) : obj[] =
+            let values = unbox<obj[]> json
+            if values.Length <> arity then
+                failwith ("Union case " + typeName + "." + caseName + " expects " + string arity + " field(s), got " + string values.Length)
+            values
+
+        let tupleItems (arity: int) (json: obj) : obj[] =
+            let values = unbox<obj[]> json
+            if values.Length <> arity then
+                failwith ("Expected " + string arity + " elements for a tuple, got " + string values.Length)
+            values
+
+        let unknownCase (typeName: string) (caseName: string) : 'T =
+            failwith ("Unknown case \"" + caseName + "\" for " + typeName)
 
         let parseDateTime (s: string) : System.DateTime =
             let d = System.DateTime.Parse s
@@ -47,11 +70,11 @@ module rec IAccountApiFableClient =
                 createObj [ "Case", box "on_hold"; "Fields", box [| box (e0) |] ]
 
         let decode (json: obj) : Domain.Status =
-            let caseName = unbox<string> (json?Case)
-            let fieldsArr = unbox<obj[]> (json?Fields)
-            if caseName = "active" then Domain.Status.Active
-            elif caseName = "on_hold" then Domain.Status.OnHold((unbox<string> (fieldsArr.[0])))
-            else failwith (sprintf "Unknown union case: %s" caseName)
+            let caseName = unbox<string> (Interop.field "Domain.Status" json "Case")
+            let fieldsJson = Interop.field "Domain.Status" json "Fields"
+            if caseName = "active" then (Interop.caseFields "Domain.Status" "active" 0 fieldsJson |> ignore; Domain.Status.Active)
+            elif caseName = "on_hold" then (let fieldsArr = Interop.caseFields "Domain.Status" "on_hold" 1 fieldsJson in Domain.Status.OnHold((unbox<string> (fieldsArr.[0]))))
+            else Interop.unknownCase "Domain.Status" caseName
 
     module private LevelCodec =
         let encode (value: Domain.Level) : obj =
@@ -62,7 +85,7 @@ module rec IAccountApiFableClient =
             let s = unbox<string> json
             if s = "lo" then Domain.Level.Low
             elif s = "High" then Domain.Level.High
-            else failwith (sprintf "Unknown enum value: %s" s)
+            else Interop.unknownCase "Domain.Level" s
 
     module private AccountCodec =
         let encode (value: Domain.Account) : obj =
@@ -74,10 +97,10 @@ module rec IAccountApiFableClient =
             ]
         let decode (json: obj) : Domain.Account =
             {
-                Id = (unbox<int> (json?("account_id")))
+                Id = (unbox<int> (Interop.field "Domain.Account" json "account_id"))
                 Name = (let v = (json?("display_name")) in if Interop.isNullish v then None else Some ((unbox<string> v)))
-                Status = (StatusCodec.decode (json?("Status")))
-                Level = (LevelCodec.decode (json?("Level")))
+                Status = (StatusCodec.decode (Interop.field "Domain.Account" json "Status"))
+                Level = (LevelCodec.decode (Interop.field "Domain.Account" json "Level"))
             }
 
     let create (baseUrl: string) : Domain.IAccountApi =

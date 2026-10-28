@@ -19,8 +19,31 @@ module rec ISampleApiFableClient =
         [<Emit("typeof $0 === 'string'")>]
         let isString (x: obj) : bool = jsNative
 
+        [<Emit("Math.fround($0)")>]
+        let fround (x: float) : float32 = jsNative
+
         [<Emit("Object.prototype.hasOwnProperty.call($0, $1)")>]
         let hasKey (x: obj) (k: string) : bool = jsNative
+
+        let field (typeName: string) (json: obj) (name: string) : obj =
+            if isNullish json then failwith ("Expected a JSON object for " + typeName + ", got null")
+            elif hasKey json name then json?(name)
+            else failwith ("Missing field \"" + name + "\" for " + typeName)
+
+        let caseFields (typeName: string) (caseName: string) (arity: int) (json: obj) : obj[] =
+            let values = unbox<obj[]> json
+            if values.Length <> arity then
+                failwith ("Union case " + typeName + "." + caseName + " expects " + string arity + " field(s), got " + string values.Length)
+            values
+
+        let tupleItems (arity: int) (json: obj) : obj[] =
+            let values = unbox<obj[]> json
+            if values.Length <> arity then
+                failwith ("Expected " + string arity + " elements for a tuple, got " + string values.Length)
+            values
+
+        let unknownCase (typeName: string) (caseName: string) : 'T =
+            failwith ("Unknown case \"" + caseName + "\" for " + typeName)
 
         let parseDateTime (s: string) : System.DateTime =
             let d = System.DateTime.Parse s
@@ -53,13 +76,13 @@ module rec ISampleApiFableClient =
             ]
         let decode (json: obj) : Domain.Sample =
             {
-                Tiny = (sbyte (unbox<float> (json?("Tiny"))))
-                Short = (int16 (unbox<float> (json?("Short"))))
-                Octet = (byte (unbox<float> (json?("Octet"))))
-                Port = (uint16 (unbox<float> (json?("Port"))))
-                Count = (uint32 (unbox<float> (json?("Count"))))
-                Ratio = (float32 (unbox<float> (json?("Ratio"))))
-                Grade = ((unbox<string> (json?("Grade"))).[0])
+                Tiny = (sbyte (unbox<float> (Interop.field "Domain.Sample" json "Tiny")))
+                Short = (int16 (unbox<float> (Interop.field "Domain.Sample" json "Short")))
+                Octet = (byte (unbox<float> (Interop.field "Domain.Sample" json "Octet")))
+                Port = (uint16 (unbox<float> (Interop.field "Domain.Sample" json "Port")))
+                Count = (uint32 (unbox<float> (Interop.field "Domain.Sample" json "Count")))
+                Ratio = (Interop.fround (unbox<float> (Interop.field "Domain.Sample" json "Ratio")))
+                Grade = ((unbox<string> (Interop.field "Domain.Sample" json "Grade")).[0])
                 Initial = (let v = (json?("Initial")) in if Interop.isNullish v then None else Some (((unbox<string> v).[0])))
             }
 

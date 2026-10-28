@@ -345,7 +345,7 @@ let ``SerdeRename on fields, union cases and enum cases is used on the wire`` ()
     let iface = interfaceOf "Domain" "IAccountApi" methods true
     let actual = FableClientEmitter.emit iface [ toSerde statusTi; toSerde levelTi; toSerde accountTi ]
     // Same names the .NET codecs use (see the SampleApp Account check).
-    for s in [ "\"account_id\", "; "json?(\"account_id\")"; "\"display_name\", "; "json?(\"display_name\")"
+    for s in [ "\"account_id\", "; "json \"account_id\")"; "\"display_name\", "; "json?(\"display_name\")"
                "box \"on_hold\""; "caseName = \"on_hold\""; "box \"active\""; "caseName = \"active\""
                "box \"lo\""; "s = \"lo\"" ] do
         Assert.That(actual, Does.Contain(s))

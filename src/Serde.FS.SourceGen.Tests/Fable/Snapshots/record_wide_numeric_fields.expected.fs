@@ -19,8 +19,31 @@ module rec ILedgerApiFableClient =
         [<Emit("typeof $0 === 'string'")>]
         let isString (x: obj) : bool = jsNative
 
+        [<Emit("Math.fround($0)")>]
+        let fround (x: float) : float32 = jsNative
+
         [<Emit("Object.prototype.hasOwnProperty.call($0, $1)")>]
         let hasKey (x: obj) (k: string) : bool = jsNative
+
+        let field (typeName: string) (json: obj) (name: string) : obj =
+            if isNullish json then failwith ("Expected a JSON object for " + typeName + ", got null")
+            elif hasKey json name then json?(name)
+            else failwith ("Missing field \"" + name + "\" for " + typeName)
+
+        let caseFields (typeName: string) (caseName: string) (arity: int) (json: obj) : obj[] =
+            let values = unbox<obj[]> json
+            if values.Length <> arity then
+                failwith ("Union case " + typeName + "." + caseName + " expects " + string arity + " field(s), got " + string values.Length)
+            values
+
+        let tupleItems (arity: int) (json: obj) : obj[] =
+            let values = unbox<obj[]> json
+            if values.Length <> arity then
+                failwith ("Expected " + string arity + " elements for a tuple, got " + string values.Length)
+            values
+
+        let unknownCase (typeName: string) (caseName: string) : 'T =
+            failwith ("Unknown case \"" + caseName + "\" for " + typeName)
 
         let parseDateTime (s: string) : System.DateTime =
             let d = System.DateTime.Parse s
@@ -50,11 +73,11 @@ module rec ILedgerApiFableClient =
             ]
         let decode (json: obj) : Domain.LedgerEntry =
             {
-                Id = (let v = (json?("Id")) in if Interop.isString v then System.Int64.Parse (unbox<string> v) else int64 (unbox<float> v))
-                Sequence = (let v = (json?("Sequence")) in if Interop.isString v then System.UInt64.Parse (unbox<string> v) else uint64 (unbox<float> v))
-                Amount = (let v = (json?("Amount")) in if Interop.isString v then System.Decimal.Parse (unbox<string> v) else decimal (unbox<float> v))
+                Id = (let v = (Interop.field "Domain.LedgerEntry" json "Id") in if Interop.isString v then System.Int64.Parse (unbox<string> v) else int64 (unbox<float> v))
+                Sequence = (let v = (Interop.field "Domain.LedgerEntry" json "Sequence") in if Interop.isString v then System.UInt64.Parse (unbox<string> v) else uint64 (unbox<float> v))
+                Amount = (let v = (Interop.field "Domain.LedgerEntry" json "Amount") in if Interop.isString v then System.Decimal.Parse (unbox<string> v) else decimal (unbox<float> v))
                 Parent = (let v = (json?("Parent")) in if Interop.isNullish v then None else Some ((let v = v in if Interop.isString v then System.Int64.Parse (unbox<string> v) else int64 (unbox<float> v))))
-                History = (unbox<obj[]> (json?("History")) |> Array.map (fun x -> (let v = x in if Interop.isString v then System.Decimal.Parse (unbox<string> v) else decimal (unbox<float> v))) |> Array.toList)
+                History = (unbox<obj[]> (Interop.field "Domain.LedgerEntry" json "History") |> Array.map (fun x -> (let v = x in if Interop.isString v then System.Decimal.Parse (unbox<string> v) else decimal (unbox<float> v))) |> Array.toList)
             }
 
     let create (baseUrl: string) : Domain.ILedgerApi =

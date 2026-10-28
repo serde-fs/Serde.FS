@@ -19,8 +19,31 @@ module rec IOrderApiFableClient =
         [<Emit("typeof $0 === 'string'")>]
         let isString (x: obj) : bool = jsNative
 
+        [<Emit("Math.fround($0)")>]
+        let fround (x: float) : float32 = jsNative
+
         [<Emit("Object.prototype.hasOwnProperty.call($0, $1)")>]
         let hasKey (x: obj) (k: string) : bool = jsNative
+
+        let field (typeName: string) (json: obj) (name: string) : obj =
+            if isNullish json then failwith ("Expected a JSON object for " + typeName + ", got null")
+            elif hasKey json name then json?(name)
+            else failwith ("Missing field \"" + name + "\" for " + typeName)
+
+        let caseFields (typeName: string) (caseName: string) (arity: int) (json: obj) : obj[] =
+            let values = unbox<obj[]> json
+            if values.Length <> arity then
+                failwith ("Union case " + typeName + "." + caseName + " expects " + string arity + " field(s), got " + string values.Length)
+            values
+
+        let tupleItems (arity: int) (json: obj) : obj[] =
+            let values = unbox<obj[]> json
+            if values.Length <> arity then
+                failwith ("Expected " + string arity + " elements for a tuple, got " + string values.Length)
+            values
+
+        let unknownCase (typeName: string) (caseName: string) : 'T =
+            failwith ("Unknown case \"" + caseName + "\" for " + typeName)
 
         let parseDateTime (s: string) : System.DateTime =
             let d = System.DateTime.Parse s
@@ -48,9 +71,9 @@ module rec IOrderApiFableClient =
             ]
         let decode (json: obj) : Domain.Catalog.Product =
             {
-                Id = (unbox<int> (json?("Id")))
-                Name = (unbox<string> (json?("Name")))
-                Price = (let v = (json?("Price")) in if Interop.isString v then System.Decimal.Parse (unbox<string> v) else decimal (unbox<float> v))
+                Id = (unbox<int> (Interop.field "Domain.Catalog.Product" json "Id"))
+                Name = (unbox<string> (Interop.field "Domain.Catalog.Product" json "Name"))
+                Price = (let v = (Interop.field "Domain.Catalog.Product" json "Price") in if Interop.isString v then System.Decimal.Parse (unbox<string> v) else decimal (unbox<float> v))
             }
 
     module private OrderCodec =
@@ -61,8 +84,8 @@ module rec IOrderApiFableClient =
             ]
         let decode (json: obj) : Domain.Shop.Order =
             {
-                OrderId = (unbox<int> (json?("OrderId")))
-                Item = (ProductCodec.decode (json?("Item")))
+                OrderId = (unbox<int> (Interop.field "Domain.Shop.Order" json "OrderId"))
+                Item = (ProductCodec.decode (Interop.field "Domain.Shop.Order" json "Item"))
             }
 
     let create (baseUrl: string) : Domain.Shop.IOrderApi =

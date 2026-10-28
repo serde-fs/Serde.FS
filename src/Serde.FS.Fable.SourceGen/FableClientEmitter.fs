@@ -222,7 +222,9 @@ module FableClientEmitter =
             | "char" -> sprintf "((unbox<string> %s).[0])" jsonExpr
             | "bool" -> sprintf "(unbox<bool> %s)" jsonExpr
             | "float" | "double" -> sprintf "(unbox<float> %s)" jsonExpr
-            | "float32" | "single" -> sprintf "(float32 (unbox<float> %s))" jsonExpr
+            // Fable's float32 is a JS number; round to single precision as
+            // .NET does, or 1.1 would not equal the client's own 1.1f.
+            | "float32" | "single" -> sprintf "(Interop.fround (unbox<float> %s))" jsonExpr
             | "decimal" -> sprintf "(let v = %s in if Interop.isString v then System.Decimal.Parse (unbox<string> v) else decimal (unbox<float> v))" jsonExpr
             | "Guid" | "System.Guid" -> sprintf "(System.Guid.Parse (unbox<string> %s))" jsonExpr
             | "DateTime" | "System.DateTime" -> sprintf "(Interop.parseDateTime (unbox<string> %s))" jsonExpr
@@ -259,10 +261,9 @@ module FableClientEmitter =
         | FTuple elements ->
             let decs =
                 elements
-                |> List.mapi (fun i t ->
-                    decodeExpr (sprintf "((unbox<obj[]> %s).[%d])" jsonExpr i) t)
+                |> List.mapi (fun i t -> decodeExpr (sprintf "(t.[%d])" i) t)
                 |> String.concat ", "
-            sprintf "(%s)" decs
+            sprintf "(let t = Interop.tupleItems %d %s in (%s))" elements.Length jsonExpr decs
         | FResult (ok, err) ->
             let okD = decodeExpr "v" ok
             let errD = decodeExpr "v" err
@@ -290,8 +291,14 @@ module FableClientEmitter =
         append (sprintf "    let decode (json: obj) : %s =" fqType)
         append          "        {"
         for field in fields do
-            let expr = decodeExpr (sprintf "(json?(\"%s\"))" field.Name) (fromTi field.Type)
-            append (sprintf "            %s = %s" (IdentifierNaming.backtick field.RawName) expr)
+            let ty = fromTi field.Type
+            // A missing option field reads as None, like the server; any other
+            // missing field is an error naming the field.
+            let lookup =
+                match ty with
+                | FOption _ -> sprintf "(json?(\"%s\"))" field.Name
+                | _ -> sprintf "(Interop.field \"%s\" json \"%s\")" fqType field.Name
+            append (sprintf "            %s = %s" (IdentifierNaming.backtick field.RawName) (decodeExpr lookup ty))
         append          "        }"
         append ""
 
@@ -319,7 +326,7 @@ module FableClientEmitter =
         append (sprintf "        | %s x ->" (caseRef case))
         append (sprintf "            createObj [ \"%s\", %s ]" case.CaseName (encodeExpr "x" (fromTi field.Type)))
         append (sprintf "    let decode (json: obj) : %s =" fqType)
-        append (sprintf "        let v = json?(\"%s\")" case.CaseName)
+        append (sprintf "        let v = Interop.field \"%s\" json \"%s\"" fqType case.CaseName)
         append (sprintf "        %s (%s)" (caseRef case) (decodeExpr "v" (fromTi field.Type)))
         append ""
 
@@ -357,21 +364,22 @@ module FableClientEmitter =
                 append (sprintf "            createObj [ \"Case\", box \"%s\"; \"Fields\", box [| %s |] ]" case.CaseName encs)
         append ""
         append (sprintf "    let decode (json: obj) : %s =" fqType)
-        append          "        let caseName = unbox<string> (json?Case)"
-        append          "        let fieldsArr = unbox<obj[]> (json?Fields)"
+        append (sprintf "        let caseName = unbox<string> (Interop.field \"%s\" json \"Case\")" fqType)
+        append (sprintf "        let fieldsJson = Interop.field \"%s\" json \"Fields\"" fqType)
         for i, case in cases |> List.mapi (fun i c -> i, c) do
             let keyword = if i = 0 then "if" else "elif"
+            let arityCheck = sprintf "Interop.caseFields \"%s\" \"%s\" %d fieldsJson" fqType case.CaseName case.Fields.Length
             match case.Fields with
             | [] ->
-                append (sprintf "        %s caseName = \"%s\" then %s" keyword case.CaseName (caseRef case))
+                append (sprintf "        %s caseName = \"%s\" then (%s |> ignore; %s)" keyword case.CaseName arityCheck (caseRef case))
             | fields ->
                 let decs =
                     fields
                     |> List.mapi (fun j f ->
                         decodeExpr (sprintf "(fieldsArr.[%d])" j) (fromTi f.Type))
                     |> String.concat ", "
-                append (sprintf "        %s caseName = \"%s\" then %s(%s)" keyword case.CaseName (caseRef case) decs)
-        append          "        else failwith (sprintf \"Unknown union case: %s\" caseName)"
+                append (sprintf "        %s caseName = \"%s\" then (let fieldsArr = %s in %s(%s))" keyword case.CaseName arityCheck (caseRef case) decs)
+        append (sprintf "        else Interop.unknownCase \"%s\" caseName" fqType)
         append ""
 
     let private emitEnumCodec (collidingShortNames: Set<string>) (sb: StringBuilder) (info: SerdeTypeInfo) =
@@ -394,7 +402,7 @@ module FableClientEmitter =
         for i, c in cases |> List.mapi (fun i c -> i, c) do
             let keyword = if i = 0 then "if" else "elif"
             append (sprintf "        %s s = \"%s\" then %s.%s" keyword c.CaseName fqType c.RawCaseName)
-        append          "        else failwith (sprintf \"Unknown enum value: %s\" s)"
+        append (sprintf "        else Interop.unknownCase \"%s\" s" fqType)
         append ""
 
     let private emitTypeCodec (collidingShortNames: Set<string>) (sb: StringBuilder) (info: SerdeTypeInfo) =
@@ -483,8 +491,33 @@ module FableClientEmitter =
         bappend "    [<Emit(\"typeof $0 === 'string'\")>]"
         bappend "    let isString (x: obj) : bool = jsNative"
         bappend ""
+        bappend "    [<Emit(\"Math.fround($0)\")>]"
+        bappend "    let fround (x: float) : float32 = jsNative"
+        bappend ""
         bappend "    [<Emit(\"Object.prototype.hasOwnProperty.call($0, $1)\")>]"
         bappend "    let hasKey (x: obj) (k: string) : bool = jsNative"
+        bappend ""
+        // Decode errors match the server's wording (DecodeWire), so a stale
+        // client talking to a newer server says which field or case changed.
+        bappend "    let field (typeName: string) (json: obj) (name: string) : obj ="
+        bappend "        if isNullish json then failwith (\"Expected a JSON object for \" + typeName + \", got null\")"
+        bappend "        elif hasKey json name then json?(name)"
+        bappend "        else failwith (\"Missing field \\\"\" + name + \"\\\" for \" + typeName)"
+        bappend ""
+        bappend "    let caseFields (typeName: string) (caseName: string) (arity: int) (json: obj) : obj[] ="
+        bappend "        let values = unbox<obj[]> json"
+        bappend "        if values.Length <> arity then"
+        bappend "            failwith (\"Union case \" + typeName + \".\" + caseName + \" expects \" + string arity + \" field(s), got \" + string values.Length)"
+        bappend "        values"
+        bappend ""
+        bappend "    let tupleItems (arity: int) (json: obj) : obj[] ="
+        bappend "        let values = unbox<obj[]> json"
+        bappend "        if values.Length <> arity then"
+        bappend "            failwith (\"Expected \" + string arity + \" elements for a tuple, got \" + string values.Length)"
+        bappend "        values"
+        bappend ""
+        bappend "    let unknownCase (typeName: string) (caseName: string) : 'T ="
+        bappend "        failwith (\"Unknown case \\\"\" + caseName + \"\\\" for \" + typeName)"
         bappend ""
         // Fable's DateTime.Parse returns local wall-clock time with Kind
         // Unspecified whatever the input says, so a UTC value echoed back to the
