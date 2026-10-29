@@ -1,0 +1,52 @@
+name: CI
+
+# Linux build of everything the local debug pipeline covers. Releases are
+# packed on windows (publish.yml), so this is where Linux-only breakage shows
+# up: case-sensitive paths, and backslash ProjectReference paths in a Fable
+# client (#17; both Fable projects in the pipeline reference Shared that way).
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 8.0: the test, sample and round-trip projects target net8.0.
+      # 9.0: the generator hosts run on net9.0 during consumer builds.
+      # 10.0: the SDK; FSharp.Compiler.Service pins FSharp.Core 10.0.103.
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      # The round-trip suite runs the generated Fable client under Node.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # One step per test project, as in publish.yml. These also restore the
+      # test projects, which the debug pipeline then runs with --no-restore.
+      - name: Test SourceGen
+        run: dotnet test src/Serde.FS.SourceGen.Tests/Serde.FS.SourceGen.Tests.fsproj --configuration Release
+
+      - name: Test Json
+        run: dotnet test src/Serde.FS.Json.Tests/Serde.FS.Json.Tests.fsproj --configuration Release
+
+      # Packs the packages into .nuget-local and builds the SampleApp,
+      # SampleRpc (server, .NET client, Fable client) and the .NET / Fable
+      # round-trip suite against them, the way a consumer would.
+      - name: Debug pipeline
+        run: dotnet fsi debug-build.fsx
+
+      # Trimmed, self-contained SampleApp: the Native AOT / trimming gate (#14).
+      - name: AOT gate
+        run: dotnet fsi debug-build.fsx -- -p aot
