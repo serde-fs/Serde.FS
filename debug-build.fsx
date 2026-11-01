@@ -44,8 +44,12 @@ let stableSerdeVersion = readProp "SerdeVersion"
 
 let timestamp = DateTime.UtcNow.ToString("yyyyMMddTHHmmss")
 
-// All debug packages share the same version
-let debugVersion = $"{stableSerdeVersion}.debug.{timestamp}"
+// All debug packages share the same version. Appended to an existing
+// prerelease tag (1.0.0-beta.6.debug.<ts>), or started as one for a stable
+// version (1.0.0-debug.<ts>): "1.0.0.debug.<ts>" is not a valid NuGet version.
+let debugVersion =
+    if stableSerdeVersion.Contains "-" then $"{stableSerdeVersion}.debug.{timestamp}"
+    else $"{stableSerdeVersion}-debug.{timestamp}"
 
 // Helper to write Directory.Build.props for a project
 let writeVersionProps (projPath: string) (props: (string * string) list) =
