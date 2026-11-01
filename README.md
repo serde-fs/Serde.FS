@@ -8,7 +8,7 @@
 Serde.FS is a source‑generated, compile‑time validated serialization and RPC framework for F#.
 It brings Rust‑style determinism to .NET and adds a **zero‑boilerplate RPC layer** on top — your ASP.NET server, .NET client, and Fable browser client are all generated from a single `[<RpcApi>]` interface.
 
-> **Native AOT / trimming:** supported as of `1.0.0‑beta.6`. The generator emits a statically‑typed codec for every closed type it can see — records, unions, enums, options, tuples, and (since beta.6) `list` / `array` / `seq` / `Set` / `Map` / `Result` instantiations and closed generic wrappers — so the whole pipeline runs without reflection. `Serde.FS` and `Serde.FS.Json` are marked `IsAotCompatible` / `IsTrimmable`. See [Native AOT & trimming](#️-native-aot--trimming).
+> **Native AOT / trimming:** supported. The generator emits a statically‑typed codec for every closed type it can see — records, unions, enums, options, tuples, `list` / `array` / `seq` / `Set` / `Map` / `Result` instantiations and closed generic wrappers — so the whole pipeline runs without reflection. `Serde.FS` and `Serde.FS.Json` are marked `IsAotCompatible` / `IsTrimmable`. See [Native AOT & trimming](#️-native-aot--trimming).
 
 ---
 
@@ -156,7 +156,7 @@ No auth, no policies, no extra endpoints — just a clean RPC server.
 
 > **No web framework required.** `MapRpcApi` is just an ASP.NET Core endpoint‑routing extension, so an RPC BFF needs nothing beyond `Microsoft.NET.Sdk.Web` + `Serde.FS.AspNet` — no Giraffe, no Saturn, no controllers. And because it's plain ASP.NET, you can add minimal‑API endpoints (`app.MapGet "/health" ...`) right alongside `MapRpcApi` whenever you also need a REST surface — they coexist as two separate surfaces on the same host.
 
-> **Host it anywhere.** As of `1.0.0-beta.4`, `MapRpcApi` self‑initializes the generated codec and RPC registrations, so it works even in hosts where the source‑generated entry point never runs — a desktop shell embedding Kestrel in‑process, a `WebApplicationFactory` test host, an AutoCAD/Revit add‑in, or a C# host referencing your API assembly as a library. `[<Serde.FS.EntryPoint>]` is still recommended for apps that also serialize outside RPC before the first `MapRpcApi` call (see [Custom EntryPoint](#-custom-entrypoint-for-cli-apps)).
+> **Host it anywhere.** `MapRpcApi` self‑initializes the generated codec and RPC registrations, so it works even in hosts where the source‑generated entry point never runs — a desktop shell embedding Kestrel in‑process, a `WebApplicationFactory` test host, an AutoCAD/Revit add‑in, or a C# host referencing your API assembly as a library. `[<Serde.FS.EntryPoint>]` is still recommended for apps that also serialize outside RPC before the first `MapRpcApi` call (see [Custom EntryPoint](#-custom-entrypoint-for-cli-apps)).
 
 See: [SampleRpc.Server/Program.fs](src/Serde.FS.Json.SampleRpc.Server/Program.fs)
 
@@ -201,7 +201,7 @@ For a browser app (Lit, Feliz, Elmish, etc.). Install `Serde.FS.Fable` on the Fa
 
 ```xml
 <!-- WebFable/WebFable.fsproj -->
-<PackageReference Include="Serde.FS.Fable" Version="1.0.0-..." />
+<PackageReference Include="Serde.FS.Fable" Version="1.0.0" />
 <PackageReference Include="Fable.Core" Version="5.0.0" />
 ```
 
@@ -519,7 +519,7 @@ Serde.FS will generate the actual `[<EntryPoint>]` wrapper in a separate file so
 
 Some hosts never run your assembly's entry point at all: a WPF/Photino desktop shell that starts Kestrel in‑process, an AutoCAD/Revit add‑in loaded into the host application, a `WebApplicationFactory` integration test, or a C# app referencing your F# API assembly as a library.
 
-As of `1.0.0-beta.4` this just works for RPC: `MapRpcApi` and `RpcClient.create` run the generated registrations on first use. If you need registrations *before* that — for example, standalone `SerdeJson.serialize` calls during startup — run them explicitly:
+This just works for RPC: `MapRpcApi` and `RpcClient.create` run the generated registrations on first use. If you need registrations *before* that — for example, standalone `SerdeJson.serialize` calls during startup — run them explicitly:
 
 ```fsharp
 // Run every generated bootstrap in the loaded assemblies:
