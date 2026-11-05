@@ -18,14 +18,25 @@ let main argv =
         if not (Directory.Exists outputDir) then
             Directory.CreateDirectory outputDir |> ignore
 
-        // Discover all .fs source files (excluding generated files)
+        // The project's own sources: the targets write @(Compile) (full paths,
+        // compile order) to a file passed as argv[3]. Generated files are
+        // skipped, as are files that don't exist yet (SDK-generated items such
+        // as AssemblyInfo may be written after this runs).
+        let isGenerated (f: string) =
+            let name = Path.GetFileName(f)
+            name.EndsWith(".serde.g.fs") || name.EndsWith(".djinn.g.fs") || name.EndsWith(".json.g.fs")
+
         let localSourceFiles =
-            Directory.GetFiles(projectDir, "*.fs", SearchOption.TopDirectoryOnly)
-            |> Array.filter (fun f ->
-                let name = Path.GetFileName(f)
-                not (name.EndsWith(".serde.g.fs")) && not (name.EndsWith(".djinn.g.fs")) && not (name.EndsWith(".json.g.fs")))
-            |> Array.map (fun f -> f, File.ReadAllText f)
-            |> Array.toList
+            if argv.Length > 3 && File.Exists argv[3] then
+                File.ReadAllLines argv[3]
+                |> Array.map (fun f -> f.Trim())
+                |> Array.filter (fun f -> f.EndsWith(".fs") && not (isGenerated f) && File.Exists f)
+                |> Array.distinct
+                |> Array.map (fun f -> f, File.ReadAllText f)
+                |> Array.toList
+            else
+                eprintfn "ERROR: Serde.FS.Json generator: expected the project's source list file as the fourth argument"
+                exit 1
 
         // Read referenced project source files (for [<RpcApi>] discovery)
         let localFullPaths =
@@ -38,11 +49,7 @@ let main argv =
                 argv[2].Split(';', System.StringSplitOptions.RemoveEmptyEntries)
                 |> Array.filter (fun f ->
                     f.EndsWith(".fs") && File.Exists(f))
-                |> Array.filter (fun f ->
-                    let name = Path.GetFileName(f)
-                    not (name.EndsWith(".serde.g.fs"))
-                    && not (name.EndsWith(".djinn.g.fs"))
-                    && not (name.EndsWith(".json.g.fs")))
+                |> Array.filter (isGenerated >> not)
                 // Exclude files already in local sources (dedup against MSBuild glob misfires)
                 |> Array.filter (fun f ->
                     not (localFullPaths.Contains(Path.GetFullPath(f).ToLowerInvariant())))

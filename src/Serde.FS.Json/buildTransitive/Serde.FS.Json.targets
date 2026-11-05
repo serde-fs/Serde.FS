@@ -41,7 +41,20 @@
 	<Target Name="SerdeGenerate" BeforeTargets="CoreCompile"
 			Condition="'$(IsTestProject)' != 'true'
 			           AND '$(SerdeJsonSkipGeneration)' != 'true'">
-		<Exec Command="dotnet &quot;$(MSBuildThisFileDirectory)../tools/net9.0/Serde.FS.Json.GeneratorHost.dll&quot; &quot;$(ProjectDir).&quot; &quot;$(IntermediateOutputPath)serde-generated&quot; &quot;$(_SerdeRefSourceList)&quot;" />
+		<!-- The project's own sources are exactly @(Compile), in compile order:
+		     subfolders, linked files and Compile Remove all behave as they do for
+		     the compiler (#18: a directory scan missed files in subfolders). The
+		     list goes through a file to stay clear of command-line length limits
+		     on large projects. -->
+		<WriteLinesToFile File="$(IntermediateOutputPath)serde-sources.txt"
+						  Lines="@(Compile->'%(FullPath)')"
+						  Overwrite="true"
+						  WriteOnlyWhenDifferent="true" />
+		<ItemGroup>
+			<FileWrites Include="$(IntermediateOutputPath)serde-sources.txt" />
+		</ItemGroup>
+
+		<Exec Command="dotnet &quot;$(MSBuildThisFileDirectory)../tools/net9.0/Serde.FS.Json.GeneratorHost.dll&quot; &quot;$(ProjectDir).&quot; &quot;$(IntermediateOutputPath)serde-generated&quot; &quot;$(_SerdeRefSourceList)&quot; &quot;$(IntermediateOutputPath)serde-sources.txt&quot;" />
 
 		<ItemGroup>
 			<Compile Include="$(IntermediateOutputPath)serde-generated/**/*.fs"

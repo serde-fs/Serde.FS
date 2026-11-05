@@ -43,6 +43,7 @@ let private verify (path: string) =
 
 [<Serde.FS.EntryPoint>]
 let main argv =
+    Local.check ()
     match argv with
     | [| "write"; path |] -> write path
     | [| "verify"; path |] -> verify path

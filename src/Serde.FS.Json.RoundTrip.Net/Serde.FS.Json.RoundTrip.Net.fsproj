@@ -15,6 +15,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<Compile Include="Local/LocalTypes.fs" />
 		<Compile Include="Program.fs" />
 	</ItemGroup>
 
