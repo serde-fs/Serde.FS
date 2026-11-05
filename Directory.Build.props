@@ -2,7 +2,7 @@
 	<PropertyGroup>
 		<!-- Single suite version. Serde.FS, Serde.FS.SourceGen, Serde.FS.Json,
 		     Serde.FS.AspNet, and Serde.FS.Fable all ship in lockstep. -->
-		<SerdeVersion>1.0.0</SerdeVersion>
+		<SerdeVersion>1.0.1</SerdeVersion>
 	</PropertyGroup>
 
 	<PropertyGroup>
